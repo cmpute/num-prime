@@ -3,7 +3,7 @@
 use std::collections::{HashMap};
 use bitvec::prelude::bitvec;
 use num_traits::{ToPrimitive, One, Pow};
-use num_bigint::BigUint;
+use num_bigint::BigUint; // TODO: make the dependency for this optional
 use num_integer::Integer;
 use rand::{random, seq::IteratorRandom};
 use crate::traits::Arithmetic;
@@ -225,9 +225,7 @@ impl PrimeBuffer { // TODO: support indexing and iterating
     pub fn bdivisor(&mut self, target: &BigUint, trials: Option<i32>) -> Option<BigUint> {
         // if the target is in u64 range
         if let Some(x) = target.to_u64() {
-            return match self.divisor(x) {
-                Some(d) => Some(BigUint::from(d)), None => None
-            };
+            return self.divisor(x).map(BigUint::from);
         }
 
         let primality = self.is_bprime(target, None);

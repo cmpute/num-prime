@@ -29,9 +29,8 @@ pub trait Arithmetic : Integer + NumOps {
     fn pollard_rho(&self, offset: Self, trials: u32) -> Option<Self>;
 }
 
-impl<T> Arithmetic for T
-where T: Integer + ArithmeticHelpers + FromPrimitive + NumRef + SampleUniform + Clone,
-for<'r> &'r T: RefNum<T> + std::ops::Shr<usize, Output = T> + ModInt<&'r T, &'r T, Output = T>
+impl<T: Integer + ArithmeticHelpers + FromPrimitive + NumRef + SampleUniform + Clone> Arithmetic for T
+where for<'r> &'r T: RefNum<T> + std::ops::Shr<usize, Output = T> + ModInt<&'r T, &'r T, Output = T>
 {
     fn is_sprp(&self, witness: T) -> bool {
         // find 2^shift*u + 1 = n
