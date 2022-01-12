@@ -13,23 +13,29 @@ pub trait ModInt<Rhs = Self, Modulus = Self> {
 
     /// Return (self ^ exp) % m
     fn pow_mod(self, exp: Rhs, m: Modulus) -> Self::Output;
-}
 
-// wrapping simple functions
-pub trait ArithmeticHelpers {
-    fn trailing_zeros(&self) -> usize;
+    /// Helper function
+    fn trailing_zeros(self) -> usize;
 }
 
 /// This trait describes arithmetic functions on a integer
-pub trait Arithmetic : Integer + NumOps {
+pub trait PrimeArithmetic : Integer + NumOps {
     /// Test if the integer is a strong probable prime
     fn is_sprp(&self, witness: Self) -> bool;
+
+    // TODO: implement is_slprp (Strong Lucas Probable Prime)
+    // https://en.wikipedia.org/wiki/Lucas_pseudoprime
+
+    // TODO: implement ECPP test?
+    // https://en.wikipedia.org/wiki/Elliptic_curve_primality
 
     /// Generate a factor of the integer using Pollard's Rho algorithm
     fn pollard_rho(&self, offset: Self, trials: u32) -> Option<Self>;
 }
 
-impl<T: Integer + ArithmeticHelpers + FromPrimitive + NumRef + SampleUniform + Clone> Arithmetic for T
+// TODO: implement other utilities in https://gmplib.org/manual/Number-Theoretic-Functions
+
+impl<T: Integer + FromPrimitive + NumRef + SampleUniform + Clone> PrimeArithmetic for T
 where for<'r> &'r T: RefNum<T> + std::ops::Shr<usize, Output = T> + ModInt<&'r T, &'r T, Output = T>
 {
     fn is_sprp(&self, witness: T) -> bool {

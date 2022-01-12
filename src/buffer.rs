@@ -1,12 +1,12 @@
 /// PrimeBuffer implements a list of primes
 
-use std::collections::{HashMap};
+use std::collections::BTreeMap;
 use bitvec::prelude::bitvec;
 use num_traits::{ToPrimitive, One, Pow};
 use num_bigint::BigUint; // TODO: make the dependency for this optional
 use num_integer::Integer;
 use rand::{random, seq::IteratorRandom};
-use crate::traits::Arithmetic;
+use crate::traits::PrimeArithmetic;
 
 pub struct PrimeBuffer {
     list: Vec<u64>, // list of found prime numbers
@@ -18,6 +18,8 @@ pub enum Primality {
     /// carrying the probability of the number being a prime
     Probable(f32)
 }
+
+// TODO: create static functions that can do primality test and factorization, might need a trait
 
 impl PrimeBuffer { // TODO: support indexing and iterating
     #[inline]
@@ -43,6 +45,12 @@ impl PrimeBuffer { // TODO: support indexing and iterating
         }
 
         // Then do a deterministic Miller test
+        // TODO: use a small set for test
+        // REF: https://github.com/uutils/coreutils/blob/master/src/uu/factor/src/miller_rabin.rs#L28
+        //      http://miller-rabin.appspot.com/
+        // 2, 3 for u16
+        // 2, 7, 61 for u32
+        // 2, 325, 9375, 28178, 450775, 9780504, 1795265022 for u64
         let max_a = match target {  // https://oeis.org/A014233
             0..=2047 => 2,
             2048..=1373653 => 3,
@@ -62,6 +70,7 @@ impl PrimeBuffer { // TODO: support indexing and iterating
 
     /// Test if a big integer is a prime, this function would carry out a probability test
     /// If `trials` is positive, then witness numbers are selected randomly, otherwise selecting from start
+    /// TODO: change trials to a config struct for more detailed control
     pub fn is_bprime(&self, target: &BigUint, trials: Option<i32>) -> Primality {
         // shortcuts
         if target.is_even() {
@@ -75,6 +84,8 @@ impl PrimeBuffer { // TODO: support indexing and iterating
         }
 
         // miller-rabin test
+        // TODO: improve based on https://gmplib.org/manual/Prime-Testing-Algorithm
+        //       or use https://en.wikipedia.org/wiki/Baillie%E2%80%93PSW_primality_test
         let trials = trials.unwrap_or(4);
         let witness_list = if trials > 0 { 
             let mut rng = rand::thread_rng();
@@ -87,9 +98,13 @@ impl PrimeBuffer { // TODO: support indexing and iterating
         }
     }
 
-    pub fn factors(&mut self, target: u64) -> HashMap<u64, usize> {
+    pub fn factors(&mut self, target: u64) -> BTreeMap<u64, usize> {        
+        // TODO: improve factorization performance
+        // REF: https://github.com/coreutils/coreutils/blob/master/src/factor.c
+        //      https://pypi.org/project/primefac/
+        //      https://github.com/uutils/coreutils/blob/master/src/uu/factor/src/cli.rs
         if self.is_prime(target) {
-            let mut result = HashMap::new();
+            let mut result = BTreeMap::new();
             result.insert(target, 1);
             return result;
         }
@@ -104,7 +119,8 @@ impl PrimeBuffer { // TODO: support indexing and iterating
 
     /// Return list of found factors if not fully factored
     /// `trials` determines the maximum Pollard rho trials for each component
-    pub fn bfactors(&mut self, target: &BigUint, trials: Option<i32>) -> Result<HashMap<BigUint, usize>, Vec<BigUint>> {
+    /// TODO: accept general integer as input (thus potentially support other bigint such as crypto-bigint)
+    pub fn bfactors(&mut self, target: &BigUint, trials: Option<i32>) -> Result<BTreeMap<BigUint, usize>, Vec<BigUint>> {
         // if the target is in u64 range
         if let Some(x) = target.to_u64() {
             return Ok(self.factors(x).iter().map(|(&k, &v)| (BigUint::from(k), v)).collect());
@@ -112,7 +128,7 @@ impl PrimeBuffer { // TODO: support indexing and iterating
 
         // test the existing primes
         let mut residual = target.clone();
-        let mut trivial = HashMap::new();
+        let mut trivial = BTreeMap::new();
         for &p in &self.list {
             while residual.is_multiple_of(&BigUint::from(p)) {
                 residual /= p;
@@ -143,15 +159,15 @@ impl PrimeBuffer { // TODO: support indexing and iterating
             }
             Ok(result)
         } else {
-            Err(trivial.into_keys().map(|x| BigUint::from(x)).chain(divided.into_keys()).collect())
+            Err(trivial.into_iter().flat_map(|(f, n)| std::iter::repeat(BigUint::from(f)).take(n)).collect())
         }
     }
 
-    pub fn factors_naive(&mut self, target: u64) -> HashMap<u64, usize> {
+    pub fn factors_naive(&mut self, target: u64) -> BTreeMap<u64, usize> {
         debug_assert!(!self.is_prime(target));
 
         let mut residual = target;
-        let mut result = HashMap::new();
+        let mut result = BTreeMap::new();
         for &p in self.primes(num_integer::sqrt(target) + 1) {
             while residual % p == 0 {
                 residual /= p;
@@ -169,7 +185,7 @@ impl PrimeBuffer { // TODO: support indexing and iterating
     }
 
     /// Find the factors by dividing the target by a proper divider recursively
-    pub fn factors_divide(&mut self, target: u64) -> HashMap<u64, usize> {
+    pub fn factors_divide(&mut self, target: u64) -> BTreeMap<u64, usize> {
         debug_assert!(!self.is_prime(target));
 
         let d = self.divisor_rho(target);
@@ -187,9 +203,9 @@ impl PrimeBuffer { // TODO: support indexing and iterating
     /// Note: 
     /// We don't factorize probable prime since it will takes a long time.
     /// To factorize a probable prime, use bdivisor
-    fn bfactors_divide(&mut self, target: &BigUint, trials: i32) -> HashMap<BigUint, usize> {
+    fn bfactors_divide(&mut self, target: &BigUint, trials: i32) -> BTreeMap<BigUint, usize> {
         if matches! (self.is_bprime(target, None), Primality::Yes | Primality::Probable(_)) {
-            return HashMap::new();
+            return BTreeMap::new();
         }
 
         match self.bdivisor_rho(target, trials) {
@@ -202,7 +218,7 @@ impl PrimeBuffer { // TODO: support indexing and iterating
                 }
                 f1
             },
-            None => HashMap::new()
+            None => BTreeMap::new()
         }
     }
 
@@ -285,7 +301,7 @@ impl PrimeBuffer { // TODO: support indexing and iterating
         }
 
         // create sieve and filter with existing primes
-        // let mut sieve: HashSet<_> = ((self.current | 1) .. limit).step_by(2).collect();
+        // TODO: use wheel30 / wheel210 to speed up
         let mut sieve = bitvec![0; ((odd_limit - current) / 2) as usize];
         for p in self.list.iter().skip(1) { // skip pre-filtered 2
             let start = if p * p < current {
@@ -326,11 +342,17 @@ impl PrimeBuffer { // TODO: support indexing and iterating
     /// Returns primes of certain amount counting from 2. The primes are sorted.
     pub fn nprimes(&mut self, count: usize) -> &[u64] {
         loop {
+            // TODO: use a more accurate function to estimate the upper/lower bound of prime number function pi(.)
             self.primes(self.current * (count as u64) / (self.list.len() as u64));
             if self.list.len() >= count {
                 break &self.list[..count]
             }
         }
+    }
+
+    // Calculates the primorial number
+    pub fn primorial(&mut self, n: usize) -> BigUint {
+        self.nprimes(n).iter().map(|&p| BigUint::from(p)).product()
     }
 
     pub fn clear(&mut self) {
@@ -377,7 +399,7 @@ mod tests {
     #[test]
     fn factorization_test() {
         let mut pb = PrimeBuffer::new();
-        let fac123456789 = HashMap::from_iter([(3, 2), (3803, 1), (3607, 1)]);
+        let fac123456789 = BTreeMap::from_iter([(3, 2), (3803, 1), (3607, 1)]);
         let fac = pb.factors(123456789);
         assert_eq!(fac, fac123456789);
 

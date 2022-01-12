@@ -1,16 +1,13 @@
 // backend implementations for integers
 use num_bigint::BigUint;
 use num_traits::{ToPrimitive};
-use crate::traits::{ModInt, ArithmeticHelpers};
-
-impl ArithmeticHelpers for u64 {
-    /// Returns greatest common divisor between a, b
-    #[inline]
-    fn trailing_zeros(&self) -> usize { u64::trailing_zeros(*self) as usize }
-}
+use crate::traits::{ModInt};
 
 impl ModInt<&u64, &u64> for &u64 {
     type Output = u64;
+
+    #[inline]
+    fn trailing_zeros(self) -> usize { u64::trailing_zeros(*self) as usize }
 
     fn mul_mod(self, rhs: &u64, m: &u64) -> u64 {
         if let Some(ab) = self.checked_mul(*rhs) {
@@ -67,23 +64,22 @@ impl ModInt<&u64, &u64> for &u64 {
 impl ModInt<u64, &u64> for &u64 {
     type Output = u64;
     #[inline]
+    fn trailing_zeros(self) -> usize { u64::trailing_zeros(*self) as usize }
+    #[inline]
     fn mul_mod(self, rhs: u64, m: &u64) -> u64 { self.mul_mod(&rhs, m) }
     #[inline]
     fn pow_mod(self, exp: u64, m: &u64) -> u64 { self.pow_mod(&exp, m) }
 }
 
-impl ArithmeticHelpers for BigUint {
-    /// Returns greatest common divisor between a, b
+impl ModInt<&BigUint, &BigUint> for &BigUint {    
+    type Output = BigUint;
+
     #[inline]
-    fn trailing_zeros(&self) -> usize { 
-        match BigUint::trailing_zeros(&self) {
+    fn trailing_zeros(self) -> usize { 
+        match BigUint::trailing_zeros(self) {
             Some(a) => a as usize, None => 0
         }
     }
-}
-
-impl ModInt<&BigUint, &BigUint> for &BigUint {    
-    type Output = BigUint;
 
     fn mul_mod(self, rhs: &BigUint, m: &BigUint) -> BigUint {
         let a = self % m;
@@ -104,28 +100,20 @@ impl ModInt<&BigUint, &BigUint> for &BigUint {
     }
 }
 
-impl ModInt<BigUint, &BigUint> for BigUint {
-    type Output = BigUint;
-    #[inline]
-    fn mul_mod(self, rhs: BigUint, m: &BigUint) -> BigUint { self.mul_mod(&rhs, m) }
-    #[inline]
-    fn pow_mod(self, exp: BigUint, m: &BigUint) -> BigUint { self.pow_mod(&exp, m) }
-}
 impl ModInt<BigUint, &BigUint> for &BigUint {
     type Output = BigUint;
+    
+    #[inline]
+    fn trailing_zeros(self) -> usize { 
+        match BigUint::trailing_zeros(self) {
+            Some(a) => a as usize, None => 0
+        }
+    }
     #[inline]
     fn mul_mod(self, rhs: BigUint, m: &BigUint) -> BigUint { self.mul_mod(&rhs, m) }
     #[inline]
     fn pow_mod(self, exp: BigUint, m: &BigUint) -> BigUint { self.pow_mod(&exp, m) }
 }
-impl ModInt<&BigUint, &BigUint> for BigUint {
-    type Output = BigUint;
-    #[inline]
-    fn mul_mod(self, rhs: &BigUint, m: &BigUint) -> BigUint { (&self).mul_mod(rhs, m) }
-    #[inline]
-    fn pow_mod(self, exp: &BigUint, m: &BigUint) -> BigUint { (&self).pow_mod(exp, m) }
-}
-
 
 #[cfg(test)]
 mod tests {
