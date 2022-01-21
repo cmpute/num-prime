@@ -9,13 +9,13 @@ pub trait ModInt<Rhs = Self, Modulus = Self> {
     type Output;
 
     /// Return (self * rhs) % m
-    fn mul_mod(self, rhs: Rhs, m: Modulus) -> Self::Output;
+    fn mulm(self, rhs: Rhs, m: Modulus) -> Self::Output;
 
     /// Return (self ^ exp) % m
-    fn pow_mod(self, exp: Rhs, m: Modulus) -> Self::Output;
+    fn powm(self, exp: Rhs, m: Modulus) -> Self::Output;
 
-    /// Helper function
-    fn trailing_zeros(self) -> usize;
+    /// Return the exponent of factor 2 in the number, usually implemented as trailing_zeros()
+    fn fac2(self) -> usize;
 }
 
 /// This trait describes arithmetic functions on a integer
@@ -34,21 +34,23 @@ pub trait PrimeArithmetic : Integer + NumOps {
 }
 
 // TODO: implement other utilities in https://gmplib.org/manual/Number-Theoretic-Functions
+// TODO: add invm (https://www.geeksforgeeks.org/multiplicative-inverse-under-modulo-m/, https://github.com/JohnHammond/primefac_fork)
 
 impl<T: Integer + FromPrimitive + NumRef + SampleUniform + Clone> PrimeArithmetic for T
 where for<'r> &'r T: RefNum<T> + std::ops::Shr<usize, Output = T> + ModInt<&'r T, &'r T, Output = T>
 {
+    // TODO: implement these functions as default implementation, so that other types can implement themselves
     fn is_sprp(&self, witness: T) -> bool {
         // find 2^shift*u + 1 = n
         let tm1 = self - T::one();
-        let shift = tm1.trailing_zeros();
+        let shift = tm1.fac2();
         let u = &tm1 >> shift;
 
-        let mut x = witness.pow_mod(&u, self);
+        let mut x = witness.powm(&u, self);
         if x == T::one() || x == tm1 { return true }
 
         for _ in 0..shift {
-            x = (&x).mul_mod(&x, self);
+            x = (&x).mulm(&x, self);
             if x == tm1 { return true }
         }
 
@@ -64,7 +66,7 @@ where for<'r> &'r T: RefNum<T> + std::ops::Shr<usize, Output = T> + ModInt<&'r T
             let mut i = 1; let mut j = 2;
             loop {
                 i += 1;
-                a = ((&a).mul_mod(&a, &self) + &offset) % self;
+                a = ((&a).mulm(&a, &self) + &offset) % self;
                 if a == b {
                     trials -= 1;
                     continue 'trial_loop

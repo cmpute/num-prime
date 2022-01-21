@@ -20,8 +20,10 @@ pub enum Primality {
 }
 
 // TODO: create static functions that can do primality test and factorization, might need a trait
+// TODO: add a config struct for prime test and factorization. add a function to automatically select params
 
 impl PrimeBuffer { // TODO: support indexing and iterating
+    // TODO: is the PrimeSet in rust primal / C++ primesieve more memory efficient?
     #[inline]
     pub fn new() -> Self {
         // store at least enough primes for miller test
@@ -86,6 +88,7 @@ impl PrimeBuffer { // TODO: support indexing and iterating
         // miller-rabin test
         // TODO: improve based on https://gmplib.org/manual/Prime-Testing-Algorithm
         //       or use https://en.wikipedia.org/wiki/Baillie%E2%80%93PSW_primality_test
+        // TODO: always run 2-base first, and then random base
         let trials = trials.unwrap_or(4);
         let witness_list = if trials > 0 { 
             let mut rng = rand::thread_rng();

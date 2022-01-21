@@ -7,9 +7,9 @@ impl ModInt<&u64, &u64> for &u64 {
     type Output = u64;
 
     #[inline]
-    fn trailing_zeros(self) -> usize { u64::trailing_zeros(*self) as usize }
+    fn fac2(self) -> usize { u64::trailing_zeros(*self) as usize }
 
-    fn mul_mod(self, rhs: &u64, m: &u64) -> u64 {
+    fn mulm(self, rhs: &u64, m: &u64) -> u64 {
         if let Some(ab) = self.checked_mul(*rhs) {
             return ab % m
         }
@@ -36,7 +36,7 @@ impl ModInt<&u64, &u64> for &u64 {
         result
     }
 
-    fn pow_mod(self, exp: &u64, m: &u64) -> u64 {
+    fn powm(self, exp: &u64, m: &u64) -> u64 {
         if *exp == 1 {
             return self % m;
         }
@@ -52,9 +52,9 @@ impl ModInt<&u64, &u64> for &u64 {
         let mut result = 1;
         while exp > 0 {
             if exp & 1 > 0 {
-                result = result.mul_mod(&multi, m);
+                result = result.mulm(&multi, m);
             }
-            multi = multi.mul_mod(&multi, m);
+            multi = multi.mulm(&multi, m);
             exp >>= 1;
         }
         result
@@ -64,38 +64,38 @@ impl ModInt<&u64, &u64> for &u64 {
 impl ModInt<u64, &u64> for &u64 {
     type Output = u64;
     #[inline]
-    fn trailing_zeros(self) -> usize { u64::trailing_zeros(*self) as usize }
+    fn fac2(self) -> usize { u64::trailing_zeros(*self) as usize }
     #[inline]
-    fn mul_mod(self, rhs: u64, m: &u64) -> u64 { self.mul_mod(&rhs, m) }
+    fn mulm(self, rhs: u64, m: &u64) -> u64 { self.mulm(&rhs, m) }
     #[inline]
-    fn pow_mod(self, exp: u64, m: &u64) -> u64 { self.pow_mod(&exp, m) }
+    fn powm(self, exp: u64, m: &u64) -> u64 { self.powm(&exp, m) }
 }
 
 impl ModInt<&BigUint, &BigUint> for &BigUint {    
     type Output = BigUint;
 
     #[inline]
-    fn trailing_zeros(self) -> usize { 
+    fn fac2(self) -> usize { 
         match BigUint::trailing_zeros(self) {
             Some(a) => a as usize, None => 0
         }
     }
 
-    fn mul_mod(self, rhs: &BigUint, m: &BigUint) -> BigUint {
+    fn mulm(self, rhs: &BigUint, m: &BigUint) -> BigUint {
         let a = self % m;
         let b = rhs % m;
 
         if let Some(sm) = m.to_u64() {
             let sself = a.to_u64().unwrap();
             let srhs = b.to_u64().unwrap();
-            return BigUint::from(sself.mul_mod(&srhs, &sm));
+            return BigUint::from(sself.mulm(&srhs, &sm));
         }
 
         (a * b) % m
     }
 
     #[inline]
-    fn pow_mod(self, exp: &BigUint, m: &BigUint) -> BigUint {
+    fn powm(self, exp: &BigUint, m: &BigUint) -> BigUint {
         self.modpow(&exp, m)
     }
 }
@@ -104,15 +104,15 @@ impl ModInt<BigUint, &BigUint> for &BigUint {
     type Output = BigUint;
     
     #[inline]
-    fn trailing_zeros(self) -> usize { 
+    fn fac2(self) -> usize { 
         match BigUint::trailing_zeros(self) {
             Some(a) => a as usize, None => 0
         }
     }
     #[inline]
-    fn mul_mod(self, rhs: BigUint, m: &BigUint) -> BigUint { self.mul_mod(&rhs, m) }
+    fn mulm(self, rhs: BigUint, m: &BigUint) -> BigUint { self.mulm(&rhs, m) }
     #[inline]
-    fn pow_mod(self, exp: BigUint, m: &BigUint) -> BigUint { self.pow_mod(&exp, m) }
+    fn powm(self, exp: BigUint, m: &BigUint) -> BigUint { self.powm(&exp, m) }
 }
 
 #[cfg(test)]
@@ -125,8 +125,8 @@ mod tests {
     fn u64_mod_test() {
         let a = rand::random::<u64>() % 100000;
         let m = rand::random::<u64>() % 100000;
-        assert_eq!(a.mul_mod(a, &m), (a * a) % m);
-        assert_eq!(a.pow_mod(3, &m), a.pow(3) % m);
+        assert_eq!(a.mulm(a, &m), (a * a) % m);
+        assert_eq!(a.powm(3, &m), a.pow(3) % m);
     }
 
     #[test]
@@ -134,7 +134,7 @@ mod tests {
         let mut rng = rand::thread_rng();
         let a = rng.gen_biguint(500); let ra = &a;
         let m = rng.gen_biguint(500); let rm = &m;
-        assert_eq!(ra.mul_mod(ra, rm), (ra * ra) % rm);
-        assert_eq!(ra.pow_mod(BigUint::from(3u8), rm), ra.pow(3) % rm);
+        assert_eq!(ra.mulm(ra, rm), (ra * ra) % rm);
+        assert_eq!(ra.powm(BigUint::from(3u8), rm), ra.pow(3) % rm);
     }
 }
