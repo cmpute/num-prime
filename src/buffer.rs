@@ -15,6 +15,19 @@ pub enum Primality {
     Probable(f32)
 }
 
+pub struct PrimalityTestConfig {
+    sprp_trials: usize, // number of SPRP test, starting from base 2 
+    sprp_random_trials: usize, // number of SPRP test with random base
+    slprp_trials: usize,
+}
+
+pub struct FactorizationConfig {
+    prime_test_config: PrimalityTestConfig,
+    rho_trials: usize, // number of trials with Pollard's rho method
+    pm1_trials: usize, // number of trials with Pollard's p-1 method
+    pp1_trials: usize,
+}
+
 pub trait PrimeBuffer<'a> {
     type PrimeIter: Iterator<Item = &'a u64>;
 
@@ -51,15 +64,14 @@ pub trait PrimeBufferExt : for<'a> PrimeBuffer<'a> {
         }
 
         // Then do a deterministic Miller-rabin test
-        // TODO: implement is_sprp for u8,u16,u32
         // The collection of witnesses are from http://miller-rabin.appspot.com/
         if let Ok(u) = u16::try_from(target) {
             // 2, 3 for u16 range
-            return target.is_sprp(2) && target.is_sprp(3);
+            return u.is_sprp(2) && u.is_sprp(3);
         }
         if let Ok(u) = u32::try_from(target) {
             // 2, 7, 61 for u32 range
-            return target.is_sprp(2) && target.is_sprp(7) && target.is_sprp(61);
+            return u.is_sprp(2) && u.is_sprp(7) && u.is_sprp(61);
         }
         
         // 2, 325, 9375, 28178, 450775, 9780504, 1795265022 for u64 range
@@ -370,10 +382,11 @@ impl<'a> PrimeBuffer<'a> for NaiveBuffer {
 }
 
 impl NaiveBuffer {
+    // FIXME: These two functions could be implemented in the trait, but only after
+    // RFC 2071 and https://github.com/cramertj/impl-trait-goals/issues/3
+
     /// Returns all primes **below** limit. The primes are sorted.
     fn primes(&mut self, limit: u64) -> std::iter::Take<<Self as PrimeBuffer>::PrimeIter> {
-        // TODO: how to return a take_while iterator? in that way we can eliminate the binary search
-        // After solving this problem we can put these two methods into PrimeBufferExt trait
         self.reserve(limit);
         let position = match self.list.binary_search(&limit) {
             Ok(p) => p, Err(p) => p
