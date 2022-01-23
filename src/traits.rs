@@ -16,10 +16,17 @@ pub trait ModInt<Rhs = Self, Modulus = Self> {
 
     /// Return the exponent of factor 2 in the number, usually implemented as trailing_zeros()
     fn fac2(self) -> usize;
+
+    // TODO: add invm (https://www.geeksforgeeks.org/multiplicative-inverse-under-modulo-m/, https://github.com/JohnHammond/primefac_fork)
+    // pre-computing inverse modulo for faster division seems to be a popular trick
+    // such as
+    // - `n_preinvert_limb` in FLINT: https://github.com/wbhart/flint2/blob/trunk/ulong_extras.h#L189
+    // - many tricks used in GNU factor: https://github.com/coreutils/coreutils/blob/master/src/factor.c
+    // - `modinv` in primefac
 }
 
-/// This trait describes arithmetic functions on a integer
-pub trait PrimeArithmetic : Integer + NumOps {
+/// This trait describes number theoretic functions on a integer
+pub trait NumberTheoretic : Integer + NumOps {
     /// Test if the integer is a strong (Fermat) probable prime
     fn is_sprp(&self, witness: Self) -> bool;
 
@@ -34,9 +41,8 @@ pub trait PrimeArithmetic : Integer + NumOps {
 }
 
 // TODO: implement other utilities in https://gmplib.org/manual/Number-Theoretic-Functions
-// TODO: add invm (https://www.geeksforgeeks.org/multiplicative-inverse-under-modulo-m/, https://github.com/JohnHammond/primefac_fork)
 
-impl<T: Integer + FromPrimitive + NumRef + SampleUniform + Clone> PrimeArithmetic for T
+impl<T: Integer + FromPrimitive + NumRef + SampleUniform + Clone> NumberTheoretic for T
 where for<'r> &'r T: RefNum<T> + std::ops::Shr<usize, Output = T> + ModInt<&'r T, &'r T, Output = T>
 {
     // TODO: implement these functions as default implementation, so that other types can implement themselves

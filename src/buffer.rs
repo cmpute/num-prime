@@ -7,7 +7,7 @@ use num_traits::{ToPrimitive, One, FromPrimitive, NumRef, RefNum};
 use num_bigint::BigUint; // TODO: make the dependency for this optional
 use num_integer::{Integer, Roots};
 use rand::{random, seq::IteratorRandom};
-use crate::traits::PrimeArithmetic;
+use crate::traits::NumberTheoretic;
 
 pub enum Primality {
     Yes, No,

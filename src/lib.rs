@@ -1,12 +1,9 @@
-// TODO: implement streaming prime sieve, like `primal` crate
-// TODO: expose static functions (`factors`, `is_prime`, `primes`, `nprimes`, `primorial`) as binary
-
 mod buffer;
 mod traits;
 mod integer;
 
-pub use buffer::{NaiveBuffer, Primality};
-pub use traits::{PrimeArithmetic, ModInt};
+pub use buffer::{PrimeBuffer, PrimeBufferExt, NaiveBuffer, Primality, PrimalityTestConfig, FactorizationConfig};
+pub use traits::{NumberTheoretic, ModInt};
 use std::collections::BTreeMap;
 
 /// This function do BSW primality test on the target, if target is large enought
@@ -22,3 +19,7 @@ pub fn factors<T>(target: T) -> Result<BTreeMap<T, usize>, Vec<T>>{
     // targeting GNU factors program and FLINT functions
     unimplemented!()
 }
+
+pub fn primes(limit: u64) { unimplemented!() }
+pub fn nprimes(count: usize) { unimplemented!() }
+pub fn primal<T>(n: u64) -> T { unimplemented!() }
