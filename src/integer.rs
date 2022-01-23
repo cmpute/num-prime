@@ -51,6 +51,8 @@ impl ModInt<&u128, &u128> for &u128 {
     #[inline]
     fn fac2(self) -> usize { self.trailing_zeros() as usize }
 
+    // TODO: check if this is also faster in u64
+    // TODO: benchmark against http://www.janfeitsma.nl/math/psp2/expmod
     fn mulm(self, rhs: &u128, m: &u128) -> u128 {
         if let Some(ab) = self.checked_mul(*rhs) {
             return ab % m

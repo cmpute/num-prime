@@ -20,7 +20,7 @@ pub trait ModInt<Rhs = Self, Modulus = Self> {
 
 /// This trait describes arithmetic functions on a integer
 pub trait PrimeArithmetic : Integer + NumOps {
-    /// Test if the integer is a strong probable prime
+    /// Test if the integer is a strong (Fermat) probable prime
     fn is_sprp(&self, witness: Self) -> bool;
 
     // TODO: implement is_slprp (Strong Lucas Probable Prime)
@@ -30,7 +30,7 @@ pub trait PrimeArithmetic : Integer + NumOps {
     // https://en.wikipedia.org/wiki/Elliptic_curve_primality
 
     /// Generate a factor of the integer using Pollard's Rho algorithm
-    fn pollard_rho(&self, offset: Self, trials: u32) -> Option<Self>;
+    fn pollard_rho(&self, offset: Self, trials: usize) -> Option<Self>;
 }
 
 // TODO: implement other utilities in https://gmplib.org/manual/Number-Theoretic-Functions
@@ -57,7 +57,7 @@ where for<'r> &'r T: RefNum<T> + std::ops::Shr<usize, Output = T> + ModInt<&'r T
         x == T::one()
     }
 
-    fn pollard_rho(&self, offset: Self, trials: u32) -> Option<Self> {
+    fn pollard_rho(&self, offset: Self, trials: usize) -> Option<Self> {
         let mut rng = thread_rng();
         let mut trials = trials;
         'trial_loop: while trials > 0 {
