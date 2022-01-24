@@ -46,7 +46,7 @@ where for<'r> &'r T: RefNum<T> {
 pub struct PrimalityTestConfig {
     pub sprp_trials: usize, // number of SPRP test, starting from base 2 
     pub sprp_random_trials: usize, // number of SPRP test with random base
-    pub slprp_trials: usize,
+    pub slprp_trials: usize, // TODO(v0.0.4): Implement BPSW test
 }
 
 impl PrimalityTestConfig {
@@ -174,6 +174,7 @@ pub trait PrimeBufferExt : for<'a> PrimeBuffer<'a> {
         // REF: https://github.com/coreutils/coreutils/blob/master/src/factor.c
         //      https://pypi.org/project/primefac/
         //      https://github.com/uutils/coreutils/blob/master/src/uu/factor/src/cli.rs
+        //      https://github.com/elmomoilanen/prime-factorization
         if self.is_prime(target) {
             let mut result = BTreeMap::new();
             result.insert(target, 1);
