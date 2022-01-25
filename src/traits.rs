@@ -1,5 +1,4 @@
-pub use num_integer::{Integer, Roots};
-use num_traits::{RefNum, NumRef};
+use num_integer::{Integer, Roots};
 
 /// Extension on num_integer::Roots to support power check on integers
 // TODO: backport to num_integer
@@ -37,6 +36,9 @@ pub trait ModInt<Rhs = Self, Modulus = Self> {
     
     /// Calculate Jacobi Symbol (a|n), where a is self
     fn jacobi(self, n: Modulus) -> i8;
+
+    // TODO: Calculate Kronecker Symbol (a|n), where a is self
+    // fn kronecker(self, n: Modulus) -> i8;
 }
 
 /// It's recommended to store at least a bunch of small primes in the buffer
@@ -66,42 +68,19 @@ pub trait PrimeBuffer<'a> {
 /// Reference:
 /// - <http://ntheory.org/pseudoprimes.html>
 /// - <http://www.numbertheory.org/gnubc/bc_programs.html>
-pub trait PrimalityUtils : Integer + NumRef + Clone {
+pub trait PrimalityUtils : Integer + Clone {
     /// Test if the integer is a (Fermat) probable prime
     fn is_prp(&self, base: Self) -> bool;
 
     /// Test if the integer is a strong probable prime (based on miller-rabin test)
     fn is_sprp(&self, base: Self) -> bool;
 
-    // TODO: implement is_slprp (Strong Lucas Probable Prime)
-    // https://en.wikipedia.org/wiki/Lucas_pseudoprime
+    /// Test if the integer is a strong Lucas probable prime
+    fn is_slprp(&self, p: Self, q: Self) -> bool;
+
+    /// Test if the integer is a strong Lucas probable prime with P, Q defined by Selfridge's Method
+    fn is_sslprp(&self) -> bool;
     
     // TODO: implement ECPP test?
     // https://en.wikipedia.org/wiki/Elliptic_curve_primality
-}
-
-impl<T: Integer + NumRef + Clone> PrimalityUtils for T
-where for<'r> &'r T: RefNum<T> + std::ops::Shr<usize, Output = T> + ModInt<&'r T, &'r T, Output = T>
-{
-    fn is_prp(&self, base: Self) -> bool {
-        let tm1 = self - Self::one();
-        base.powm(&tm1, self).is_one()
-    }
-
-    fn is_sprp(&self, base: T) -> bool {
-        // find 2^shift*u + 1 = n
-        let tm1 = self - T::one();
-        let shift = tm1.fac2();
-        let u = &tm1 >> shift;
-
-        let mut x = base.powm(&u, self);
-        if x == T::one() || x == tm1 { return true }
-
-        for _ in 0..shift {
-            x = (&x).mulm(&x, self);
-            if x == tm1 { return true }
-        }
-
-        x == T::one()
-    }
 }

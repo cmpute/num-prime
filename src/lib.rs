@@ -1,5 +1,6 @@
 mod buffer;
 mod factor;
+mod primality;
 mod traits;
 mod integer;
 
@@ -24,3 +25,7 @@ pub fn factors<T>(target: T) -> Result<BTreeMap<T, usize>, Vec<T>>{
 pub fn primes(limit: u64) { unimplemented!() }
 pub fn nprimes(count: usize) { unimplemented!() }
 pub fn primorial<T>(n: u64) -> T { unimplemented!() }
+
+pub mod detail {
+    pub use super::primality::LucasMod;
+}
