@@ -93,6 +93,7 @@ macro_rules! impl_mod_arithm_uu {
             impl_invm_prim!($T);
         }
         
+        // TODO: convert to macro
         impl ModInt<$T, &$T> for &$T {
             type Output = $T;
             #[inline]
@@ -189,6 +190,24 @@ impl ModInt<&u128, &u128> for &u128 {
 
     impl_jacobi_prim!(u128);
     impl_invm_prim!(u128);
+}
+
+impl ModInt<u128, &u128> for &u128 {
+    type Output = u128;
+    #[inline]
+    fn fac2(self) -> usize { self.trailing_zeros() as usize }
+    #[inline]
+    fn addm(self, rhs: u128, m: &u128) -> u128 { self.addm(&rhs, m) }
+    #[inline]
+    fn subm(self, rhs: u128, m: &u128) -> u128 { self.subm(&rhs, m) }
+    #[inline]
+    fn mulm(self, rhs: u128, m: &u128) -> u128 { self.mulm(&rhs, m) }
+    #[inline]
+    fn powm(self, exp: u128, m: &u128) -> u128 { self.powm(&exp, m) }
+    #[inline]
+    fn invm(self, m: &u128) -> Option<u128> { ModInt::<&u128, &u128>::invm(self, m) }
+    #[inline]
+    fn jacobi(self, n: &u128) -> i8 { ModInt::<&u128, &u128>::jacobi(self, n) }
 }
 
 impl ModInt<&BigUint, &BigUint> for &BigUint {    
@@ -347,7 +366,7 @@ mod tests {
             assert_eq!((*x as u16).addm(*y as u16, &(m as u16)), *r as u16, "u16 x: {}, y: {}", x, y);
             assert_eq!((*x as u32).addm(*y as u32, &(m as u32)), *r as u32, "u32 x: {}, y: {}", x, y);
             assert_eq!((*x as u64).addm(*y as u64, &(m as u64)), *r as u64, "u64 x: {}, y: {}", x, y);
-            assert_eq!((*x as u128).addm(&(*y as u128), &(m as u128)), *r as u128, "u128 x: {}, y: {}", x, y);
+            assert_eq!((*x as u128).addm(*y as u128, &(m as u128)), *r as u128, "u128 x: {}, y: {}", x, y);
             assert_eq!(BigUint::from(*x).addm(BigUint::from(*y), &BigUint::from(m)), BigUint::from(*r), "biguint x: {}, y: {}", x, y);
         }
     }
@@ -375,7 +394,7 @@ mod tests {
             assert_eq!((*x as u16).subm(*y as u16, &(m as u16)), *r as u16, "u16 x: {}, y: {}", x, y);
             assert_eq!((*x as u32).subm(*y as u32, &(m as u32)), *r as u32, "u32 x: {}, y: {}", x, y);
             assert_eq!((*x as u64).subm(*y as u64, &(m as u64)), *r as u64, "u64 x: {}, y: {}", x, y);
-            assert_eq!((*x as u128).subm(&(*y as u128), &(m as u128)), *r as u128, "u128 x: {}, y: {}", x, y);
+            assert_eq!((*x as u128).subm(*y as u128, &(m as u128)), *r as u128, "u128 x: {}, y: {}", x, y);
             assert_eq!(BigUint::from(*x).subm(BigUint::from(*y), &BigUint::from(m)), BigUint::from(*r), "biguint x: {}, y: {}", x, y);
         }
     }

@@ -1,13 +1,13 @@
 /// NaiveBuffer implements a list of primes
 
-use std::{collections::BTreeMap, convert::TryInto};
-use bitvec::prelude::bitvec;
-use std::convert::TryFrom;
-use num_traits::{ToPrimitive, One, FromPrimitive, NumRef, RefNum};
+use std::{collections::BTreeMap, convert::{TryInto, TryFrom}};
+use bitvec::bitvec;
+use num_traits::{One, ToPrimitive, FromPrimitive, NumRef, RefNum};
 use num_bigint::BigUint; // TODO: make the dependency for this optional
 use num_integer::{Integer, Roots};
 use rand::{random, seq::IteratorRandom};
-use crate::traits::NumberTheoretic;
+use crate::traits::{PrimalityUtils, PrimeBuffer};
+use crate::factor::pollard_rho;
 
 pub enum Primality {
     Yes, No,
@@ -54,51 +54,40 @@ impl PrimalityTestConfig {
         Self { sprp_trials: 2, sprp_random_trials: 0, slprp_trials: 0 }
     }
 
+    /// Create a configuration for Baillie-PSW test
     pub fn bpsw() {}
 }
 
 #[derive(Clone, Copy)]
 pub struct FactorizationConfig {
     /// config for test if a 
-    prime_test_config: PrimalityTestConfig,
+    pub prime_test_config: PrimalityTestConfig,
 
     /// prime limit of trial division, you also need to reserve the buffer if all primes under the limit are to be tested.
     /// None means using all available primes
-    tf_limit: Option<u64>,
+    pub tf_limit: Option<u64>,
 
-    rho_trials: usize, // number of trials with Pollard's rho method
-    pm1_trials: usize, // number of trials with Pollard's p-1 method
-    pp1_trials: usize,
+    /// number of trials with Pollard's rho method
+    pub rho_trials: usize,
+
+    /// number of trials with Pollard's rho method (Brent variant)
+    pub brent_trials: usize,
+
+    /// number of trials with Pollard's p-1 method
+    pub pm1_trials: usize,
+
+    /// number of trials with William's p+1 method
+    pub pp1_trials: usize,
 }
 
 impl FactorizationConfig {
     pub fn default() -> Self {
         Self {
             prime_test_config: PrimalityTestConfig::default(),
-            tf_limit: Some(1 << 14), rho_trials: 4, pm1_trials: 0, pp1_trials: 0
+            tf_limit: Some(1 << 14), rho_trials: 4,
+            brent_trials: 0, pm1_trials: 0, pp1_trials: 0
         }
     }
-}
-
-/// It's recommended to store at least a bunch of small primes in the buffer
-/// to make some of the algorithms more efficient
-pub trait PrimeBuffer<'a> {
-    type PrimeIter: Iterator<Item = &'a u64>;
-
-    // directly return an iterator of existing primes
-    fn iter(&'a self) -> Self::PrimeIter;
-
-    // generate primes until the upper bound is equal or larger than limit
-    fn reserve(&mut self, limit: u64);
-
-    // get the upper bound of primes in the list
-    fn bound(&self) -> u64;
-
-    // test if the number is in the buffer
-    fn contains(&self, num: u64) -> bool;
-
-    // clear the prime buffer to save memory
-    fn clear(&mut self);
 }
 
 pub trait PrimeBufferExt : for<'a> PrimeBuffer<'a> {
@@ -172,7 +161,6 @@ pub trait PrimeBufferExt : for<'a> PrimeBuffer<'a> {
     fn factors(&self, target: u64) -> BTreeMap<u64, usize> {        
         // TODO: improve factorization performance
         // REF: https://github.com/coreutils/coreutils/blob/master/src/factor.c
-        //      https://pypi.org/project/primefac/
         //      https://github.com/uutils/coreutils/blob/master/src/uu/factor/src/cli.rs
         //      https://github.com/elmomoilanen/prime-factorization
         if self.is_prime(target) {
@@ -193,8 +181,9 @@ pub trait PrimeBufferExt : for<'a> PrimeBuffer<'a> {
                         *result.entry(target).or_insert(0) += 1;
                     } else {
                         let divisor = loop {
+                            let start = random::<u64>() % target;
                             let offset = random::<u64>() % target;
-                            if let Some(p) = target.pollard_rho(offset, 4) {
+                            if let Some(p) = pollard_rho(&target, start, offset) {
                                 break p
                             }
                         };
@@ -208,7 +197,8 @@ pub trait PrimeBufferExt : for<'a> PrimeBuffer<'a> {
     }
 
     /// Return list of found factors if not fully factored
-    /// TODO: accept general integer as input (thus potentially support other bigint such as crypto-bigint)
+    // TODO: accept general integer as input (thus potentially support other bigint such as crypto-bigint)
+    // REF: https://pypi.org/project/primefac/
     fn bfactors(&mut self, target: BigUint, config: Option<FactorizationConfig>) -> Result<BTreeMap<BigUint, usize>, Vec<BigUint>> {
         // shortcut if the target is in u64 range
         if let Some(x) = target.to_u64() {
@@ -266,10 +256,10 @@ pub trait PrimeBufferExt : for<'a> PrimeBuffer<'a> {
 
         // try to get a factor using pollard_rho with 4x4 trials
         while config.rho_trials > 0 {
+            let start = random::<u64>() % target;
             let offset = random::<u64>() % target;
-            let trials = config.rho_trials.min(4); // change offset every 4 trials
-            config.rho_trials -= 4;
-            if let Some(p) = target.pollard_rho(offset, trials) {
+            config.rho_trials -= 1;
+            if let Some(p) = pollard_rho(target, start, offset) {
                 return Some(p);
             }
         }
@@ -285,12 +275,7 @@ pub struct NaiveBuffer {
     current: u64 // all primes smaller than this value has to be in the prime list, should be an odd number
 }
 
-// TODO: create static functions that can do primality test and factorization, might need a trait
-// TODO: add a config struct for prime test and factorization. add a function to automatically select params
-
 impl NaiveBuffer {
-    // TODO: support indexing and iterating
-    // TODO: make this struct a trait, and use our implementation as NaiveBuffer, and then optionally support primal-sieve?
     #[inline]
     pub fn new() -> Self {
         // store at least enough primes for miller test

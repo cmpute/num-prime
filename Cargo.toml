@@ -7,7 +7,8 @@ repository = "https://github.com/cmpute/num-prime"
 keywords = ["math", "mathematics", "primes", "number-theory"]
 license = "Apache-2.0"
 description = """
-`num-prime` is based on `num` and extends it with prime related utilities. It support various number theoretic functions with arbitrary precision.
+`num-prime` is based on `num` and extends it with prime related utilities.
+It support integer modular arithmetics and various number theoretic functions with arbitrary precision.
 """
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

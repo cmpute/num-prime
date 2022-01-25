@@ -1,10 +1,8 @@
 pub use num_integer::{Integer, Roots};
-use num_traits::{RefNum, NumOps, NumRef, FromPrimitive};
-use rand::{Rng, thread_rng};
-use rand::distributions::Uniform;
-use rand::distributions::uniform::SampleUniform;
+use num_traits::{RefNum, NumRef};
 
 /// Extension on num_integer::Roots to support power check on integers
+// TODO: backport to num_integer
 pub trait ExactRoot : Roots {
     fn is_nth_power(&self) -> bool;
     fn is_square(&self) -> bool;
@@ -30,21 +28,45 @@ pub trait ModInt<Rhs = Self, Modulus = Self> {
     /// Return (self ^ exp) % m
     fn powm(self, exp: Rhs, m: Modulus) -> Self::Output;
 
+    /// Calculate inverse module (x such that self*x = 1 mod m)
+    fn invm(self, m: Modulus) -> Option<Self::Output> where Self: Sized;
+
     /// Return the exponent of factor 2 in the number, usually implemented as trailing_zeros()
+    /// This is not directly related to modular arithmetics, but used for implementations of them
     fn fac2(self) -> usize;
     
     /// Calculate Jacobi Symbol (a|n), where a is self
     fn jacobi(self, n: Modulus) -> i8;
-
-    /// Calculate inverse module (x such that self*x = 1 mod m)
-    fn invm(self, m: Modulus) -> Option<Self::Output> where Self: Sized;
 }
 
-/// This trait describes number theoretic functions on a integer
+/// It's recommended to store at least a bunch of small primes in the buffer
+/// to make some of the algorithms more efficient
+pub trait PrimeBuffer<'a> {
+    // TODO: support indexing?
+
+    type PrimeIter: Iterator<Item = &'a u64>;
+
+    // directly return an iterator of existing primes
+    fn iter(&'a self) -> Self::PrimeIter;
+
+    // generate primes until the upper bound is equal or larger than limit
+    fn reserve(&mut self, limit: u64);
+
+    // get the upper bound of primes in the list
+    fn bound(&self) -> u64;
+
+    // test if the number is in the buffer
+    fn contains(&self, num: u64) -> bool;
+
+    // clear the prime buffer to save memory
+    fn clear(&mut self);
+}
+
+/// This trait implements utility functions for primality check and factorization
 /// Reference:
 /// - <http://ntheory.org/pseudoprimes.html>
 /// - <http://www.numbertheory.org/gnubc/bc_programs.html>
-pub trait NumberTheoretic : Integer + NumOps + FromPrimitive + NumRef + SampleUniform + Clone {
+pub trait PrimalityUtils : Integer + NumRef + Clone {
     /// Test if the integer is a (Fermat) probable prime
     fn is_prp(&self, base: Self) -> bool;
 
@@ -53,18 +75,12 @@ pub trait NumberTheoretic : Integer + NumOps + FromPrimitive + NumRef + SampleUn
 
     // TODO: implement is_slprp (Strong Lucas Probable Prime)
     // https://en.wikipedia.org/wiki/Lucas_pseudoprime
-
+    
     // TODO: implement ECPP test?
     // https://en.wikipedia.org/wiki/Elliptic_curve_primality
-
-    /// Generate a factor of the integer using Pollard's Rho algorithm
-    /// TODO(v0.0.4): remove dependency on SampleUniform?
-    fn pollard_rho(&self, offset: Self, trials: usize) -> Option<Self>;
 }
 
-// TODO: implement other utilities in https://gmplib.org/manual/Number-Theoretic-Functions
-
-impl<T: Integer + FromPrimitive + NumRef + SampleUniform + Clone> NumberTheoretic for T
+impl<T: Integer + NumRef + Clone> PrimalityUtils for T
 where for<'r> &'r T: RefNum<T> + std::ops::Shr<usize, Output = T> + ModInt<&'r T, &'r T, Output = T>
 {
     fn is_prp(&self, base: Self) -> bool {
@@ -87,33 +103,5 @@ where for<'r> &'r T: RefNum<T> + std::ops::Shr<usize, Output = T> + ModInt<&'r T
         }
 
         x == T::one()
-    }
-
-    fn pollard_rho(&self, offset: Self, trials: usize) -> Option<Self> {
-        let mut rng = thread_rng();
-        let mut trials = trials;
-        'trial_loop: while trials > 0 {
-            let mut a = rng.sample(Uniform::new(T::from_u8(2u8).unwrap(), self));
-            let mut b = a.clone();
-            let mut i = 1; let mut j = 2;
-            loop {
-                i += 1;
-                a = ((&a).mulm(&a, &self) + &offset) % self;
-                if a == b {
-                    trials -= 1;
-                    continue 'trial_loop
-                }
-                let diff = if b > a { &b - &a } else { &a - &b }; // abs_diff
-                let d = diff.gcd(self);
-                if T::one() < d && d < a {
-                    return Some(d)
-                }
-                if i == j {
-                    b = a.clone();
-                    j <<= 1;
-                }
-            }
-        }
-        None
     }
 }

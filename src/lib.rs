@@ -1,9 +1,10 @@
 mod buffer;
+mod factor;
 mod traits;
 mod integer;
 
-pub use buffer::{PrimeBuffer, PrimeBufferExt, NaiveBuffer, Primality, PrimalityTestConfig, FactorizationConfig};
-pub use traits::{NumberTheoretic, ModInt};
+pub use buffer::{PrimeBufferExt, NaiveBuffer, Primality, PrimalityTestConfig, FactorizationConfig};
+pub use traits::{ModInt, PrimeBuffer, PrimalityUtils};
 use std::collections::BTreeMap;
 
 /// This function do BSW primality test on the target, if target is large enought
