@@ -79,16 +79,16 @@ pub trait PrimalityUtils : Integer + Clone {
     fn is_sprp(&self, base: Self) -> bool;
 
     /// Test if the integer is a Lucas probable prime
-    fn is_lprp(&self, p: isize, q: isize) -> bool;
+    /// If either of p, q is not specified, then we will use Selfridge's Method A to choose p, q
+    fn is_lprp(&self, p: Option<usize>, q: Option<isize>) -> bool;
 
     /// Test if the integer is a strong Lucas probable prime
-    fn is_slprp(&self, p: isize, q: isize) -> bool;
+    /// If either of p, q is not specified, then we will use Selfridge's Method A to choose p, q
+    fn is_slprp(&self, p: Option<usize>, q: Option<isize>) -> bool;
 
     /// Test if the integer is an extra strong Lucas probable prime
-    fn is_eslprp(&self, p: isize) -> bool;
-
-    /// Test if the integer is a strong Lucas probable prime with P, Q defined by Selfridge's Method (aka Method A, Lucas-Selfridge test)
-    fn is_slsprp(&self) -> bool;
+    /// If p is not specified, then first p starting from 3 such that Jacobi symbol is -1 will be chosen, which is sometimes refered as "Method C"
+    fn is_eslprp(&self, p: Option<usize>) -> bool;
     
     // TODO: implement ECPP test?
     // https://en.wikipedia.org/wiki/Elliptic_curve_primality

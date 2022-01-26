@@ -8,16 +8,15 @@ use crate::traits::{ModInt, PrimalityUtils};
 /// Reference: <https://en.wikipedia.org/wiki/Lucas_sequence>
 ///            Peter Hackman, "Elementary Number Theory", section "L.XVII Scalar" <http://hackmat.se/kurser/TATM54/booktot.pdf>
 pub trait LucasMod {
-    fn lucasm(p: isize, q: isize, m: Self, n: Self) -> (Self, Self) where Self: Sized;
+    fn lucasm(p: usize, q: isize, m: Self, n: Self) -> (Self, Self) where Self: Sized;
 }
 
 macro_rules! impl_lucasm_for_uprim {
     ($T:ty) => {
         impl LucasMod for $T {
-            fn lucasm(p: isize, q: isize, m: Self, n: Self) -> (Self, Self) {
-                let p = if p >= 0 { <$T>::try_from(p).unwrap() % m }
-                                else { ModInt::<&$T, &$T>::negm(&<$T>::try_from(-p).unwrap(), &m) }; // FIXME: implement ModInt for <T,T> and prevent this ugly call
-                let q = if q >= 0 { <$T>::try_from(q).unwrap() % &m }
+            fn lucasm(p: usize, q: isize, m: Self, n: Self) -> (Self, Self) {
+                let p = <$T>::try_from(p).unwrap() % m;
+                let q = if q >= 0 { <$T>::try_from(q).unwrap() % &m } // FIXME: implement ModInt for <T,T> and prevent this ugly call
                                 else { ModInt::<&$T, &$T>::negm(&<$T>::try_from(-q).unwrap(), &m) };
 
                 let mut uk = 0; // U(k)
@@ -63,9 +62,8 @@ impl_lucasm_for_uprim!(u64);
 impl_lucasm_for_uprim!(u128);
 
 impl LucasMod for BigUint {
-    fn lucasm(p: isize, q: isize, m: Self, n: Self) -> (Self, Self) {
-        let p = if p >= 0 { BigUint::from_isize(p).unwrap() % &m }
-                        else { ModInt::<&BigUint, &BigUint>::negm(&BigUint::from_isize(-p).unwrap(), &m) };
+    fn lucasm(p: usize, q: isize, m: Self, n: Self) -> (Self, Self) {
+        let p = BigUint::from_usize(p).unwrap() % &m;
         let q = if q >= 0 { BigUint::from_isize(q).unwrap() % &m }
                         else { ModInt::<&BigUint, &BigUint>::negm(&BigUint::from_isize(-q).unwrap(), &m) };
 
@@ -108,11 +106,14 @@ impl<T: Integer + NumRef + Clone + FromPrimitive + LucasMod> PrimalityUtils for 
 where for<'r> &'r T: RefNum<T> + std::ops::Shr<usize, Output = T> + ModInt<&'r T, &'r T, Output = T>
 {
     fn is_prp(&self, base: Self) -> bool {
+        if self < &Self::one() { return false; }
         let tm1 = self - Self::one();
         base.powm(&tm1, self).is_one()
     }
 
     fn is_sprp(&self, base: T) -> bool {
+        if self < &Self::one() { return false; }
+
         // find 2^shift*u + 1 = n
         let tm1 = self - T::one();
         let shift = tm1.fac2();
@@ -129,10 +130,13 @@ where for<'r> &'r T: RefNum<T> + std::ops::Shr<usize, Output = T> + ModInt<&'r T
         x == T::one()
     }
 
-    fn is_lprp(&self, p: isize, q: isize) -> bool {
-        // TODO: failed for p=1, self=25 or 125
+    fn is_lprp(&self, p: Option<usize>, q: Option<isize>) -> bool {
+        if self < &Self::one() { return false; }
         if self.is_even() { return false; }
-        let d = p*p - 4*q;
+
+        let p = p.unwrap(); let q = q.unwrap(); // TODO: implement method A
+
+        let d = (p*p) as isize - 4*q;
         let d = if d > 0 { Self::from_isize(d).unwrap() }
                    else { ModInt::<&Self, &Self>::negm(&Self::from_isize(d).unwrap(), self) };
         let delta = match d.jacobi(self) {
@@ -140,12 +144,17 @@ where for<'r> &'r T: RefNum<T> + std::ops::Shr<usize, Output = T> + ModInt<&'r T
         };
         let (u, _) = LucasMod::lucasm(p, q, self.clone(), delta);
         u.is_zero()
+
+        // TODO: add additional check V(n+1) == 2Q mod n, if p,q are not specified and jacobi = -1
     }
 
-    fn is_slprp(&self, p: isize, q: isize) -> bool {
-        // TODOL failed for p=1, self=25, 125 or 625
+    fn is_slprp(&self, p: Option<usize>, q: Option<isize>) -> bool {
+        if self < &Self::one() { return false; }
         if self.is_even() { return false; }
-        let d = p*p - 4*q;
+
+        let p = p.unwrap(); let q = q.unwrap(); // TODO: implement method A
+
+        let d = (p*p) as isize - 4*q;
         let d = if d > 0 { Self::from_isize(d).unwrap() }
                    else { ModInt::<&Self, &Self>::negm(&Self::from_isize(d).unwrap(), self) };
         let delta = match d.jacobi(self) {
@@ -176,13 +185,33 @@ where for<'r> &'r T: RefNum<T> + std::ops::Shr<usize, Output = T> + ModInt<&'r T
         false
     }
 
-    fn is_eslprp(&self, p: isize) -> bool {
-        unimplemented!()
-    }
+    fn is_eslprp(&self, p: Option<usize>) -> bool {
+        if self < &Self::one() { return false; }
+        if self.is_even() { return false; }
 
-    fn is_slsprp(&self) -> bool {
-        // TODO: also add perfect square check here
-        unimplemented!()
+        let p = p.unwrap(); // TODO: find p=3,4,5 such that jacobi = -1
+
+        let d = (p*p) as isize - 4;
+        let d = if d > 0 { Self::from_isize(d).unwrap() }
+                   else { ModInt::<&Self, &Self>::negm(&Self::from_isize(d).unwrap(), self) };
+        let delta = match d.jacobi(self) {
+            0 => self.clone(), -1 => self + Self::one(), 1 => self - Self::one(), _ => panic!("")
+        };
+
+        let shift = delta.fac2();
+        let base = &delta >> shift;
+
+        let (ud, mut vd) = LucasMod::lucasm(p, 1, self.clone(), base.clone());
+        let two = Self::from_u8(2).unwrap();
+        // U(d) = 0 or V(d) = ±2
+        if ud.is_zero() && (vd == two || vd == self - &two) { return true; }
+
+        for _ in 1..(shift-1) {
+            // V(2k) = V(k)² - 2
+            vd = vd.mulm(&vd, self).subm(&two, self);
+            if vd.is_zero() { return true }
+        }
+        false
     }
 }
 
@@ -208,33 +237,37 @@ mod tests {
 
     #[test]
     fn lucas_prp_test() {
-        assert!(19u8.is_lprp(3, -1));
+        assert!(19u8.is_lprp(Some(3), Some(-1)));
 
-        // least lucas pseudo primes for Q=-1
+        // least lucas pseudo primes for Q=-1 and Jacobi(D/n) = -1 (from Wikipedia)
         let plimit: [u16; 5] = [323, 35, 119, 9, 9];
         for (i, l) in plimit.iter().cloned().enumerate() {
-            let p = (i + 1) as isize;
-            assert!(l.is_lprp(p, -1));
+            let p = i + 1;
+            assert!(l.is_lprp(Some(p), Some(-1)));
 
             // test four random numbers under limit
             for _ in 0..10 {
                 let n = random::<u16>() % l;
                 if n < 2 || n.is_sprp(2) { continue } // skip real primes
-                // assert!(!n.is_lprp(p, -1), "lucas prp test on {} with p = {}", n, p);
+                let d = (p*p + 4) as u16;
+                if n.is_odd() && ModInt::<&u16,&u16>::jacobi(&d, &n) != -1 { continue }
+                assert!(!n.is_lprp(Some(p), Some(-1)), "lucas prp test on {} with p = {}", n, p);
             }
         }
 
-        // least strong lucas pseudoprimes for Q=-1
+        // least strong lucas pseudoprimes for Q=-1 and Jacobi(D/n) = -1 (from Wikipedia)
         let plimit: [u16; 3] = [4181, 169, 119];
         for (i, l) in plimit.iter().cloned().enumerate() {
-            let p = (i + 1) as isize;
-            assert!(l.is_slprp(p, -1));
+            let p = i + 1;
+            assert!(l.is_slprp(Some(p), Some(-1)));
 
             // test random numbers under limit
-            for _ in 0..100 {
+            for _ in 0..10 {
                 let n = random::<u16>() % l;
                 if n < 2 || (n.is_sprp(2) && n.is_sprp(2)) { continue } // skip real primes
-                assert!(!n.is_slprp(p, -1), "strong lucas prp test on {} with p = {}", n, p);
+                let d = (p*p + 4) as u16;
+                if n.is_odd() && ModInt::<&u16,&u16>::jacobi(&d, &n) != -1 { continue }
+                assert!(!n.is_slprp(Some(p), Some(-1)), "strong lucas prp test on {} with p = {}", n, p);
             }
         }
     }

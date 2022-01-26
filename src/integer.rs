@@ -12,6 +12,7 @@ use crate::traits::ModInt;
 macro_rules! impl_jacobi_prim {
     ($T:ty) => {
         fn jacobi(self, n: &$T) -> i8 {
+            // TODO: panic here
             debug_assert!(n % 2 == 1 && n >= &0);
 
             if self == &0 { return 0; }
