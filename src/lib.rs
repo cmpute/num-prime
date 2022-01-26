@@ -27,5 +27,5 @@ pub fn nprimes(count: usize) { unimplemented!() }
 pub fn primorial<T>(n: u64) -> T { unimplemented!() }
 
 pub mod detail {
-    pub use super::primality::LucasMod;
+    pub use super::primality::LucasUtils;
 }

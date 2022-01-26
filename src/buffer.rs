@@ -46,16 +46,22 @@ where for<'r> &'r T: RefNum<T> {
 pub struct PrimalityTestConfig {
     pub sprp_trials: usize, // number of SPRP test, starting from base 2 
     pub sprp_random_trials: usize, // number of SPRP test with random base
-    pub slprp_trials: usize, // TODO(v0.0.4): Implement BPSW test
+    pub slprp_test: bool, // TODO(v0.0.4): Implement BPSW test
+    pub eslprp_test: bool
 }
 
 impl PrimalityTestConfig {
     pub fn default() -> Self {
-        Self { sprp_trials: 2, sprp_random_trials: 0, slprp_trials: 0 }
+        Self { sprp_trials: 2, sprp_random_trials: 2, slprp_test: false, eslprp_test: false }
     }
 
-    /// Create a configuration for Baillie-PSW test
-    pub fn bpsw() {}
+    /// Create a configuration for Baillie-PSW test (base 2 SPRP test + SLPRP test)
+    pub fn bpsw() -> Self {
+        Self { sprp_trials: 1, sprp_random_trials: 0, slprp_test: true, eslprp_test: false }
+    }
+
+    /// Create a configuration for PSW test (base 2 SPRP + Fibonacci test)
+    pub fn psw() { todo!() }
 }
 
 #[derive(Clone, Copy)]
@@ -163,6 +169,7 @@ pub trait PrimeBufferExt : for<'a> PrimeBuffer<'a> {
         // REF: https://github.com/coreutils/coreutils/blob/master/src/factor.c
         //      https://github.com/uutils/coreutils/blob/master/src/uu/factor/src/cli.rs
         //      https://github.com/elmomoilanen/prime-factorization
+        //      https://github.com/radii/msieve
         if self.is_prime(target) {
             let mut result = BTreeMap::new();
             result.insert(target, 1);
@@ -244,7 +251,7 @@ pub trait PrimeBufferExt : for<'a> PrimeBuffer<'a> {
     /// Return None if no factor is found (this method will not do a primality check)
     fn bdivisor(&self, target: &BigUint, config: &mut FactorizationConfig) -> Option<BigUint> {
         // try to get a factor by trial division
-        // TODO: skip the sqrt if tf_limit^2 < target
+        // TODO (v0.1): skip the sqrt if tf_limit^2 < target
         let target_sqrt: BigUint = num_integer::sqrt(target.clone()) + BigUint::one();
         let limit = if let Some(l) = config.tf_limit { target_sqrt.clone().min(BigUint::from_u64(l).unwrap()) } else { target_sqrt.clone() };
 

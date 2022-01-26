@@ -1,14 +1,18 @@
+use num_traits::{Pow};
 use num_integer::{Integer, Roots};
 
 /// Extension on num_integer::Roots to support power check on integers
-// TODO: backport to num_integer
-pub trait ExactRoot : Roots {
-    fn is_nth_power(&self) -> bool;
-    fn is_square(&self) -> bool;
-    fn is_cubic(&self) -> bool;
-    fn nth_root_exact(&self) -> Option<Self>;
-    fn sqrt_exact(&self) -> Option<Self>;
-    fn cbrt_exact(&self) -> Option<Self>;
+// FIXME: backport to num_integer (see https://github.com/rust-num/num-traits/issues/233)
+pub trait ExactRoots : Roots + Pow<u32, Output = Self> + Clone {
+    fn nth_root_exact(&self, n: u32) -> Option<Self> {
+        let r = self.nth_root(n);
+        if &r.clone().pow(n) == self { Some(r) } else { None }
+    }
+    fn sqrt_exact(&self) -> Option<Self> { self.nth_root_exact(2) }
+    fn cbrt_exact(&self) -> Option<Self> { self.nth_root_exact(3) }
+    fn is_nth_power(&self, n: u32) -> bool { self.nth_root_exact(n).is_some() }
+    fn is_square(&self) -> bool { self.sqrt_exact().is_some() }
+    fn is_cubic(&self) -> bool { self.cbrt_exact().is_some() }
 }
 
 /// This trait describes modular arithmetic on a integer

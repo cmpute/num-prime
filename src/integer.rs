@@ -1,18 +1,19 @@
 // backend implementations for integers
 use num_bigint::BigUint;
-use num_integer::Integer;
-use num_traits::{ToPrimitive, Zero, One};
-use crate::traits::ModInt;
+use num_integer::{Integer, Roots};
+use num_traits::{ToPrimitive, Zero, One, Pow};
+use crate::traits::{ExactRoots, ModInt};
 
-// TODO(v0.0.4): implement exact_sqrt for integers
+// TODO (v0.1): implement fast perfect power check for integers
 // REF: https://github.com/coreutils/coreutils/blob/master/src/factor.c#L1833
 //      https://math.stackexchange.com/a/878338
 //      https://github.com/nbraud/coreutils/blob/factor/sqrt/src/uu/factor/src/numeric/sqrt.rs#L35
+impl<T: Roots + Pow<u32, Output = Self> + Clone> ExactRoots for T {}
 
 macro_rules! impl_jacobi_prim {
     ($T:ty) => {
         fn jacobi(self, n: &$T) -> i8 {
-            // TODO: panic here
+            // TODO (v0.1): panic here
             debug_assert!(n % 2 == 1 && n >= &0);
 
             if self == &0 { return 0; }

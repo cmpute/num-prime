@@ -1,23 +1,31 @@
+use std::iter::successors;
 use num_bigint::BigUint;
 use num_integer::Integer;
 use num_traits::{Zero, One, RefNum, NumRef, FromPrimitive};
 use std::convert::TryFrom;
-use crate::traits::{ModInt, PrimalityUtils};
+use crate::traits::{ModInt, ExactRoots, PrimalityUtils};
 
-/// Find Lucas sequence to n with modulo m, i.e. $U_{n+1}(P,Q)$ mod m and $V_{n+1}(P,Q)$
-/// Reference: <https://en.wikipedia.org/wiki/Lucas_sequence>
-///            Peter Hackman, "Elementary Number Theory", section "L.XVII Scalar" <http://hackmat.se/kurser/TATM54/booktot.pdf>
-pub trait LucasMod {
+/// Utilities for the Lucas pseudoprime test
+// TODO (v0.0.5): implement this automatically for ModInt, need a bit iterator trait
+pub trait LucasUtils {
+    /// Find Lucas sequence to n with modulo m, i.e. $U_{n+1}(P,Q)$ mod m and $V_{n+1}(P,Q)$
+    /// Reference: <https://en.wikipedia.org/wiki/Lucas_sequence>
+    ///            Peter Hackman, "Elementary Number Theory", section "L.XVII Scalar" <http://hackmat.se/kurser/TATM54/booktot.pdf>
     fn lucasm(p: usize, q: isize, m: Self, n: Self) -> (Self, Self) where Self: Sized;
+
+    /// Find proper parameters P and Q of Lucas sequence for n, such that Jacobi(D|n) is -1
+    /// using Selfridge's method A.
+    fn pq_selfridge(n: &Self) -> (usize, isize);
 }
 
-macro_rules! impl_lucasm_for_uprim {
+macro_rules! impl_lucas_util_for_uprim {
     ($T:ty) => {
-        impl LucasMod for $T {
+        impl LucasUtils for $T {
             fn lucasm(p: usize, q: isize, m: Self, n: Self) -> (Self, Self) {
                 let p = <$T>::try_from(p).unwrap() % m;
-                let q = if q >= 0 { <$T>::try_from(q).unwrap() % &m } // FIXME: implement ModInt for <T,T> and prevent this ugly call
-                                else { ModInt::<&$T, &$T>::negm(&<$T>::try_from(-q).unwrap(), &m) };
+                let q = if q >= 0 { <$T>::try_from(q).unwrap() % &m }
+                        // FIXME (v0.1): implement ModInt for <T,T> and prevent this ugly ModInt::<T,T>::xxx call
+                        else { ModInt::<&$T, &$T>::negm(&<$T>::try_from(-q).unwrap(), &m) };
 
                 let mut uk = 0; // U(k)
                 let mut uk1 = 1; // U(k+1)
@@ -51,17 +59,31 @@ macro_rules! impl_lucasm_for_uprim {
                 let vk = 2.mulm(uk1,&m).subm(p.mulm(&uk,&m),&m);
                 (uk, vk)
             }
+
+            fn pq_selfridge(n: &$T) -> (usize, isize) {
+                for (d, neg) in successors(Some((5 as $T, false)), |(d, neg)| Some((d+2, !neg))) {
+                    let sd = if neg { ModInt::<&$T, &$T>::negm(&d, n) } else { d };
+                    if d == 13 && (*n).is_square() { // check if n is a square number after several trial
+                        return (0, 0);
+                    }
+                    if ModInt::<&$T, &$T>::jacobi(&sd, n) == -1 {
+                        let d = if neg { -(d as isize) } else { d as isize };
+                        return (1, (1 - d as isize) / 4);
+                    }
+                }
+                panic!(); // impossible
+            }
         }
     };
 }
 
-impl_lucasm_for_uprim!(u8);
-impl_lucasm_for_uprim!(u16);
-impl_lucasm_for_uprim!(u32);
-impl_lucasm_for_uprim!(u64);
-impl_lucasm_for_uprim!(u128);
+impl_lucas_util_for_uprim!(u8);
+impl_lucas_util_for_uprim!(u16);
+impl_lucas_util_for_uprim!(u32);
+impl_lucas_util_for_uprim!(u64);
+impl_lucas_util_for_uprim!(u128);
 
-impl LucasMod for BigUint {
+impl LucasUtils for BigUint {
     fn lucasm(p: usize, q: isize, m: Self, n: Self) -> (Self, Self) {
         let p = BigUint::from_usize(p).unwrap() % &m;
         let q = if q >= 0 { BigUint::from_isize(q).unwrap() % &m }
@@ -100,9 +122,13 @@ impl LucasMod for BigUint {
         let vk = two.mulm(uk1,&m).subm(p.mulm(&uk,&m),&m);
         (uk, vk)
     }
+    
+    fn pq_selfridge(n: &BigUint) -> (usize, isize) {
+        unimplemented!();
+    }
 }
 
-impl<T: Integer + NumRef + Clone + FromPrimitive + LucasMod> PrimalityUtils for T
+impl<T: Integer + NumRef + Clone + FromPrimitive + LucasUtils> PrimalityUtils for T
 where for<'r> &'r T: RefNum<T> + std::ops::Shr<usize, Output = T> + ModInt<&'r T, &'r T, Output = T>
 {
     fn is_prp(&self, base: Self) -> bool {
@@ -134,15 +160,22 @@ where for<'r> &'r T: RefNum<T> + std::ops::Shr<usize, Output = T> + ModInt<&'r T
         if self < &Self::one() { return false; }
         if self.is_even() { return false; }
 
-        let p = p.unwrap(); let q = q.unwrap(); // TODO: implement method A
+        let (p, q) = match (p, q) {
+            (Some(sp), Some(sq)) => (sp, sq),
+            (_, _) =>  {
+                let (sp, sq) = LucasUtils::pq_selfridge(self);
+                if sp == 0 { return false }; // is a perfect power
+                (sp, sq)
+            }
+        };
 
         let d = (p*p) as isize - 4*q;
         let d = if d > 0 { Self::from_isize(d).unwrap() }
-                   else { ModInt::<&Self, &Self>::negm(&Self::from_isize(d).unwrap(), self) };
+                   else { ModInt::<&Self, &Self>::negm(&Self::from_isize(-d).unwrap(), self) };
         let delta = match d.jacobi(self) {
             0 => self.clone(), -1 => self + Self::one(), 1 => self - Self::one(), _ => panic!("")
         };
-        let (u, _) = LucasMod::lucasm(p, q, self.clone(), delta);
+        let (u, _) = LucasUtils::lucasm(p, q, self.clone(), delta);
         u.is_zero()
 
         // TODO: add additional check V(n+1) == 2Q mod n, if p,q are not specified and jacobi = -1
@@ -152,11 +185,18 @@ where for<'r> &'r T: RefNum<T> + std::ops::Shr<usize, Output = T> + ModInt<&'r T
         if self < &Self::one() { return false; }
         if self.is_even() { return false; }
 
-        let p = p.unwrap(); let q = q.unwrap(); // TODO: implement method A
+        let (p, q) = match (p, q) {
+            (Some(sp), Some(sq)) => (sp, sq),
+            (_, _) =>  {
+                let (sp, sq) = LucasUtils::pq_selfridge(self);
+                if sp == 0 { return false }; // is a perfect power
+                (sp, sq)
+            }
+        };
 
         let d = (p*p) as isize - 4*q;
         let d = if d > 0 { Self::from_isize(d).unwrap() }
-                   else { ModInt::<&Self, &Self>::negm(&Self::from_isize(d).unwrap(), self) };
+                   else { ModInt::<&Self, &Self>::negm(&Self::from_isize(-d).unwrap(), self) };
         let delta = match d.jacobi(self) {
             0 => self.clone(), -1 => self + Self::one(), 1 => self - Self::one(), _ => panic!("")
         };
@@ -164,7 +204,7 @@ where for<'r> &'r T: RefNum<T> + std::ops::Shr<usize, Output = T> + ModInt<&'r T
         let shift = delta.fac2();
         let base = &delta >> shift;
 
-        let (ud, vd) = LucasMod::lucasm(p, q, self.clone(), base.clone());
+        let (ud, vd) = LucasUtils::lucasm(p, q, self.clone(), base.clone());
         if ud.is_zero() || vd.is_zero() { return true; }
 
         // do first iteration to remove the sign on Q
@@ -174,6 +214,7 @@ where for<'r> &'r T: RefNum<T> + std::ops::Shr<usize, Output = T> + ModInt<&'r T
         // V(2k) = V(k)² - 2Q^k
         let mut vd = if q >= 0 { vd.mulm(&vd,self).subm(&two.mulm(&qk,self),self) }
                         else { vd.mulm(&vd,self).addm(&two.mulm(&qk,self),self) };
+        if vd.is_zero() { return true }
         let mut qk = qk.mulm(&qk,self);
 
         for _ in 1..shift {
@@ -189,11 +230,11 @@ where for<'r> &'r T: RefNum<T> + std::ops::Shr<usize, Output = T> + ModInt<&'r T
         if self < &Self::one() { return false; }
         if self.is_even() { return false; }
 
-        let p = p.unwrap(); // TODO: find p=3,4,5 such that jacobi = -1
+        let p = p.unwrap(); // TODO: find p=3,4,5 such that jacobi = -1, check square if p == 15
 
         let d = (p*p) as isize - 4;
         let d = if d > 0 { Self::from_isize(d).unwrap() }
-                   else { ModInt::<&Self, &Self>::negm(&Self::from_isize(d).unwrap(), self) };
+                   else { ModInt::<&Self, &Self>::negm(&Self::from_isize(-d).unwrap(), self) };
         let delta = match d.jacobi(self) {
             0 => self.clone(), -1 => self + Self::one(), 1 => self - Self::one(), _ => panic!("")
         };
@@ -201,10 +242,11 @@ where for<'r> &'r T: RefNum<T> + std::ops::Shr<usize, Output = T> + ModInt<&'r T
         let shift = delta.fac2();
         let base = &delta >> shift;
 
-        let (ud, mut vd) = LucasMod::lucasm(p, 1, self.clone(), base.clone());
+        let (ud, mut vd) = LucasUtils::lucasm(p, 1, self.clone(), base.clone());
         let two = Self::from_u8(2).unwrap();
         // U(d) = 0 or V(d) = ±2
         if ud.is_zero() && (vd == two || vd == self - &two) { return true; }
+        if vd.is_zero() { return true; }
 
         for _ in 1..(shift-1) {
             // V(2k) = V(k)² - 2
@@ -228,12 +270,14 @@ mod tests {
         let p3qm1: [u64; 26] = [0, 1, 3, 10, 33, 109, 360, 1189, 3927, 12970, 42837, 141481, 467280, 1543321, 5097243, 16835050, 55602393, 183642229, 606529080, 2003229469, 6616217487, 21851881930, 72171863277, 238367471761, 787274278560, 2600190307441];
         let m = random::<u16>();
         for n in 2..p3qm1.len() {
-            let (uk, _) = LucasMod::lucasm(3, -1, m as u64, n as u64);
+            let (uk, _) = LucasUtils::lucasm(3, -1, m as u64, n as u64);
             assert_eq!(uk, p3qm1[n] % (m as u64));
-            let (uk, _) = LucasMod::lucasm(3, -1, BigUint::from(m), BigUint::from(n));
+            let (uk, _) = LucasUtils::lucasm(3, -1, BigUint::from(m), BigUint::from(n));
             assert_eq!(uk, BigUint::from(p3qm1[n] % (m as u64)));
         }
     }
+
+    // TODO: add test for is_prp and is_sprp
 
     #[test]
     fn lucas_prp_test() {
@@ -264,11 +308,35 @@ mod tests {
             // test random numbers under limit
             for _ in 0..10 {
                 let n = random::<u16>() % l;
-                if n < 2 || (n.is_sprp(2) && n.is_sprp(2)) { continue } // skip real primes
+                if n < 2 || (n.is_sprp(2) && n.is_sprp(3)) { continue } // skip real primes
                 let d = (p*p + 4) as u16;
                 if n.is_odd() && ModInt::<&u16,&u16>::jacobi(&d, &n) != -1 { continue }
                 assert!(!n.is_slprp(Some(p), Some(-1)), "strong lucas prp test on {} with p = {}", n, p);
             }
+        }
+
+        // lucas pseudoprimes under 10000, OEIS A217120
+        let lpsp: [u16; 9] = [323, 377, 1159, 1829, 3827, 5459, 5777, 9071, 9179];
+        for psp in lpsp {
+            assert!(psp.is_lprp(None, None), "lucas prp test on {}", psp);
+        }
+        for _ in 0..10 {
+            let n = random::<u16>() % 10000;
+            if n < 2 || (n.is_sprp(2) && n.is_sprp(3)) { continue } // skip real primes
+            if lpsp.iter().find(|&x| x == &n).is_some() { continue } // skip pseudo primes
+            assert!(!n.is_lprp(None, None), "lucas prp test on {}", n);
+        }
+        
+        // strong lucas pseudoprimes under 10000, OEIS A217255
+        let slpsp: [u16; 2] = [5459, 5777];
+        for psp in slpsp {
+            assert!(psp.is_slprp(None, None), "strong lucas prp test on {}", psp);
+        }
+        for _ in 0..10 {
+            let n = random::<u16>() % 10000;
+            if n < 2 || (n.is_sprp(2) && n.is_sprp(3)) { continue } // skip real primes
+            if slpsp.iter().find(|&x| x == &n).is_some() { continue } // skip pseudo primes
+            assert!(!n.is_slprp(None, None), "strong lucas prp test on {}", n);
         }
     }
 }

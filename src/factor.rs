@@ -30,3 +30,5 @@ where for<'r> &'r T: RefNum<T> + ModInt<&'r T, &'r T, Output = T> {
 pub fn pollard_brent() {}
 pub fn pollard_pp1() {}
 pub fn williams_pp1() {}
+
+// TODO: ECM, Quadratic sieve / Prime field sieve, SQUFOF
