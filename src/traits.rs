@@ -27,6 +27,9 @@ pub trait ModInt<Rhs = Self, Modulus = Self> {
     /// Return (self ^ exp) % m
     fn powm(self, exp: Rhs, m: Modulus) -> Self::Output;
 
+    /// Return (-self) % m and make sure the result is in range [0,m)
+    fn negm(self, m: Modulus) -> Self::Output;
+
     /// Calculate inverse module (x such that self*x = 1 mod m)
     fn invm(self, m: Modulus) -> Option<Self::Output> where Self: Sized;
 
@@ -75,11 +78,17 @@ pub trait PrimalityUtils : Integer + Clone {
     /// Test if the integer is a strong probable prime (based on miller-rabin test)
     fn is_sprp(&self, base: Self) -> bool;
 
-    /// Test if the integer is a strong Lucas probable prime
-    fn is_slprp(&self, p: Self, q: Self) -> bool;
+    /// Test if the integer is a Lucas probable prime
+    fn is_lprp(&self, p: isize, q: isize) -> bool;
 
-    /// Test if the integer is a strong Lucas probable prime with P, Q defined by Selfridge's Method
-    fn is_sslprp(&self) -> bool;
+    /// Test if the integer is a strong Lucas probable prime
+    fn is_slprp(&self, p: isize, q: isize) -> bool;
+
+    /// Test if the integer is an extra strong Lucas probable prime
+    fn is_eslprp(&self, p: isize) -> bool;
+
+    /// Test if the integer is a strong Lucas probable prime with P, Q defined by Selfridge's Method (aka Method A, Lucas-Selfridge test)
+    fn is_slsprp(&self) -> bool;
     
     // TODO: implement ECPP test?
     // https://en.wikipedia.org/wiki/Elliptic_curve_primality

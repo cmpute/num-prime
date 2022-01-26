@@ -63,15 +63,19 @@ macro_rules! impl_invm_prim {
 
 macro_rules! impl_mod_arithm_uu {
     ($T:ty, $Tdouble:ty) => {
+        // TODO (v0.1): change main implementation to take ownership and then implement other type combination based on this
         impl ModInt<&$T, &$T> for &$T {
             type Output = $T;
             #[inline]
             fn fac2(self) -> usize { self.trailing_zeros() as usize }
+            #[inline]
             fn addm(self, rhs: &$T, m: &$T) -> $T { (((*self as $Tdouble) + (*rhs as $Tdouble)) % (*m as $Tdouble)) as $T }
+            #[inline]
             fn subm(self, rhs: &$T, m: &$T) -> $T {
                 let (lhs, rhs) = (self % m, rhs % m);
                 if lhs >= rhs { lhs - rhs } else { m - (rhs - lhs) }
             }
+            #[inline]
             fn mulm(self, rhs: &$T, m: &$T) -> $T { (((*self as $Tdouble) * (*rhs as $Tdouble)) % (*m as $Tdouble)) as $T }
             fn powm(self, exp: &$T, m: &$T) -> $T {
                 if *exp == 1 { return self % m; }
@@ -88,6 +92,11 @@ macro_rules! impl_mod_arithm_uu {
                     exp >>= 1;
                 }
                 result
+            }
+            #[inline]
+            fn negm(self, m: &$T) -> $T {
+                let x = self % m;
+                if x == 0 { 0 } else { m-x }
             }
             impl_jacobi_prim!($T);
             impl_invm_prim!($T);
@@ -106,6 +115,8 @@ macro_rules! impl_mod_arithm_uu {
             fn mulm(self, rhs: $T, m: &$T) -> $T { self.mulm(&rhs, m) }
             #[inline]
             fn powm(self, exp: $T, m: &$T) -> $T { self.powm(&exp, m) }
+            #[inline]
+            fn negm(self, m: &$T) -> $T { ModInt::<&$T, &$T>::negm(self, m) }
             #[inline]
             fn invm(self, m: &$T) -> Option<$T> { ModInt::<&$T, &$T>::invm(self, m) }
             #[inline]
@@ -188,6 +199,11 @@ impl ModInt<&u128, &u128> for &u128 {
         result
     }
 
+    fn negm(self, m: &u128) -> u128 {
+        let x = self % m;
+        if x == 0 { 0 } else { m-x }
+    }
+
     impl_jacobi_prim!(u128);
     impl_invm_prim!(u128);
 }
@@ -204,6 +220,8 @@ impl ModInt<u128, &u128> for &u128 {
     fn mulm(self, rhs: u128, m: &u128) -> u128 { self.mulm(&rhs, m) }
     #[inline]
     fn powm(self, exp: u128, m: &u128) -> u128 { self.powm(&exp, m) }
+    #[inline]
+    fn negm(self, m: &u128) -> u128 { ModInt::<&u128, &u128>::negm(self, m) }
     #[inline]
     fn invm(self, m: &u128) -> Option<u128> { ModInt::<&u128, &u128>::invm(self, m) }
     #[inline]
@@ -245,6 +263,12 @@ impl ModInt<&BigUint, &BigUint> for &BigUint {
     #[inline]
     fn powm(self, exp: &BigUint, m: &BigUint) -> BigUint {
         self.modpow(&exp, m)
+    }
+
+    #[inline]
+    fn negm(self, m: &BigUint) -> BigUint {
+        let x = self % m;
+        if x.is_zero() { BigUint::zero() } else { m-x }
     }
 
     fn jacobi(self, n: &BigUint) -> i8 {
@@ -312,6 +336,8 @@ impl ModInt<BigUint, &BigUint> for &BigUint {
     fn mulm(self, rhs: BigUint, m: &BigUint) -> BigUint { self.mulm(&rhs, m) }
     #[inline]
     fn powm(self, exp: BigUint, m: &BigUint) -> BigUint { self.powm(&exp, m) }
+    #[inline]
+    fn negm(self, m: &BigUint) -> BigUint { ModInt::<&BigUint, &BigUint>::negm(self, m) }
     #[inline]
     fn jacobi(self, n: &BigUint) -> i8 { ModInt::<&BigUint, &BigUint>::jacobi(self, n) }
     #[inline]
