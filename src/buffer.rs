@@ -3,7 +3,7 @@
 use std::{collections::BTreeMap, convert::{TryInto, TryFrom}};
 use bitvec::bitvec;
 use num_traits::{One, ToPrimitive, FromPrimitive, NumRef, RefNum};
-use num_bigint::BigUint; // TODO: make the dependency for this optional
+use num_bigint::BigUint; // TODO (v0.1): make the dependency for this optional
 use num_integer::{Integer, Roots};
 use rand::{random, seq::IteratorRandom};
 use crate::traits::{PrimalityUtils, PrimeBuffer};
@@ -46,7 +46,7 @@ where for<'r> &'r T: RefNum<T> {
 pub struct PrimalityTestConfig {
     pub sprp_trials: usize, // number of SPRP test, starting from base 2 
     pub sprp_random_trials: usize, // number of SPRP test with random base
-    pub slprp_test: bool, // TODO(v0.0.4): Implement BPSW test
+    pub slprp_test: bool,
     pub eslprp_test: bool
 }
 
@@ -61,7 +61,7 @@ impl PrimalityTestConfig {
     }
 
     /// Create a configuration for PSW test (base 2 SPRP + Fibonacci test)
-    pub fn psw() { todo!() }
+    pub fn psw() { todo!() } // TODO: implement Fibonacci PRP
 }
 
 #[derive(Clone, Copy)]
@@ -150,15 +150,29 @@ pub trait PrimeBufferExt : for<'a> PrimeBuffer<'a> {
         let mut witness_list: Vec<u64> = Vec::new();
         if config.sprp_trials > 0 {
             witness_list.extend(self.iter().take(config.sprp_trials));
-            probability *= 1. - 0.25_f32.powi(config.sprp_trials.try_into().unwrap());
+            probability *= 1. - 0.25f32.powi(config.sprp_trials.try_into().unwrap());
         }
         if config.sprp_random_trials > 0 {
             let mut rng = rand::thread_rng();
             witness_list.extend(self.iter().choose_multiple(&mut rng, config.sprp_random_trials));
-            probability *= 1. - 0.25_f32.powi(config.sprp_random_trials.try_into().unwrap());
+            probability *= 1. - 0.25f32.powi(config.sprp_random_trials.try_into().unwrap());
         }
         if !witness_list.iter().all(|&x| target.is_sprp(BigUint::from(x))) {
             return Primality::No;
+        }
+
+        // lucas probable prime test
+        if config.slprp_test {
+            probability *= 1. - 4f32 / 15f32;
+            if !target.is_slprp(None, None) {
+                return Primality::No;
+            }
+        }
+        if config.eslprp_test {
+            probability *= 1. - 4f32 / 15f32;
+            if !target.is_eslprp(None) {
+                return Primality::No;
+            }
         }
 
         Primality::Probable(probability)
@@ -230,7 +244,6 @@ pub trait PrimeBufferExt : for<'a> PrimeBuffer<'a> {
                     if matches! (self.is_bprime(&target, Some(config.prime_test_config)), Primality::Yes | Primality::Probable(_)) {
                         *result.entry(target).or_insert(0) += 1;
                     } else {
-                        let offset = random::<u64>() % &target;
                         if let Some(divisor) = self.bdivisor(&target, &mut config) {
                             todo.push(divisor.clone());
                             todo.push(target / divisor);
@@ -352,7 +365,7 @@ impl NaiveBuffer {
     // RFC 2071 and https://github.com/cramertj/impl-trait-goals/issues/3
 
     /// Returns all primes **below** limit. The primes are sorted.
-    fn primes(&mut self, limit: u64) -> std::iter::Take<<Self as PrimeBuffer>::PrimeIter> {
+    pub fn primes(&mut self, limit: u64) -> std::iter::Take<<Self as PrimeBuffer>::PrimeIter> {
         self.reserve(limit);
         let position = match self.list.binary_search(&limit) {
             Ok(p) => p, Err(p) => p
@@ -361,10 +374,10 @@ impl NaiveBuffer {
     }
 
     /// Returns primes of certain amount counting from 2. The primes are sorted.
-    fn nprimes(&mut self, count: usize) -> std::iter::Take<<Self as PrimeBuffer>::PrimeIter> {
+    pub fn nprimes(&mut self, count: usize) -> std::iter::Take<<Self as PrimeBuffer>::PrimeIter> {
         loop {
             // TODO: use a more accurate function to estimate the upper/lower bound of prime number function pi(.)
-            self.primes(self.current * (count as u64) / (self.list.len() as u64));
+            self.reserve(self.current * (count as u64) / (self.list.len() as u64));
             if self.list.len() >= count {
                 break self.list.iter().take(count)
             }
@@ -377,6 +390,7 @@ impl NaiveBuffer {
 mod tests {
     use super::*;
     use std::iter::FromIterator;
+    use rand::random;
 
     const PRIME50: [u64; 15] = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47];
     const PRIME100: [u64; 25] = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97];
@@ -389,7 +403,7 @@ mod tests {
     }
     
     #[test]
-    fn prime_assertion_test() {
+    fn small_prime_assertion_test() { // test for is_prime
         let mut pb = NaiveBuffer::new();
         assert!(pb.is_prime(6469693333));
         for x in 2..100 {
@@ -407,11 +421,24 @@ mod tests {
         for x in gprimes {
             assert!(pb.is_prime(x));
         }
+    }
 
+    #[test]
+    fn general_prime_assertion_test() {
+        let pb = NaiveBuffer::new();
+
+        // some mersenne numbers
         assert!(matches!(pb.is_bprime(&BigUint::from(2u32.pow(19) - 1), None), Primality::Yes));
         assert!(matches!(pb.is_bprime(&BigUint::from(2u32.pow(23) - 1), None), Primality::No));
         let m89 = BigUint::from(2u8).pow(89) - 1u8;
         assert!(matches!(pb.is_bprime(&m89, None), Primality::Probable(_)));
+
+        // test against small prime assertion
+        for _ in 0..100 {
+            let target = random::<u64>();
+            assert_eq!(!pb.is_prime(target),
+                matches!(pb.is_bprime(&BigUint::from(target), Some(PrimalityTestConfig::bpsw())), Primality::No));
+        }
     }
 
     #[test]

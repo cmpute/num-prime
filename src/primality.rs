@@ -13,9 +13,13 @@ pub trait LucasUtils {
     ///            Peter Hackman, "Elementary Number Theory", section "L.XVII Scalar" <http://hackmat.se/kurser/TATM54/booktot.pdf>
     fn lucasm(p: usize, q: isize, m: Self, n: Self) -> (Self, Self) where Self: Sized;
 
-    /// Find proper parameters P and Q of Lucas sequence for n, such that Jacobi(D|n) is -1
-    /// using Selfridge's method A.
+    /// Find proper parameters P and Q of Lucas pseudoprime test for n, such that Jacobi(D|n) is -1,
+    /// using Selfridge's method (referred as method A by Baillie).
     fn pq_selfridge(n: &Self) -> (usize, isize);
+
+    /// Find proper parameters P of extra strong Lucas pseudoprime test for n, such that Jacobi(D|n) is -1,
+    /// using brute-force searching (referred as method C by Baillie)
+    fn p_bruteforce(n: &Self) -> usize;
 }
 
 macro_rules! impl_lucas_util_for_uprim {
@@ -61,17 +65,35 @@ macro_rules! impl_lucas_util_for_uprim {
             }
 
             fn pq_selfridge(n: &$T) -> (usize, isize) {
-                for (d, neg) in successors(Some((5 as $T, false)), |(d, neg)| Some((d+2, !neg))) {
+                let mut d: $T = 5; let mut neg = false;
+                loop {
+                    // check if n is a square number after several trials
+                    if d == 13 && (*n).is_square() { break (0, 0) }
+
                     let sd = if neg { ModInt::<&$T, &$T>::negm(&d, n) } else { d };
-                    if d == 13 && (*n).is_square() { // check if n is a square number after several trial
-                        return (0, 0);
-                    }
-                    if ModInt::<&$T, &$T>::jacobi(&sd, n) == -1 {
+                    let j = ModInt::<&$T, &$T>::jacobi(&sd, n);
+                    if j == 0 && &d != n { break (0, 0) } // modification from Baillie, see https://oeis.org/A217120/a217120_1.txt
+                    if j == -1 {
                         let d = if neg { -(d as isize) } else { d as isize };
-                        return (1, (1 - d as isize) / 4);
+                        break (1, (1 - d as isize) / 4)
                     }
+
+                    d += 2; neg = !neg;
                 }
-                panic!(); // impossible
+            }
+
+            fn p_bruteforce(n: &$T) -> usize {
+                let mut p: usize = 3;
+                loop {
+                    // check if n is a square number after several trials
+                    if p == 10 && (*n).is_square() { break 0 }
+                    
+                    let d = (p*p - 4) as $T;
+                    let j = ModInt::<&$T, &$T>::jacobi(&d, n);
+                    if j == 0 && &d != n { break 0 }
+                    if j == -1 { break p }
+                    p += 1;
+                }
             }
         }
     };
@@ -124,6 +146,10 @@ impl LucasUtils for BigUint {
     }
     
     fn pq_selfridge(n: &BigUint) -> (usize, isize) {
+        unimplemented!();
+    }
+
+    fn p_bruteforce(n: &Self) -> usize {
         unimplemented!();
     }
 }
@@ -230,7 +256,14 @@ where for<'r> &'r T: RefNum<T> + std::ops::Shr<usize, Output = T> + ModInt<&'r T
         if self < &Self::one() { return false; }
         if self.is_even() { return false; }
 
-        let p = p.unwrap(); // TODO: find p=3,4,5 such that jacobi = -1, check square if p == 15
+        let p = match p {
+            Some(sp) => sp,
+            None =>  {
+                let sp = LucasUtils::p_bruteforce(self);
+                if sp == 0 { return false }; // is a perfect power
+                sp
+            }
+        };
 
         let d = (p*p) as isize - 4;
         let d = if d > 0 { Self::from_isize(d).unwrap() }
@@ -265,6 +298,28 @@ mod tests {
     use rand::random;
 
     #[test]
+    fn fermat_prp_test() {
+        // 341 is the smallest pseudoprime for base 2
+        assert!(341u16.is_prp(2));
+        assert!(!340u16.is_prp(2));
+        assert!(!105u16.is_prp(2));
+
+        // Carmichael number 561 = 3*11*17 is fermat pseudoprime for any base coprime to 561
+        for p in [2, 5, 7, 13, 19] {
+            assert!(561u32.is_prp(p));
+        }
+    }
+
+    #[test]
+    fn sprp_test() {
+        // strong pseudoprimes of base 2 (OEIS A001262) under 10000
+        let spsp: [u16; 5] = [2047, 3277, 4033, 4681, 8321];
+        for psp in spsp {
+            assert!(psp.is_sprp(2));
+        }
+    }
+
+    #[test]
     fn lucas_mod_test() {
         // OEIS A006190
         let p3qm1: [u64; 26] = [0, 1, 3, 10, 33, 109, 360, 1189, 3927, 12970, 42837, 141481, 467280, 1543321, 5097243, 16835050, 55602393, 183642229, 606529080, 2003229469, 6616217487, 21851881930, 72171863277, 238367471761, 787274278560, 2600190307441];
@@ -277,11 +332,15 @@ mod tests {
         }
     }
 
-    // TODO: add test for is_prp and is_sprp
-
     #[test]
     fn lucas_prp_test() {
+        // Some known cases
         assert!(19u8.is_lprp(Some(3), Some(-1)));
+        assert!(5u8.is_lprp(None, None));
+        assert!(7u8.is_lprp(None, None));
+        assert!(!9u8.is_lprp(None, None));
+        assert!(!5719u16.is_lprp(None, None));
+        assert!(!1239u16.is_eslprp(None));
 
         // least lucas pseudo primes for Q=-1 and Jacobi(D/n) = -1 (from Wikipedia)
         let plimit: [u16; 5] = [323, 35, 119, 9, 9];
@@ -292,7 +351,7 @@ mod tests {
             // test four random numbers under limit
             for _ in 0..10 {
                 let n = random::<u16>() % l;
-                if n < 2 || n.is_sprp(2) { continue } // skip real primes
+                if n <= 3 || n.is_sprp(2) { continue } // skip real primes
                 let d = (p*p + 4) as u16;
                 if n.is_odd() && ModInt::<&u16,&u16>::jacobi(&d, &n) != -1 { continue }
                 assert!(!n.is_lprp(Some(p), Some(-1)), "lucas prp test on {} with p = {}", n, p);
@@ -308,35 +367,47 @@ mod tests {
             // test random numbers under limit
             for _ in 0..10 {
                 let n = random::<u16>() % l;
-                if n < 2 || (n.is_sprp(2) && n.is_sprp(3)) { continue } // skip real primes
+                if n <= 3 || (n.is_sprp(2) && n.is_sprp(3)) { continue } // skip real primes
                 let d = (p*p + 4) as u16;
                 if n.is_odd() && ModInt::<&u16,&u16>::jacobi(&d, &n) != -1 { continue }
                 assert!(!n.is_slprp(Some(p), Some(-1)), "strong lucas prp test on {} with p = {}", n, p);
             }
         }
 
-        // lucas pseudoprimes under 10000, OEIS A217120
+        // lucas pseudoprimes (OEIS A217120) under 10000
         let lpsp: [u16; 9] = [323, 377, 1159, 1829, 3827, 5459, 5777, 9071, 9179];
         for psp in lpsp {
-            assert!(psp.is_lprp(None, None), "lucas prp test on {}", psp);
+            assert!(psp.is_lprp(None, None), "lucas prp test on pseudoprime {}", psp);
         }
-        for _ in 0..10 {
+        for _ in 0..50 {
             let n = random::<u16>() % 10000;
-            if n < 2 || (n.is_sprp(2) && n.is_sprp(3)) { continue } // skip real primes
-            if lpsp.iter().find(|&x| x == &n).is_some() { continue } // skip pseudo primes
+            if n <= 3 || (n.is_sprp(2) && n.is_sprp(3)) { continue } // skip real primes
+            if lpsp.iter().find(|&x| x == &n).is_some() { continue } // skip pseudoprimes
             assert!(!n.is_lprp(None, None), "lucas prp test on {}", n);
         }
         
-        // strong lucas pseudoprimes under 10000, OEIS A217255
+        // strong lucas pseudoprimes (OEIS A217255) under 10000
         let slpsp: [u16; 2] = [5459, 5777];
         for psp in slpsp {
-            assert!(psp.is_slprp(None, None), "strong lucas prp test on {}", psp);
+            assert!(psp.is_slprp(None, None), "strong lucas prp test on pseudoprime {}", psp);
         }
-        for _ in 0..10 {
+        for _ in 0..50 {
             let n = random::<u16>() % 10000;
-            if n < 2 || (n.is_sprp(2) && n.is_sprp(3)) { continue } // skip real primes
-            if slpsp.iter().find(|&x| x == &n).is_some() { continue } // skip pseudo primes
+            if n <= 3 || (n.is_sprp(2) && n.is_sprp(3)) { continue } // skip real primes
+            if slpsp.iter().find(|&x| x == &n).is_some() { continue } // skip pseudoprimes
             assert!(!n.is_slprp(None, None), "strong lucas prp test on {}", n);
+        }
+
+        // extra strong lucas pseudoprimes (OEIS A217719) under 10000
+        let eslpsp: [u16; 3] = [989, 3239, 5777];
+        for psp in eslpsp {
+            assert!(psp.is_eslprp(None), "extra strong lucas prp test on pseudoprime {}", psp);
+        }
+        for _ in 0..50 {
+            let n = random::<u16>() % 10000;
+            if n <= 3 || (n.is_sprp(2) && n.is_sprp(3)) { continue } // skip real primes
+            if eslpsp.iter().find(|&x| x == &n).is_some() { continue } // skip pseudoprimes
+            assert!(!n.is_eslprp(None), "extra strong lucas prp test on {}", n);
         }
     }
 }
