@@ -104,7 +104,7 @@ macro_rules! impl_mod_arithm_uu {
             impl_invm_prim!($T);
         }
         
-        // TODO: convert to macro
+        // TODO (v0.1): convert to macro
         impl ModInt<$T, &$T> for &$T {
             type Output = $T;
             #[inline]

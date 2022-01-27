@@ -1,4 +1,3 @@
-use std::iter::successors;
 use num_bigint::BigUint;
 use num_integer::Integer;
 use num_traits::{Zero, One, RefNum, NumRef, FromPrimitive};
@@ -290,7 +289,7 @@ where for<'r> &'r T: RefNum<T> + std::ops::Shr<usize, Output = T> + ModInt<&'r T
     }
 }
 
-// TODO: Add test using https://github.com/dignifiedquire/num-bigint/blob/master/src/prime.rs
+// TODO(v0.1): Add test using https://github.com/dignifiedquire/num-bigint/blob/master/src/prime.rs
 
 #[cfg(test)]
 mod tests {

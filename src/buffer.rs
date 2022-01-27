@@ -6,14 +6,8 @@ use num_traits::{One, ToPrimitive, FromPrimitive, NumRef, RefNum};
 use num_bigint::BigUint; // TODO (v0.1): make the dependency for this optional
 use num_integer::{Integer, Roots};
 use rand::{random, seq::IteratorRandom};
-use crate::traits::{PrimalityUtils, PrimeBuffer};
+use crate::traits::{PrimalityUtils, PrimeBuffer, Primality, PrimalityTestConfig, FactorizationConfig};
 use crate::factor::pollard_rho;
-
-pub enum Primality {
-    Yes, No,
-    /// carrying the probability of the number being a prime
-    Probable(f32)
-}
 
 /// Find factors by trial division. The target is guaranteed fully factored
 /// only if bound() * bound() > target. The parameter limit sets the max prime to be tried aside from bound()
@@ -40,60 +34,6 @@ where for<'r> &'r T: RefNum<T> {
     }
 
     (result, if factored { Ok(residual) } else { Err(residual) })
-}
-
-#[derive(Clone, Copy)]
-pub struct PrimalityTestConfig {
-    pub sprp_trials: usize, // number of SPRP test, starting from base 2 
-    pub sprp_random_trials: usize, // number of SPRP test with random base
-    pub slprp_test: bool,
-    pub eslprp_test: bool
-}
-
-impl PrimalityTestConfig {
-    pub fn default() -> Self {
-        Self { sprp_trials: 2, sprp_random_trials: 2, slprp_test: false, eslprp_test: false }
-    }
-
-    /// Create a configuration for Baillie-PSW test (base 2 SPRP test + SLPRP test)
-    pub fn bpsw() -> Self {
-        Self { sprp_trials: 1, sprp_random_trials: 0, slprp_test: true, eslprp_test: false }
-    }
-
-    /// Create a configuration for PSW test (base 2 SPRP + Fibonacci test)
-    pub fn psw() { todo!() } // TODO: implement Fibonacci PRP
-}
-
-#[derive(Clone, Copy)]
-pub struct FactorizationConfig {
-    /// config for test if a 
-    pub prime_test_config: PrimalityTestConfig,
-
-    /// prime limit of trial division, you also need to reserve the buffer if all primes under the limit are to be tested.
-    /// None means using all available primes
-    pub tf_limit: Option<u64>,
-
-    /// number of trials with Pollard's rho method
-    pub rho_trials: usize,
-
-    /// number of trials with Pollard's rho method (Brent variant)
-    pub brent_trials: usize,
-
-    /// number of trials with Pollard's p-1 method
-    pub pm1_trials: usize,
-
-    /// number of trials with William's p+1 method
-    pub pp1_trials: usize,
-}
-
-impl FactorizationConfig {
-    pub fn default() -> Self {
-        Self {
-            prime_test_config: PrimalityTestConfig::default(),
-            tf_limit: Some(1 << 14), rho_trials: 4,
-            brent_trials: 0, pm1_trials: 0, pp1_trials: 0
-        }
-    }
 }
 
 pub trait PrimeBufferExt : for<'a> PrimeBuffer<'a> {
@@ -218,7 +158,7 @@ pub trait PrimeBufferExt : for<'a> PrimeBuffer<'a> {
     }
 
     /// Return list of found factors if not fully factored
-    // TODO: accept general integer as input (thus potentially support other bigint such as crypto-bigint)
+    // TODO (v0.1): accept general integer as input (thus potentially support other bigint such as crypto-bigint)
     // REF: https://pypi.org/project/primefac/
     fn bfactors(&mut self, target: BigUint, config: Option<FactorizationConfig>) -> Result<BTreeMap<BigUint, usize>, Vec<BigUint>> {
         // shortcut if the target is in u64 range
@@ -264,7 +204,7 @@ pub trait PrimeBufferExt : for<'a> PrimeBuffer<'a> {
     /// Return None if no factor is found (this method will not do a primality check)
     fn bdivisor(&self, target: &BigUint, config: &mut FactorizationConfig) -> Option<BigUint> {
         // try to get a factor by trial division
-        // TODO (v0.1): skip the sqrt if tf_limit^2 < target
+        // TODO (v0.0.5): skip the sqrt if tf_limit^2 < target
         let target_sqrt: BigUint = num_integer::sqrt(target.clone()) + BigUint::one();
         let limit = if let Some(l) = config.tf_limit { target_sqrt.clone().min(BigUint::from_u64(l).unwrap()) } else { target_sqrt.clone() };
 

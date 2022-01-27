@@ -1,6 +1,66 @@
 use num_traits::{Pow};
 use num_integer::{Integer, Roots};
 
+pub enum Primality {
+    Yes, No,
+    /// carrying the probability of the number being a prime
+    Probable(f32)
+}
+
+#[derive(Clone, Copy)]
+pub struct PrimalityTestConfig {
+    pub sprp_trials: usize, // number of SPRP test, starting from base 2 
+    pub sprp_random_trials: usize, // number of SPRP test with random base
+    pub slprp_test: bool,
+    pub eslprp_test: bool
+}
+
+impl PrimalityTestConfig {
+    pub fn default() -> Self {
+        Self { sprp_trials: 2, sprp_random_trials: 2, slprp_test: false, eslprp_test: false }
+    }
+
+    /// Create a configuration for Baillie-PSW test (base 2 SPRP test + SLPRP test)
+    pub fn bpsw() -> Self {
+        Self { sprp_trials: 1, sprp_random_trials: 0, slprp_test: true, eslprp_test: false }
+    }
+
+    /// Create a configuration for PSW test (base 2 SPRP + Fibonacci test)
+    pub fn psw() { todo!() } // TODO: implement Fibonacci PRP
+}
+
+#[derive(Clone, Copy)]
+pub struct FactorizationConfig {
+    /// config for test if a 
+    pub prime_test_config: PrimalityTestConfig,
+
+    /// prime limit of trial division, you also need to reserve the buffer if all primes under the limit are to be tested.
+    /// None means using all available primes
+    pub tf_limit: Option<u64>,
+
+    /// number of trials with Pollard's rho method
+    pub rho_trials: usize,
+
+    /// number of trials with Pollard's rho method (Brent variant)
+    pub brent_trials: usize,
+
+    /// number of trials with Pollard's p-1 method
+    pub pm1_trials: usize,
+
+    /// number of trials with William's p+1 method
+    pub pp1_trials: usize,
+}
+
+impl FactorizationConfig {
+    pub fn default() -> Self {
+        Self {
+            prime_test_config: PrimalityTestConfig::default(),
+            tf_limit: Some(1 << 14), rho_trials: 4,
+            brent_trials: 0, pm1_trials: 0, pp1_trials: 0
+        }
+    }
+}
+
 /// Extension on num_integer::Roots to support power check on integers
 // FIXME: backport to num_integer (see https://github.com/rust-num/num-traits/issues/233)
 pub trait ExactRoots : Roots + Pow<u32, Output = Self> + Clone {
