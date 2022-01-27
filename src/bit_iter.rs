@@ -1,4 +1,3 @@
-
 pub struct BitIter;
 
 // REF: https://github.com/ctamblyn/bit-iter/blob/main/src/lib.rs

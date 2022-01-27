@@ -20,3 +20,6 @@ num-bigint = { version = "0.4.3", features = ["rand"] }
 num-traits = "0.2.14"
 bitvec = "0.22.3"
 rand = "0.8.4"
+
+[features]
+big-table = []

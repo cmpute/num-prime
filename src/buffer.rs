@@ -1,85 +1,87 @@
-/// NaiveBuffer implements a list of primes
-
-use std::{collections::BTreeMap, convert::{TryInto, TryFrom}};
+use crate::factor::pollard_rho;
+use crate::nt_funcs::{factors64, is_prime64};
+use crate::tables::SMALL_PRIMES;
+use crate::traits::{
+    FactorizationConfig, Primality, PrimalityTestConfig, PrimalityUtils, PrimeBuffer,
+};
 use bitvec::bitvec;
-use num_traits::{One, ToPrimitive, FromPrimitive, NumRef, RefNum};
 use num_bigint::BigUint; // TODO (v0.1): make the dependency for this optional
 use num_integer::{Integer, Roots};
+use num_traits::{FromPrimitive, NumRef, One, RefNum, ToPrimitive};
 use rand::{random, seq::IteratorRandom};
-use crate::traits::{PrimalityUtils, PrimeBuffer, Primality, PrimalityTestConfig, FactorizationConfig};
-use crate::factor::pollard_rho;
+/// NaiveBuffer implements a list of primes
+use std::{
+    collections::BTreeMap,
+    convert::{TryFrom, TryInto},
+}; // TODO (v0.0.5): use small primes for naive buffer
 
+// TODO (v0.0.5): move this function to factors.rs
 /// Find factors by trial division. The target is guaranteed fully factored
 /// only if bound() * bound() > target. The parameter limit sets the max prime to be tried aside from bound()
 /// Return factors, and if the target is fully factored, return Ok(residual), otherwise return Err(residual)
-fn factors_trial<I: Iterator<Item = u64>, T: Integer + Clone + Roots + NumRef + FromPrimitive>
-(primes: I, target: T, limit: Option<u64>) -> (BTreeMap<u64, usize>, Result<T, T>)
-where for<'r> &'r T: RefNum<T> {
+pub fn factors_trial<I: Iterator<Item = u64>, T: Integer + Clone + Roots + NumRef + FromPrimitive>(
+    primes: I,
+    target: T,
+    limit: Option<u64>,
+) -> (BTreeMap<u64, usize>, Result<T, T>)
+where
+    for<'r> &'r T: RefNum<T>,
+{
     let mut residual = target.clone();
     let mut result = BTreeMap::new();
     let target_sqrt = num_integer::sqrt(target) + T::one();
-    let limit = if let Some(l) = limit { target_sqrt.clone().min(T::from_u64(l).unwrap()) } else { target_sqrt.clone() };
+    let limit = if let Some(l) = limit {
+        target_sqrt.clone().min(T::from_u64(l).unwrap())
+    } else {
+        target_sqrt.clone()
+    };
     let mut factored = false;
     for (p, pt) in primes.map(|p| (p, T::from_u64(p).unwrap())) {
-        if &pt > &target_sqrt { factored = true; }
-        if &pt > &limit { break; }
+        if &pt > &target_sqrt {
+            factored = true;
+        }
+        if &pt > &limit {
+            break;
+        }
 
         while residual.is_multiple_of(&pt) {
             residual = residual / &pt;
             *result.entry(p).or_insert(0) += 1;
         }
         if residual == T::one() {
-            break
+            factored = true;
+            break;
         }
     }
 
-    (result, if factored { Ok(residual) } else { Err(residual) })
+    (
+        result,
+        if factored {
+            Ok(residual)
+        } else {
+            Err(residual)
+        },
+    )
 }
 
-pub trait PrimeBufferExt : for<'a> PrimeBuffer<'a> {
-    /// Return whether target is a prime. It uses Miller-rabin tests so even works
-    /// for very large numbers and it's very fast
-    fn is_prime(&self, target: u64) -> bool {
-        assert!(target > 1);
-
+pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
+    /// Test if an integer is a prime, the config will take effect only if the target is larger
+    /// than 2^64.
+    fn is_prime(&self, target: &BigUint, config: Option<PrimalityTestConfig>) -> Primality {
         // shortcuts
         if target.is_even() {
-            return target == 2;
-        }
-
-        // first find in the prime list
-        if target < self.bound() {
-            return self.contains(target);
-        }
-
-        // Then do a deterministic Miller-rabin test
-        // The collection of witnesses are from http://miller-rabin.appspot.com/
-        if let Ok(u) = u16::try_from(target) {
-            // 2, 3 for u16 range
-            return u.is_sprp(2) && u.is_sprp(3);
-        }
-        if let Ok(u) = u32::try_from(target) {
-            // 2, 7, 61 for u32 range
-            return u.is_sprp(2) && u.is_sprp(7) && u.is_sprp(61);
-        }
-        
-        // 2, 325, 9375, 28178, 450775, 9780504, 1795265022 for u64 range
-        let witnesses = [2, 325, 9375, 28178, 450775, 9780504, 1795265022];
-        witnesses.iter().all(|&x| target.is_sprp(x))
-    }
-
-    /// Test if a big integer is a prime, this function would carry out a probability test if
-    /// the target is not smaller than 2^64
-    fn is_bprime(&self, target: &BigUint, config: Option<PrimalityTestConfig>) -> Primality {
-        // shortcuts
-        if target.is_even() {
-            return if target == &BigUint::from(2u8) { Primality::Yes } else { Primality::No };
+            return if target == &BigUint::from(2u8) {
+                Primality::Yes
+            } else {
+                Primality::No
+            };
         }
 
         // do deterministic test if target is under 2^64
         if let Some(x) = target.to_u64() {
-            return match self.is_prime(x) {
-                true => Primality::Yes, false => Primality::No
+            return match is_prime64(x) {
+                true => Primality::Yes,
+                false => Primality::No,
             };
         }
 
@@ -94,10 +96,16 @@ pub trait PrimeBufferExt : for<'a> PrimeBuffer<'a> {
         }
         if config.sprp_random_trials > 0 {
             let mut rng = rand::thread_rng();
-            witness_list.extend(self.iter().choose_multiple(&mut rng, config.sprp_random_trials));
+            witness_list.extend(
+                self.iter()
+                    .choose_multiple(&mut rng, config.sprp_random_trials),
+            );
             probability *= 1. - 0.25f32.powi(config.sprp_random_trials.try_into().unwrap());
         }
-        if !witness_list.iter().all(|&x| target.is_sprp(BigUint::from(x))) {
+        if !witness_list
+            .iter()
+            .all(|&x| target.is_sprp(BigUint::from(x)))
+        {
             return Primality::No;
         }
 
@@ -118,70 +126,46 @@ pub trait PrimeBufferExt : for<'a> PrimeBuffer<'a> {
         Primality::Probable(probability)
     }
 
-    fn factors(&self, target: u64) -> BTreeMap<u64, usize> {        
-        // TODO: improve factorization performance
-        // REF: https://github.com/coreutils/coreutils/blob/master/src/factor.c
-        //      https://github.com/uutils/coreutils/blob/master/src/uu/factor/src/cli.rs
-        //      https://github.com/elmomoilanen/prime-factorization
-        //      https://github.com/radii/msieve
-        if self.is_prime(target) {
-            let mut result = BTreeMap::new();
-            result.insert(target, 1);
-            return result;
-        }
-
-        const FACTOR_THRESHOLD: u64 = 1 << 14; // TODO: this threshold should be optimized for only u64 integers
-        let (mut result, factored) = factors_trial(self.iter().cloned(), target, Some(FACTOR_THRESHOLD));
-        
-        match factored {
-            Ok(res) => { result.insert(res, 1); },
-            Err(res) => {
-                let mut todo = vec![res];
-                while let Some(target) = todo.pop() {
-                    if self.is_prime(target) {
-                        *result.entry(target).or_insert(0) += 1;
-                    } else {
-                        let divisor = loop {
-                            let start = random::<u64>() % target;
-                            let offset = random::<u64>() % target;
-                            if let Some(p) = pollard_rho(&target, start, offset) {
-                                break p
-                            }
-                        };
-                        todo.push(divisor);
-                        todo.push(res / divisor);
-                    }
-                }
-            }
-        };
-        result
-    }
-
     /// Return list of found factors if not fully factored
     // TODO (v0.1): accept general integer as input (thus potentially support other bigint such as crypto-bigint)
     // REF: https://pypi.org/project/primefac/
-    fn bfactors(&mut self, target: BigUint, config: Option<FactorizationConfig>) -> Result<BTreeMap<BigUint, usize>, Vec<BigUint>> {
+    fn factors(
+        &mut self,
+        target: BigUint,
+        config: Option<FactorizationConfig>,
+    ) -> Result<BTreeMap<BigUint, usize>, Vec<BigUint>> {
         // shortcut if the target is in u64 range
         if let Some(x) = target.to_u64() {
-            return Ok(self.factors(x).iter().map(|(&k, &v)| (BigUint::from(k), v)).collect());
+            return Ok(factors64(x)
+                .iter()
+                .map(|(&k, &v)| (BigUint::from(k), v))
+                .collect());
         }
         let config = config.unwrap_or(FactorizationConfig::default());
 
         // test the existing primes
         let (result, factored) = factors_trial(self.iter().cloned(), target, config.tf_limit);
-        let mut result: BTreeMap<BigUint, usize> = result.into_iter().map(|(k, v)| (BigUint::from(k), v)).collect();
+        let mut result: BTreeMap<BigUint, usize> = result
+            .into_iter()
+            .map(|(k, v)| (BigUint::from(k), v))
+            .collect();
 
         // find factors by dividing
         let mut successful = true;
         let mut config = config;
         config.tf_limit = Some(0); // disable TF when finding divisor
         match factored {
-            Ok(res) => { result.insert(res, 1); },
+            Ok(res) => {
+                result.insert(res, 1);
+            }
             Err(res) => {
                 successful = true;
                 let mut todo = vec![res];
                 while let Some(target) = todo.pop() {
-                    if matches! (self.is_bprime(&target, Some(config.prime_test_config)), Primality::Yes | Primality::Probable(_)) {
+                    if matches!(
+                        self.is_prime(&target, Some(config.prime_test_config)),
+                        Primality::Yes | Primality::Probable(_)
+                    ) {
                         *result.entry(target).or_insert(0) += 1;
                     } else {
                         if let Some(divisor) = self.bdivisor(&target, &mut config) {
@@ -196,8 +180,14 @@ pub trait PrimeBufferExt : for<'a> PrimeBuffer<'a> {
             }
         };
 
-        if successful { Ok(result) }
-        else { Err(result.into_iter().flat_map(|(f, n)| std::iter::repeat(f).take(n)).collect()) }
+        if successful {
+            Ok(result)
+        } else {
+            Err(result
+                .into_iter()
+                .flat_map(|(f, n)| std::iter::repeat(f).take(n))
+                .collect())
+        }
     }
 
     /// Return a proper divisor of target (randomly), even works for very large numbers
@@ -206,12 +196,22 @@ pub trait PrimeBufferExt : for<'a> PrimeBuffer<'a> {
         // try to get a factor by trial division
         // TODO (v0.0.5): skip the sqrt if tf_limit^2 < target
         let target_sqrt: BigUint = num_integer::sqrt(target.clone()) + BigUint::one();
-        let limit = if let Some(l) = config.tf_limit { target_sqrt.clone().min(BigUint::from_u64(l).unwrap()) } else { target_sqrt.clone() };
+        let limit = if let Some(l) = config.tf_limit {
+            target_sqrt.clone().min(BigUint::from_u64(l).unwrap())
+        } else {
+            target_sqrt.clone()
+        };
 
         for p in self.iter().map(|p| BigUint::from_u64(*p).unwrap()) {
-            if &p > &target_sqrt { return None; } // the number is a prime
-            if &p > &limit { break; }
-            if target.is_multiple_of(&p) { return Some(p); }
+            if &p > &target_sqrt {
+                return None;
+            } // the number is a prime
+            if &p > &limit {
+                break;
+            }
+            if target.is_multiple_of(&p) {
+                return Some(p);
+            }
         }
 
         // try to get a factor using pollard_rho with 4x4 trials
@@ -228,11 +228,11 @@ pub trait PrimeBufferExt : for<'a> PrimeBuffer<'a> {
     }
 }
 
-impl<T> PrimeBufferExt for T where for <'a> T: PrimeBuffer<'a> {}
+impl<T> PrimeBufferExt for T where for<'a> T: PrimeBuffer<'a> {}
 
 pub struct NaiveBuffer {
     list: Vec<u64>, // list of found prime numbers
-    current: u64 // all primes smaller than this value has to be in the prime list, should be an odd number
+    current: u64, // all primes smaller than this value has to be in the prime list, should be an odd number
 }
 
 impl NaiveBuffer {
@@ -240,7 +240,7 @@ impl NaiveBuffer {
     pub fn new() -> Self {
         // store at least enough primes for miller test
         let list = vec![2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37];
-        NaiveBuffer { list , current: 41 }
+        NaiveBuffer { list, current: 41 }
     }
 }
 
@@ -272,13 +272,14 @@ impl<'a> PrimeBuffer<'a> for NaiveBuffer {
 
         // create sieve and filter with existing primes
         let mut sieve = bitvec![0; ((odd_limit - current) / 2) as usize];
-        for p in self.list.iter().skip(1) { // skip pre-filtered 2
+        for p in self.list.iter().skip(1) {
+            // skip pre-filtered 2
             let start = if p * p < current {
                 p * ((current / p) | 1) // start from an odd factor
             } else {
                 p * p
             };
-            for multi in (start .. odd_limit).step_by(2 * (*p as usize)) {
+            for multi in (start..odd_limit).step_by(2 * (*p as usize)) {
                 if multi >= current {
                     sieve.set(((multi - current) / 2) as usize, true);
                 }
@@ -287,7 +288,7 @@ impl<'a> PrimeBuffer<'a> for NaiveBuffer {
 
         // sieve with new primes
         for p in (current..num_integer::sqrt(odd_limit) + 1).step_by(2) {
-            for multi in (p*p .. odd_limit).step_by(2 * (p as usize)) {
+            for multi in (p * p..odd_limit).step_by(2 * (p as usize)) {
                 if multi >= current {
                     sieve.set(((multi - current) / 2) as usize, true);
                 }
@@ -295,7 +296,8 @@ impl<'a> PrimeBuffer<'a> for NaiveBuffer {
         }
 
         // sort the sieve
-        self.list.extend(sieve.iter_zeros().map(|x| (x as u64) * 2 + current));
+        self.list
+            .extend(sieve.iter_zeros().map(|x| (x as u64) * 2 + current));
         self.current = odd_limit;
     }
 }
@@ -308,9 +310,10 @@ impl NaiveBuffer {
     pub fn primes(&mut self, limit: u64) -> std::iter::Take<<Self as PrimeBuffer>::PrimeIter> {
         self.reserve(limit);
         let position = match self.list.binary_search(&limit) {
-            Ok(p) => p, Err(p) => p
+            Ok(p) => p,
+            Err(p) => p,
         };
-        return self.list.iter().take(position)
+        return self.list.iter().take(position);
     }
 
     /// Returns primes of certain amount counting from 2. The primes are sorted.
@@ -319,78 +322,67 @@ impl NaiveBuffer {
             // TODO: use a more accurate function to estimate the upper/lower bound of prime number function pi(.)
             self.reserve(self.current * (count as u64) / (self.list.len() as u64));
             if self.list.len() >= count {
-                break self.list.iter().take(count)
+                break self.list.iter().take(count);
             }
         }
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::iter::FromIterator;
     use rand::random;
+    use std::iter::FromIterator;
 
     const PRIME50: [u64; 15] = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47];
-    const PRIME100: [u64; 25] = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97];
+    const PRIME100: [u64; 25] = [
+        2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89,
+        97,
+    ];
 
     #[test]
-    fn prime_generation_test(){
+    fn prime_generation_test() {
         let mut pb = NaiveBuffer::new();
         assert_eq!(pb.primes(50).cloned().collect::<Vec<_>>(), PRIME50);
         assert_eq!(pb.primes(100).cloned().collect::<Vec<_>>(), PRIME100);
     }
-    
+
     #[test]
-    fn small_prime_assertion_test() { // test for is_prime
+    fn pb_is_prime_test() {
+        // test for is_prime
         let mut pb = NaiveBuffer::new();
-        assert!(pb.is_prime(6469693333));
-        for x in 2..100 {
-            assert_eq!(PRIME100.contains(&x), pb.is_prime(x));
-        }
-
-        // test primes under 10000
-        let gprimes = pb.primes(10000).cloned().collect::<Vec<_>>();
-        for x in gprimes {
-            assert!(pb.is_prime(x));
-        }
-
-        // test primes under 20000
-        let gprimes = pb.primes(20000).cloned().collect::<Vec<_>>();
-        for x in gprimes {
-            assert!(pb.is_prime(x));
-        }
-    }
-
-    #[test]
-    fn general_prime_assertion_test() {
-        let pb = NaiveBuffer::new();
 
         // some mersenne numbers
-        assert!(matches!(pb.is_bprime(&BigUint::from(2u32.pow(19) - 1), None), Primality::Yes));
-        assert!(matches!(pb.is_bprime(&BigUint::from(2u32.pow(23) - 1), None), Primality::No));
+        assert!(matches!(
+            pb.is_prime(&BigUint::from(2u32.pow(19) - 1), None),
+            Primality::Yes
+        ));
+        assert!(matches!(
+            pb.is_prime(&BigUint::from(2u32.pow(23) - 1), None),
+            Primality::No
+        ));
         let m89 = BigUint::from(2u8).pow(89) - 1u8;
-        assert!(matches!(pb.is_bprime(&m89, None), Primality::Probable(_)));
+        assert!(matches!(pb.is_prime(&m89, None), Primality::Probable(_)));
 
         // test against small prime assertion
         for _ in 0..100 {
             let target = random::<u64>();
-            assert_eq!(!pb.is_prime(target),
-                matches!(pb.is_bprime(&BigUint::from(target), Some(PrimalityTestConfig::bpsw())), Primality::No));
+            assert_eq!(
+                !is_prime64(target),
+                matches!(
+                    pb.is_prime(&BigUint::from(target), Some(PrimalityTestConfig::bpsw())),
+                    Primality::No
+                )
+            );
         }
     }
 
     #[test]
-    fn factorization_test() {
+    fn pb_factors_test() {
         let mut pb = NaiveBuffer::new();
-        let fac123456789 = BTreeMap::from_iter([(3, 2), (3803, 1), (3607, 1)]);
-        let fac = pb.factors(123456789);
-        assert_eq!(fac, fac123456789);
 
         let m131 = BigUint::from(2u8).pow(131) - 1u8; // m131/263 is a large prime
-        let fac = pb.bfactors(m131, None);
+        let fac = pb.factors(m131, None);
         assert!(matches!(fac, Ok(f) if f.len() == 2));
     }
 }
-

@@ -10,6 +10,7 @@ This crate provides utilities for integer modular arithmetics and prime related 
   - Miller-rabin probable prime test
   - (strong/extra strong) Lucas probable prime test
   - Baillie-PSW test
+  - Deterministic checks of `u64` integers (using very a fast Miller-rabin variant with hashing)
 - Primes generation and indexing
 - Integer factorization
   - Trial division

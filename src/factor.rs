@@ -1,9 +1,15 @@
-use num_integer::{Integer};
-use num_traits::{RefNum, NumRef, FromPrimitive};
 use crate::traits::ModInt;
+use num_integer::Integer;
+use num_traits::{FromPrimitive, NumRef, RefNum};
 
-pub fn pollard_rho<T: Integer + FromPrimitive + NumRef + Clone>(target: &T, start: T, offset: T) -> Option<T>
-where for<'r> &'r T: RefNum<T> + ModInt<&'r T, &'r T, Output = T> {
+pub fn pollard_rho<T: Integer + FromPrimitive + NumRef + Clone>(
+    target: &T,
+    start: T,
+    offset: T,
+) -> Option<T>
+where
+    for<'r> &'r T: RefNum<T> + ModInt<&'r T, &'r T, Output = T>,
+{
     let mut a = start.clone();
     let mut b = start;
     // marker for loop detection, i = tortoise, j = hare
@@ -12,11 +18,15 @@ where for<'r> &'r T: RefNum<T> + ModInt<&'r T, &'r T, Output = T> {
     while i > 0 {
         i += 1;
         a = (&a).mulm(&a, &target).addm(&offset, &target);
-        if a == b { return None; }
+        if a == b {
+            return None;
+        }
 
         let diff = if b > a { &b - &a } else { &a - &b }; // abs_diff
         let d = diff.gcd(target);
-        if d > T::one() && &d < target { return Some(d) }
+        if d > T::one() && &d < target {
+            return Some(d);
+        }
 
         // when a catches up with b
         if i == j {

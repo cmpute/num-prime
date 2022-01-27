@@ -1,8 +1,8 @@
 // backend implementations for integers
+use crate::traits::{ExactRoots, ModInt};
 use num_bigint::BigUint;
 use num_integer::{Integer, Roots};
-use num_traits::{ToPrimitive, Zero, One, Pow};
-use crate::traits::{ExactRoots, ModInt};
+use num_traits::{One, Pow, ToPrimitive, Zero};
 
 // TODO (v0.1): implement fast perfect power check for integers
 // REF: https://github.com/coreutils/coreutils/blob/master/src/factor.c#L1833
@@ -16,8 +16,12 @@ macro_rules! impl_jacobi_prim {
             // TODO (v0.1): panic here
             debug_assert!(n % 2 == 1 && n >= &0);
 
-            if self == &0 { return 0; }
-            if self == &1 { return 1; }
+            if self == &0 {
+                return 0;
+            }
+            if self == &1 {
+                return 1;
+            }
 
             let mut a = self % n;
             let mut n = n.clone();
@@ -35,7 +39,11 @@ macro_rules! impl_jacobi_prim {
                 }
                 a = a % n;
             }
-            if n == 1 { t } else { 0 }
+            if n == 1 {
+                t
+            } else {
+                0
+            }
         }
     };
 }
@@ -51,14 +59,20 @@ macro_rules! impl_invm_prim {
 
             while r > 0 {
                 let (quo, rem) = last_r.div_rem(&r);
-                last_r = r; r = rem;
+                last_r = r;
+                r = rem;
 
                 let new_t = last_t.subm(&quo.mulm(&t, m), m);
-                last_t = t; t = new_t;
+                last_t = t;
+                t = new_t;
             }
 
             // if r = gcd(self, m) > 1, then inverse doesn't exist
-            if last_r > 1 { None } else { Some(last_t) }
+            if last_r > 1 {
+                None
+            } else {
+                Some(last_t)
+            }
         }
     };
 }
@@ -69,20 +83,34 @@ macro_rules! impl_mod_arithm_uu {
         impl ModInt<&$T, &$T> for &$T {
             type Output = $T;
             #[inline]
-            fn fac2(self) -> usize { self.trailing_zeros() as usize }
+            fn fac2(self) -> usize {
+                self.trailing_zeros() as usize
+            }
             #[inline]
-            fn addm(self, rhs: &$T, m: &$T) -> $T { (((*self as $Tdouble) + (*rhs as $Tdouble)) % (*m as $Tdouble)) as $T }
+            fn addm(self, rhs: &$T, m: &$T) -> $T {
+                (((*self as $Tdouble) + (*rhs as $Tdouble)) % (*m as $Tdouble)) as $T
+            }
             #[inline]
             fn subm(self, rhs: &$T, m: &$T) -> $T {
                 let (lhs, rhs) = (self % m, rhs % m);
-                if lhs >= rhs { lhs - rhs } else { m - (rhs - lhs) }
+                if lhs >= rhs {
+                    lhs - rhs
+                } else {
+                    m - (rhs - lhs)
+                }
             }
             #[inline]
-            fn mulm(self, rhs: &$T, m: &$T) -> $T { (((*self as $Tdouble) * (*rhs as $Tdouble)) % (*m as $Tdouble)) as $T }
+            fn mulm(self, rhs: &$T, m: &$T) -> $T {
+                (((*self as $Tdouble) * (*rhs as $Tdouble)) % (*m as $Tdouble)) as $T
+            }
             fn powm(self, exp: &$T, m: &$T) -> $T {
-                if *exp == 1 { return self % m; }
-                if *exp == 2 { return self.mulm(self, m); }
-        
+                if *exp == 1 {
+                    return self % m;
+                }
+                if *exp == 2 {
+                    return self.mulm(self, m);
+                }
+
                 let mut multi = self % m;
                 let mut exp = *exp;
                 let mut result = 1;
@@ -98,33 +126,53 @@ macro_rules! impl_mod_arithm_uu {
             #[inline]
             fn negm(self, m: &$T) -> $T {
                 let x = self % m;
-                if x == 0 { 0 } else { m-x }
+                if x == 0 {
+                    0
+                } else {
+                    m - x
+                }
             }
             impl_jacobi_prim!($T);
             impl_invm_prim!($T);
         }
-        
+
         // TODO (v0.1): convert to macro
         impl ModInt<$T, &$T> for &$T {
             type Output = $T;
             #[inline]
-            fn fac2(self) -> usize { self.trailing_zeros() as usize }
+            fn fac2(self) -> usize {
+                self.trailing_zeros() as usize
+            }
             #[inline]
-            fn addm(self, rhs: $T, m: &$T) -> $T { self.addm(&rhs, m) }
+            fn addm(self, rhs: $T, m: &$T) -> $T {
+                self.addm(&rhs, m)
+            }
             #[inline]
-            fn subm(self, rhs: $T, m: &$T) -> $T { self.subm(&rhs, m) }
+            fn subm(self, rhs: $T, m: &$T) -> $T {
+                self.subm(&rhs, m)
+            }
             #[inline]
-            fn mulm(self, rhs: $T, m: &$T) -> $T { self.mulm(&rhs, m) }
+            fn mulm(self, rhs: $T, m: &$T) -> $T {
+                self.mulm(&rhs, m)
+            }
             #[inline]
-            fn powm(self, exp: $T, m: &$T) -> $T { self.powm(&exp, m) }
+            fn powm(self, exp: $T, m: &$T) -> $T {
+                self.powm(&exp, m)
+            }
             #[inline]
-            fn negm(self, m: &$T) -> $T { ModInt::<&$T, &$T>::negm(self, m) }
+            fn negm(self, m: &$T) -> $T {
+                ModInt::<&$T, &$T>::negm(self, m)
+            }
             #[inline]
-            fn invm(self, m: &$T) -> Option<$T> { ModInt::<&$T, &$T>::invm(self, m) }
+            fn invm(self, m: &$T) -> Option<$T> {
+                ModInt::<&$T, &$T>::invm(self, m)
+            }
             #[inline]
-            fn jacobi(self, n: &$T) -> i8 { ModInt::<&$T, &$T>::jacobi(self, n) }
+            fn jacobi(self, n: &$T) -> i8 {
+                ModInt::<&$T, &$T>::jacobi(self, n)
+            }
         }
-    }
+    };
 }
 
 impl_mod_arithm_uu!(u8, u16);
@@ -136,13 +184,15 @@ impl ModInt<&u128, &u128> for &u128 {
     type Output = u128;
 
     #[inline]
-    fn fac2(self) -> usize { self.trailing_zeros() as usize }
+    fn fac2(self) -> usize {
+        self.trailing_zeros() as usize
+    }
 
     // XXX: check if these operations are also faster in u64
     #[inline]
     fn addm(self, rhs: &u128, m: &u128) -> u128 {
         if let Some(ab) = self.checked_add(*rhs) {
-            return ab % m
+            return ab % m;
         }
 
         let (lhs, rhs) = (self % m, rhs % m);
@@ -156,20 +206,24 @@ impl ModInt<&u128, &u128> for &u128 {
     #[inline]
     fn subm(self, rhs: &u128, m: &u128) -> u128 {
         let (lhs, rhs) = (self % m, rhs % m);
-        if lhs >= rhs { lhs - rhs } else { m - (rhs - lhs) }
+        if lhs >= rhs {
+            lhs - rhs
+        } else {
+            m - (rhs - lhs)
+        }
     }
 
     // TODO: benchmark against http://www.janfeitsma.nl/math/psp2/expmod
     fn mulm(self, rhs: &u128, m: &u128) -> u128 {
         if let Some(ab) = self.checked_mul(*rhs) {
-            return ab % m
+            return ab % m;
         }
 
         let mut a = self % m;
         let mut b = rhs % m;
 
         if let Some(ab) = a.checked_mul(b) {
-            return ab % m
+            return ab % m;
         }
 
         let mut result: u128 = 0;
@@ -203,7 +257,11 @@ impl ModInt<&u128, &u128> for &u128 {
 
     fn negm(self, m: &u128) -> u128 {
         let x = self % m;
-        if x == 0 { 0 } else { m-x }
+        if x == 0 {
+            0
+        } else {
+            m - x
+        }
     }
 
     impl_jacobi_prim!(u128);
@@ -213,30 +271,47 @@ impl ModInt<&u128, &u128> for &u128 {
 impl ModInt<u128, &u128> for &u128 {
     type Output = u128;
     #[inline]
-    fn fac2(self) -> usize { self.trailing_zeros() as usize }
+    fn fac2(self) -> usize {
+        self.trailing_zeros() as usize
+    }
     #[inline]
-    fn addm(self, rhs: u128, m: &u128) -> u128 { self.addm(&rhs, m) }
+    fn addm(self, rhs: u128, m: &u128) -> u128 {
+        self.addm(&rhs, m)
+    }
     #[inline]
-    fn subm(self, rhs: u128, m: &u128) -> u128 { self.subm(&rhs, m) }
+    fn subm(self, rhs: u128, m: &u128) -> u128 {
+        self.subm(&rhs, m)
+    }
     #[inline]
-    fn mulm(self, rhs: u128, m: &u128) -> u128 { self.mulm(&rhs, m) }
+    fn mulm(self, rhs: u128, m: &u128) -> u128 {
+        self.mulm(&rhs, m)
+    }
     #[inline]
-    fn powm(self, exp: u128, m: &u128) -> u128 { self.powm(&exp, m) }
+    fn powm(self, exp: u128, m: &u128) -> u128 {
+        self.powm(&exp, m)
+    }
     #[inline]
-    fn negm(self, m: &u128) -> u128 { ModInt::<&u128, &u128>::negm(self, m) }
+    fn negm(self, m: &u128) -> u128 {
+        ModInt::<&u128, &u128>::negm(self, m)
+    }
     #[inline]
-    fn invm(self, m: &u128) -> Option<u128> { ModInt::<&u128, &u128>::invm(self, m) }
+    fn invm(self, m: &u128) -> Option<u128> {
+        ModInt::<&u128, &u128>::invm(self, m)
+    }
     #[inline]
-    fn jacobi(self, n: &u128) -> i8 { ModInt::<&u128, &u128>::jacobi(self, n) }
+    fn jacobi(self, n: &u128) -> i8 {
+        ModInt::<&u128, &u128>::jacobi(self, n)
+    }
 }
 
-impl ModInt<&BigUint, &BigUint> for &BigUint {    
+impl ModInt<&BigUint, &BigUint> for &BigUint {
     type Output = BigUint;
 
     #[inline]
-    fn fac2(self) -> usize { 
+    fn fac2(self) -> usize {
         match BigUint::trailing_zeros(self) {
-            Some(a) => a as usize, None => 0
+            Some(a) => a as usize,
+            None => 0,
         }
     }
 
@@ -246,7 +321,11 @@ impl ModInt<&BigUint, &BigUint> for &BigUint {
     }
     fn subm(self, rhs: &BigUint, m: &BigUint) -> BigUint {
         let (lhs, rhs) = (self % m, rhs % m);
-        if lhs >= rhs { lhs - rhs } else { m - (rhs - lhs) }
+        if lhs >= rhs {
+            lhs - rhs
+        } else {
+            m - (rhs - lhs)
+        }
     }
 
     fn mulm(self, rhs: &BigUint, m: &BigUint) -> BigUint {
@@ -270,14 +349,22 @@ impl ModInt<&BigUint, &BigUint> for &BigUint {
     #[inline]
     fn negm(self, m: &BigUint) -> BigUint {
         let x = self % m;
-        if x.is_zero() { BigUint::zero() } else { m-x }
+        if x.is_zero() {
+            BigUint::zero()
+        } else {
+            m - x
+        }
     }
 
     fn jacobi(self, n: &BigUint) -> i8 {
         debug_assert!(n.is_odd());
 
-        if self.is_zero() { return 0; }
-        if self.is_one() { return 1; }
+        if self.is_zero() {
+            return 0;
+        }
+        if self.is_one() {
+            return 1;
+        }
 
         let three = BigUint::from(3u8);
         let five = BigUint::from(5u8);
@@ -299,7 +386,11 @@ impl ModInt<&BigUint, &BigUint> for &BigUint {
             }
             a %= &n;
         }
-        if n.is_one() { t } else { 0 }
+        if n.is_one() {
+            t
+        } else {
+            0
+        }
     }
 
     fn invm(self, m: &BigUint) -> Option<Self::Output> {
@@ -310,47 +401,68 @@ impl ModInt<&BigUint, &BigUint> for &BigUint {
 
         while r > BigUint::zero() {
             let (quo, rem) = last_r.div_rem(&r);
-            last_r = r; r = rem;
+            last_r = r;
+            r = rem;
 
             let new_t = last_t.subm(&quo.mulm(&t, m), m);
-            last_t = t; t = new_t;
+            last_t = t;
+            t = new_t;
         }
 
         // if r = gcd(self, m) > 1, then inverse doesn't exist
-        if last_r > BigUint::one() { None } else { Some(last_t) }
+        if last_r > BigUint::one() {
+            None
+        } else {
+            Some(last_t)
+        }
     }
 }
 
 impl ModInt<BigUint, &BigUint> for &BigUint {
     type Output = BigUint;
-    
+
     #[inline]
-    fn fac2(self) -> usize { 
+    fn fac2(self) -> usize {
         match BigUint::trailing_zeros(self) {
-            Some(a) => a as usize, None => 0
+            Some(a) => a as usize,
+            None => 0,
         }
     }
     #[inline]
-    fn addm(self, rhs: BigUint, m: &BigUint) -> BigUint { self.addm(&rhs, m) }
+    fn addm(self, rhs: BigUint, m: &BigUint) -> BigUint {
+        self.addm(&rhs, m)
+    }
     #[inline]
-    fn subm(self, rhs: BigUint, m: &BigUint) -> BigUint { self.subm(&rhs, m) }
+    fn subm(self, rhs: BigUint, m: &BigUint) -> BigUint {
+        self.subm(&rhs, m)
+    }
     #[inline]
-    fn mulm(self, rhs: BigUint, m: &BigUint) -> BigUint { self.mulm(&rhs, m) }
+    fn mulm(self, rhs: BigUint, m: &BigUint) -> BigUint {
+        self.mulm(&rhs, m)
+    }
     #[inline]
-    fn powm(self, exp: BigUint, m: &BigUint) -> BigUint { self.powm(&exp, m) }
+    fn powm(self, exp: BigUint, m: &BigUint) -> BigUint {
+        self.powm(&exp, m)
+    }
     #[inline]
-    fn negm(self, m: &BigUint) -> BigUint { ModInt::<&BigUint, &BigUint>::negm(self, m) }
+    fn negm(self, m: &BigUint) -> BigUint {
+        ModInt::<&BigUint, &BigUint>::negm(self, m)
+    }
     #[inline]
-    fn jacobi(self, n: &BigUint) -> i8 { ModInt::<&BigUint, &BigUint>::jacobi(self, n) }
+    fn jacobi(self, n: &BigUint) -> i8 {
+        ModInt::<&BigUint, &BigUint>::jacobi(self, n)
+    }
     #[inline]
-    fn invm(self, m: &BigUint) -> Option<BigUint> { ModInt::<&BigUint, &BigUint>::invm(self, m) }
+    fn invm(self, m: &BigUint) -> Option<BigUint> {
+        ModInt::<&BigUint, &BigUint>::invm(self, m)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand;
     use num_bigint::RandBigInt;
+    use rand;
 
     #[test]
     fn u64_basic_mod_test() {
@@ -364,8 +476,10 @@ mod tests {
     #[test]
     fn biguint_basic_mod_test() {
         let mut rng = rand::thread_rng();
-        let a = rng.gen_biguint(500); let ra = &a;
-        let m = rng.gen_biguint(500); let rm = &m;
+        let a = rng.gen_biguint(500);
+        let ra = &a;
+        let m = rng.gen_biguint(500);
+        let rm = &m;
         assert_eq!(ra.addm(ra, rm), (ra + ra) % rm);
         assert_eq!(ra.mulm(ra, rm), (ra * ra) % rm);
         assert_eq!(ra.powm(BigUint::from(3u8), rm), ra.pow(3) % rm);
@@ -391,11 +505,41 @@ mod tests {
 
         for (x, y, r) in test_cases.iter() {
             assert_eq!(x.addm(y, &m), *r, "u8 x: {}, y: {}", x, y);
-            assert_eq!((*x as u16).addm(*y as u16, &(m as u16)), *r as u16, "u16 x: {}, y: {}", x, y);
-            assert_eq!((*x as u32).addm(*y as u32, &(m as u32)), *r as u32, "u32 x: {}, y: {}", x, y);
-            assert_eq!((*x as u64).addm(*y as u64, &(m as u64)), *r as u64, "u64 x: {}, y: {}", x, y);
-            assert_eq!((*x as u128).addm(*y as u128, &(m as u128)), *r as u128, "u128 x: {}, y: {}", x, y);
-            assert_eq!(BigUint::from(*x).addm(BigUint::from(*y), &BigUint::from(m)), BigUint::from(*r), "biguint x: {}, y: {}", x, y);
+            assert_eq!(
+                (*x as u16).addm(*y as u16, &(m as u16)),
+                *r as u16,
+                "u16 x: {}, y: {}",
+                x,
+                y
+            );
+            assert_eq!(
+                (*x as u32).addm(*y as u32, &(m as u32)),
+                *r as u32,
+                "u32 x: {}, y: {}",
+                x,
+                y
+            );
+            assert_eq!(
+                (*x as u64).addm(*y as u64, &(m as u64)),
+                *r as u64,
+                "u64 x: {}, y: {}",
+                x,
+                y
+            );
+            assert_eq!(
+                (*x as u128).addm(*y as u128, &(m as u128)),
+                *r as u128,
+                "u128 x: {}, y: {}",
+                x,
+                y
+            );
+            assert_eq!(
+                BigUint::from(*x).addm(BigUint::from(*y), &BigUint::from(m)),
+                BigUint::from(*r),
+                "biguint x: {}, y: {}",
+                x,
+                y
+            );
         }
     }
 
@@ -419,11 +563,41 @@ mod tests {
 
         for (x, y, r) in test_cases.iter() {
             assert_eq!(x.subm(y, &m), *r, "u8 x: {}, y: {}", x, y);
-            assert_eq!((*x as u16).subm(*y as u16, &(m as u16)), *r as u16, "u16 x: {}, y: {}", x, y);
-            assert_eq!((*x as u32).subm(*y as u32, &(m as u32)), *r as u32, "u32 x: {}, y: {}", x, y);
-            assert_eq!((*x as u64).subm(*y as u64, &(m as u64)), *r as u64, "u64 x: {}, y: {}", x, y);
-            assert_eq!((*x as u128).subm(*y as u128, &(m as u128)), *r as u128, "u128 x: {}, y: {}", x, y);
-            assert_eq!(BigUint::from(*x).subm(BigUint::from(*y), &BigUint::from(m)), BigUint::from(*r), "biguint x: {}, y: {}", x, y);
+            assert_eq!(
+                (*x as u16).subm(*y as u16, &(m as u16)),
+                *r as u16,
+                "u16 x: {}, y: {}",
+                x,
+                y
+            );
+            assert_eq!(
+                (*x as u32).subm(*y as u32, &(m as u32)),
+                *r as u32,
+                "u32 x: {}, y: {}",
+                x,
+                y
+            );
+            assert_eq!(
+                (*x as u64).subm(*y as u64, &(m as u64)),
+                *r as u64,
+                "u64 x: {}, y: {}",
+                x,
+                y
+            );
+            assert_eq!(
+                (*x as u128).subm(*y as u128, &(m as u128)),
+                *r as u128,
+                "u128 x: {}, y: {}",
+                x,
+                y
+            );
+            assert_eq!(
+                BigUint::from(*x).subm(BigUint::from(*y), &BigUint::from(m)),
+                BigUint::from(*r),
+                "biguint x: {}, y: {}",
+                x,
+                y
+            );
         }
     }
 
@@ -446,8 +620,20 @@ mod tests {
         ];
 
         for (a, m, x) in test_cases.iter() {
-            assert_eq!(ModInt::<&u64>::invm(a, m).unwrap(), *x, "a: {}, m: {}", a, m);
-            assert_eq!(ModInt::<&BigUint>::invm(&BigUint::from(*a), &BigUint::from(*m)).unwrap(), BigUint::from(*x), "a: {}, m: {}", a, m);
+            assert_eq!(
+                ModInt::<&u64>::invm(a, m).unwrap(),
+                *x,
+                "a: {}, m: {}",
+                a,
+                m
+            );
+            assert_eq!(
+                ModInt::<&BigUint>::invm(&BigUint::from(*a), &BigUint::from(*m)).unwrap(),
+                BigUint::from(*x),
+                "a: {}, m: {}",
+                a,
+                m
+            );
         }
     }
 
@@ -473,11 +659,41 @@ mod tests {
 
         for (a, n, res) in test_cases.iter() {
             assert_eq!(ModInt::<&u8>::jacobi(a, n), *res, "u8 a: {}, n: {}", a, n);
-            assert_eq!(ModInt::<&u16>::jacobi(&(*a as u16), &(*n as u16)), *res, "u16 a: {}, n: {}", a, n);
-            assert_eq!(ModInt::<&u32>::jacobi(&(*a as u32), &(*n as u32)), *res, "u32 a: {}, n: {}", a, n);
-            assert_eq!(ModInt::<&u64>::jacobi(&(*a as u64), &(*n as u64)), *res, "u64 a: {}, n: {}", a, n);
-            assert_eq!(ModInt::<&u128>::jacobi(&(*a as u128), &(*n as u128)), *res, "u128 a: {}, n: {}", a, n);
-            assert_eq!(ModInt::<&BigUint>::jacobi(&(BigUint::from(*a)), &(BigUint::from(*n))), *res, "u32 a: {}, n: {}", a, n);
+            assert_eq!(
+                ModInt::<&u16>::jacobi(&(*a as u16), &(*n as u16)),
+                *res,
+                "u16 a: {}, n: {}",
+                a,
+                n
+            );
+            assert_eq!(
+                ModInt::<&u32>::jacobi(&(*a as u32), &(*n as u32)),
+                *res,
+                "u32 a: {}, n: {}",
+                a,
+                n
+            );
+            assert_eq!(
+                ModInt::<&u64>::jacobi(&(*a as u64), &(*n as u64)),
+                *res,
+                "u64 a: {}, n: {}",
+                a,
+                n
+            );
+            assert_eq!(
+                ModInt::<&u128>::jacobi(&(*a as u128), &(*n as u128)),
+                *res,
+                "u128 a: {}, n: {}",
+                a,
+                n
+            );
+            assert_eq!(
+                ModInt::<&BigUint>::jacobi(&(BigUint::from(*a)), &(BigUint::from(*n))),
+                *res,
+                "u32 a: {}, n: {}",
+                a,
+                n
+            );
         }
     }
 }

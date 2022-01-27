@@ -9,7 +9,7 @@
 - Documentation and publish on docs.rs
 
 # Roadmap for v1
-- Support rug & primal or primesieve-sys as backend
-- Euler totient
 - Stablize API
-- Support async and multi-thread
+- Euler totient
+- [?] Support rug & primal or primesieve-sys as backend
+- [?] Support async and multi-thread
