@@ -8,6 +8,8 @@ pub const SMALL_PRIMES: [u8; 54] = [
     101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193,
     197, 199, 211, 223, 227, 229, 233, 239, 241, 251,
 ];
+#[cfg(not(feature = "big-table"))]
+pub const SMALL_PRIMES_LIMIT: u64 = 255;
 
 // list 1024 primes if big-table feature is enabled
 #[cfg(feature = "big-table")]
@@ -76,6 +78,8 @@ pub const SMALL_PRIMES: [u16; 1024] = [
     8009, 8011, 8017, 8039, 8053, 8059, 8069, 8081, 8087, 8089, 8093, 8101, 8111, 8117, 8123, 8147,
     8161, // 8167, 8171, 8179, 8191
 ];
+#[cfg(feature = "big-table")]
+pub const SMALL_PRIMES_LIMIT: u64 = 8167;
 
 // tables for Miller-rabin bases of 32/64-bit integers using Bradley's hashing
 /*

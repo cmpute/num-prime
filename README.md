@@ -12,8 +12,11 @@ This crate provides utilities for integer modular arithmetics and prime related 
   - Baillie-PSW test
   - Deterministic checks of `u64` integers (using very a fast Miller-rabin variant with hashing)
 - Primes generation and indexing
+  - A naive implementation of the sieve of Eratosthenes
+  - Unified API to support other prime generation backends
 - Integer factorization
   - Trial division
-  - Pollard's rho
+  - Pollard's rho algorithm
+  - Fast implementation of `u64` integers
 
 It's based on the `num` creates.

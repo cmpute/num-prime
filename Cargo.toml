@@ -1,6 +1,6 @@
 [package]
 name = "num-prime"
-version = "0.0.4"
+version = "0.0.5"
 edition = "2018"
 
 repository = "https://github.com/cmpute/num-prime"
@@ -8,8 +8,8 @@ keywords = ["math", "mathematics", "primes", "number-theory", "bigint", "num"]
 categories = ["cryptography", "science", "algorithms"]
 license = "Apache-2.0"
 description = """
-`num-prime` is based on `num` and extends it with prime related utilities.
-It support integer modular arithmetics and various number theoretic functions with arbitrary precision.
+`num-prime` is based on `num` and extends it with plenty of prime related utilities.
+It supports integer modular arithmetics and various number theoretic functions with arbitrary precision.
 """
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

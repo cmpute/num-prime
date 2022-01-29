@@ -1,6 +1,6 @@
 //! Standalone number theoretic functions that can be used without prime cache
 
-use crate::factor::pollard_rho;
+use crate::factor::{trial_division, pollard_rho};
 use crate::tables::SMALL_PRIMES;
 use crate::traits::{Primality, PrimalityUtils, PrimalityTestConfig, FactorizationConfig};
 use rand::random;
@@ -80,47 +80,29 @@ pub fn is_prime64(target: u64) -> bool {
 }
 
 pub fn factors64(target: u64) -> BTreeMap<u64, usize> {
-    let mut result = BTreeMap::new();
-
     // TODO: improve factorization performance
     // REF: https://github.com/coreutils/coreutils/blob/master/src/factor.c
     //      https://github.com/uutils/coreutils/blob/master/src/uu/factor/src/cli.rs
     //      https://github.com/elmomoilanen/prime-factorization
     //      https://github.com/radii/msieve
-    if is_prime64(target) {
+    let f2 = target.trailing_zeros(); // quick check on factors of 2
+    if f2 == 0 && is_prime64(target) {
+        let mut result = BTreeMap::new();
         result.insert(target, 1);
         return result;
     }
 
     // trial division using primes in the table
-    let mut residual = target;
-    let mut result = BTreeMap::new();
-    let target_sqrt = num_integer::sqrt(target) + 1;
-    let mut factored = false;
-    for p in SMALL_PRIMES {
-        // TODO: remove factor 2 by counting trailing_zeros() and skip 2
-        let p = p as u64;
-        if p >= target_sqrt {
-            factored = true;
-            break;
+    let piter = SMALL_PRIMES.iter().skip(1).map(|&p| p as u64); // skip 2
+    let (mut result, factored) = trial_division(piter, target, None);
+    if f2 > 0 { result.insert(2, f2 as usize); } // add back 2
+    let residual = match factored {
+        Ok(res) => {
+            result.insert(res, 1);
+            return result;
         }
-
-        while residual % p == 0 {
-            residual = residual / p;
-            *result.entry(p).or_insert(0) += 1;
-        }
-        if residual == 1 {
-            factored = true;
-            break;
-        }
-    }
-
-    if factored {
-        if residual > 1 {
-            result.insert(residual, 1);
-        }
-        return result;
-    }
+        Err(res) => res
+    };
 
     // then try pollard's rho method util fully factored
     let mut todo = vec![residual];
