@@ -162,10 +162,7 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
                 successful = true;
                 let mut todo = vec![res];
                 while let Some(target) = todo.pop() {
-                    if matches!(
-                        self.is_prime(&target, Some(config.prime_test_config)),
-                        Primality::Yes | Primality::Probable(_)
-                    ) {
+                    if self.is_prime(&target, Some(config.prime_test_config)).probably() {
                         *result.entry(target).or_insert(0) += 1;
                     } else {
                         if let Some(divisor) = self.bdivisor(&target, &mut config) {

@@ -1,3 +1,5 @@
+//! Implementations for various factorization algorithms
+
 use crate::traits::ModInt;
 use num_integer::Integer;
 use num_traits::{FromPrimitive, NumRef, RefNum};
@@ -41,4 +43,4 @@ pub fn pollard_brent() {}
 pub fn pollard_pp1() {}
 pub fn williams_pp1() {}
 
-// TODO: ECM, Quadratic sieve / Prime field sieve, SQUFOF
+// TODO: ECM, Quadratic sieve / Prime field sieve, SQUFOF, Fermat(https://en.wikipedia.org/wiki/Fermat%27s_factorization_method)

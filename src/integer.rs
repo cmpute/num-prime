@@ -1,8 +1,33 @@
-// backend implementations for integers
-use crate::traits::{ExactRoots, ModInt};
+//! Backend implementations for integers
+
+use crate::traits::{ExactRoots, ModInt, BitTest};
 use num_bigint::BigUint;
 use num_integer::{Integer, Roots};
 use num_traits::{One, Pow, ToPrimitive, Zero};
+
+
+macro_rules! impl_bititer_prim {
+    ($($T:ty)*) => {$(
+        impl BitTest for $T {
+            fn bits(&self) -> usize {
+                (<$T>::BITS - self.leading_zeros()) as usize
+            }
+            fn bit(&self, position: usize) -> bool {
+                self & (1 << position) > 0
+            }
+        }
+    )*}
+}
+impl_bititer_prim!(u8 u16 u32 u64 u128 usize);
+
+impl BitTest for BigUint {
+    fn bit(&self, position: usize) -> bool {
+        self.bit(position as u64)
+    }
+    fn bits(&self) -> usize {
+        BigUint::bits(&self) as usize
+    }
+}
 
 // TODO (v0.1): implement fast perfect power check for integers
 // REF: https://github.com/coreutils/coreutils/blob/master/src/factor.c#L1833

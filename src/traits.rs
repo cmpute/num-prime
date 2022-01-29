@@ -1,11 +1,28 @@
 use num_integer::{Integer, Roots};
 use num_traits::Pow;
 
+/// This trait support unified bit testing for (unsigned) integers
+pub trait BitTest {
+    fn bits(&self) -> usize;
+    fn bit(&self, position: usize) -> bool;
+}
+
+/// This enum describes the result of a primality check
 pub enum Primality {
     Yes,
     No,
     /// carrying the probability of the number being a prime
     Probable(f32),
+}
+
+impl Primality {
+    /// Check whether the resule indicates that the number is
+    /// (very) probably a prime. Return false only on Primaliy::No
+    pub fn probably(self) -> bool {
+        match self {
+            Primality::No => false, _ => true
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -169,7 +186,6 @@ pub trait PrimeBuffer<'a> {
 /// This trait implements utility functions for primality checks
 /// Reference:
 /// - <http://ntheory.org/pseudoprimes.html>
-/// - <http://www.numbertheory.org/gnubc/bc_programs.html>
 pub trait PrimalityUtils: Integer + Clone {
     /// Test if the integer is a (Fermat) probable prime
     fn is_prp(&self, base: Self) -> bool;

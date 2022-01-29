@@ -1,11 +1,8 @@
-use crate::traits::{ExactRoots, ModInt, PrimalityUtils};
-use num_bigint::BigUint;
+use crate::traits::{ExactRoots, ModInt, PrimalityUtils, BitTest};
 use num_integer::Integer;
-use num_traits::{FromPrimitive, NumRef, One, RefNum, Zero};
-use std::convert::TryFrom;
+use num_traits::{FromPrimitive, NumRef, RefNum, ToPrimitive};
 
 /// Utilities for the Lucas pseudoprime test
-// TODO (v0.0.5): implement this automatically for ModInt, need a bit iterator trait
 pub trait LucasUtils {
     /// Find Lucas sequence to n with modulo m, i.e. $U_{n+1}(P,Q)$ mod m and $V_{n+1}(P,Q)$
     /// Reference: <https://en.wikipedia.org/wiki/Lucas_sequence>
@@ -23,123 +20,21 @@ pub trait LucasUtils {
     fn p_bruteforce(n: &Self) -> usize;
 }
 
-macro_rules! impl_lucas_util_for_uprim {
-    ($T:ty) => {
-        impl LucasUtils for $T {
-            fn lucasm(p: usize, q: isize, m: Self, n: Self) -> (Self, Self) {
-                let p = <$T>::try_from(p).unwrap() % m;
-                let q = if q >= 0 {
-                    <$T>::try_from(q).unwrap() % &m
-                }
-                // FIXME (v0.1): implement ModInt for <T,T> and prevent this ugly ModInt::<T,T>::xxx call
-                else {
-                    ModInt::<&$T, &$T>::negm(&<$T>::try_from(-q).unwrap(), &m)
-                };
-
-                let mut uk = 0; // U(k)
-                let mut uk1 = 1; // U(k+1)
-
-                for i in (0..<$T>::BITS).rev() {
-                    if (n & (1 << i)) > 0 {
-                        // k' = 2k+1
-                        // U(k'+1) = U(2k+2) = PU(k+1)² - 2*QU(k+1)U(k)
-                        let t1 = p.mulm(&uk1, &m).mulm(&uk1, &m);
-                        let t2 = 2.mulm(&q, &m).mulm(&uk1, &m).mulm(&uk, &m);
-                        let new_uk1 = t1.subm(t2, &m);
-                        // U(k') = U(2k+1) = U(k+1)² - QU(k)²
-                        let t1 = uk1.mulm(&uk1, &m);
-                        let t2 = q.mulm(&uk, &m).mulm(uk, &m);
-                        let new_uk = t1.subm(t2, &m);
-                        uk1 = new_uk1;
-                        uk = new_uk;
-                    } else {
-                        // k' = 2k
-                        // U(k'+1) = U(2k+1) = U(k+1)² - QU(k)²
-                        let t1 = uk1.mulm(&uk1, &m);
-                        let t2 = q.mulm(&uk, &m).mulm(&uk, &m);
-                        let new_uk1 = t1.subm(t2, &m);
-                        // U(k') = U(2k) = 2U(k+1)U(k) - PU(k)²
-                        let t1 = 2.mulm(uk1, &m).mulm(&uk, &m);
-                        let t2 = p.mulm(&uk, &m).mulm(uk, &m);
-                        let new_uk = t1.subm(t2, &m);
-                        uk1 = new_uk1;
-                        uk = new_uk;
-                    }
-                }
-
-                let vk = 2.mulm(uk1, &m).subm(p.mulm(&uk, &m), &m);
-                (uk, vk)
-            }
-
-            fn pq_selfridge(n: &$T) -> (usize, isize) {
-                let mut d: $T = 5;
-                let mut neg = false;
-                loop {
-                    // check if n is a square number after several trials
-                    if d == 13 && (*n).is_square() {
-                        break (0, 0);
-                    }
-
-                    let sd = if neg {
-                        ModInt::<&$T, &$T>::negm(&d, n)
-                    } else {
-                        d
-                    };
-                    let j = ModInt::<&$T, &$T>::jacobi(&sd, n);
-                    if j == 0 && &d != n {
-                        break (0, 0);
-                    } // modification from Baillie, see https://oeis.org/A217120/a217120_1.txt
-                    if j == -1 {
-                        let d = if neg { -(d as isize) } else { d as isize };
-                        break (1, (1 - d as isize) / 4);
-                    }
-
-                    d += 2;
-                    neg = !neg;
-                }
-            }
-
-            fn p_bruteforce(n: &$T) -> usize {
-                let mut p: usize = 3;
-                loop {
-                    // check if n is a square number after several trials
-                    if p == 10 && (*n).is_square() {
-                        break 0;
-                    }
-
-                    let d = (p * p - 4) as $T;
-                    let j = ModInt::<&$T, &$T>::jacobi(&d, n);
-                    if j == 0 && &d != n {
-                        break 0;
-                    }
-                    if j == -1 {
-                        break p;
-                    }
-                    p += 1;
-                }
-            }
-        }
-    };
-}
-
-impl_lucas_util_for_uprim!(u8);
-impl_lucas_util_for_uprim!(u16);
-impl_lucas_util_for_uprim!(u32);
-impl_lucas_util_for_uprim!(u64);
-impl_lucas_util_for_uprim!(u128);
-
-impl LucasUtils for BigUint {
+impl<T: Integer + FromPrimitive + ToPrimitive + NumRef + BitTest + ExactRoots + Clone> LucasUtils for T 
+where
+    for<'r> &'r T: RefNum<T> + ModInt<T, &'r T, Output = T> + ModInt<&'r T, &'r T, Output = T>
+{
     fn lucasm(p: usize, q: isize, m: Self, n: Self) -> (Self, Self) {
-        let p = BigUint::from_usize(p).unwrap() % &m;
+        let p = T::from_usize(p).unwrap() % &m;
         let q = if q >= 0 {
-            BigUint::from_isize(q).unwrap() % &m
+            T::from_isize(q).unwrap() % &m
         } else {
-            ModInt::<&BigUint, &BigUint>::negm(&BigUint::from_isize(-q).unwrap(), &m)
+            ModInt::<&T, &T>::negm(&T::from_isize(-q).unwrap(), &m)
         };
 
-        let mut uk = BigUint::zero(); // U(k)
-        let mut uk1 = BigUint::one(); // U(k+1)
-        let two = BigUint::one() + BigUint::one();
+        let mut uk = T::zero(); // U(k)
+        let mut uk1 = T::one(); // U(k+1)
+        let two = T::one() + T::one();
 
         for i in (0..n.bits()).rev() {
             if n.bit(i) {
@@ -173,12 +68,52 @@ impl LucasUtils for BigUint {
         (uk, vk)
     }
 
-    fn pq_selfridge(n: &BigUint) -> (usize, isize) {
-        unimplemented!();
+    fn pq_selfridge(n: &Self) -> (usize, isize) {
+        let mut d = T::from_u8(5).unwrap();
+        let mut neg = false;
+        loop {
+            // check if n is a square number after several trials
+            if &d == &T::from_u8(13).unwrap() && (*n).is_square() {
+                break (0, 0);
+            }
+
+            let sd = if neg {
+                ModInt::<&T, &T>::negm(&d, n)
+            } else {
+                d.clone()
+            };
+            let j = ModInt::<&T, &T>::jacobi(&sd, n);
+            if j == 0 && &d != n {
+                break (0, 0);
+            } // modification from Baillie, see https://oeis.org/A217120/a217120_1.txt
+            if j == -1 {
+                let d = if neg { -d.to_isize().unwrap() } else { d.to_isize().unwrap() };
+                break (1, (1 - d) / 4);
+            }
+
+            d = d + T::from_u8(2).unwrap();
+            neg = !neg;
+        }
     }
 
     fn p_bruteforce(n: &Self) -> usize {
-        unimplemented!();
+        let mut p: usize = 3;
+        loop {
+            // check if n is a square number after several trials
+            if p == 10 && (*n).is_square() {
+                break 0;
+            }
+
+            let d = T::from_usize(p * p - 4).unwrap();
+            let j = ModInt::<&T, &T>::jacobi(&d, n);
+            if j == 0 && &d != n {
+                break 0;
+            }
+            if j == -1 {
+                break p;
+            }
+            p += 1;
+        }
     }
 }
 
@@ -252,8 +187,6 @@ where
         };
         let (u, _) = LucasUtils::lucasm(p, q, self.clone(), delta);
         u.is_zero()
-
-        // TODO: add additional check V(n+1) == 2Q mod n, if p,q are not specified and jacobi = -1
     }
 
     fn is_slprp(&self, p: Option<usize>, q: Option<isize>) -> bool {
@@ -385,6 +318,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use num_bigint::BigUint;
     use rand::random;
 
     #[test]

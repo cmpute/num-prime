@@ -1,7 +1,8 @@
-//! This module contains standalone number theoretic functions that can be used without prime cache
+//! Standalone number theoretic functions that can be used without prime cache
+
 use crate::factor::pollard_rho;
 use crate::tables::SMALL_PRIMES;
-use crate::traits::{Primality, PrimalityUtils};
+use crate::traits::{Primality, PrimalityUtils, PrimalityTestConfig, FactorizationConfig};
 use rand::random;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
@@ -39,8 +40,8 @@ pub fn is_prime64(target: u64) -> bool {
     }
 
     // 2, 325, 9375, 28178, 450775, 9780504, 1795265022 for u64 range
-    const WITNESSES: [u64; 7] = [2, 325, 9375, 28178, 450775, 9780504, 1795265022];
-    WITNESSES.iter().all(|&x| target.is_sprp(x))
+    const WITNESS64: [u64; 7] = [2, 325, 9375, 28178, 450775, 9780504, 1795265022];
+    WITNESS64.iter().all(|&x| target.is_sprp(x))
 }
 
 /// This function does very fast primality test on a u64 integer is a prime number. It's based on
@@ -141,13 +142,12 @@ pub fn factors64(target: u64) -> BTreeMap<u64, usize> {
     result
 }
 
-/// This function do BSW primality test on the target
-pub fn is_prime<T>(target: T) -> Primality {
+pub fn is_prime<T>(target: T, config: Option<PrimalityTestConfig>) -> Primality {
     unimplemented!()
 }
 
 /// This function performs integer factorization on the target.
-pub fn factors<T>(target: T) -> Result<BTreeMap<T, usize>, Vec<T>> {
+pub fn factors<T>(target: T, config: Option<FactorizationConfig>) -> Result<BTreeMap<T, usize>, Vec<T>> {
     unimplemented!()
 }
 
@@ -162,12 +162,14 @@ pub fn primorial<T>(n: u64) -> T {
 }
 
 // TODO: More functions
+// REF: http://www.numbertheory.org/gnubc/bc_programs.html
+// REF: https://github.com/TilmanNeumann/java-math-library
 // - is_safe_prime: is safe prime with Sophie Germain definition
 // - is_smooth: checks if the smoothness bound is at least b
 // - euler_phi: Euler's totient function
 // - jordan_tot: Jordan's totient function
 // - moebius_mu: Möbius mu function
-// Others include Louiville function, Mangoldt function, Dedekind psi function, etc..
+// Others include Louiville function, Mangoldt function, Dedekind psi function, Dickman rho function, etc..
 //
 // These function might be implemented in PrimeBuffer, ref http://flintlib.org/doc/ulong_extras.html#prime-number-generation-and-counting
 // - prime_pi
