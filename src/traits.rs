@@ -5,6 +5,7 @@ use num_traits::Pow;
 pub trait BitTest {
     fn bits(&self) -> usize;
     fn bit(&self, position: usize) -> bool;
+    fn trailing_zeros(&self) -> usize;
 }
 
 /// This enum describes the result of a primality check
@@ -145,10 +146,6 @@ pub trait ModInt<Rhs = Self, Modulus = Self> {
     fn invm(self, m: Modulus) -> Option<Self::Output>
     where
         Self: Sized;
-
-    /// Return the exponent of factor 2 in the number, usually implemented as trailing_zeros()
-    /// This is not directly related to modular arithmetics, but used for implementations of them
-    fn fac2(self) -> usize;
 
     /// Calculate Jacobi Symbol (a|n), where a is self
     fn jacobi(self, n: Modulus) -> i8;

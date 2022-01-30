@@ -9,11 +9,17 @@ use num_traits::{One, Pow, ToPrimitive, Zero};
 macro_rules! impl_bititer_prim {
     ($($T:ty)*) => {$(
         impl BitTest for $T {
+            #[inline]
             fn bits(&self) -> usize {
                 (<$T>::BITS - self.leading_zeros()) as usize
             }
+            #[inline]
             fn bit(&self, position: usize) -> bool {
                 self & (1 << position) > 0
+            }
+            #[inline]
+            fn trailing_zeros(&self) -> usize {
+                <$T>::trailing_zeros(*self) as usize
             }
         }
     )*}
@@ -27,6 +33,13 @@ impl BitTest for BigUint {
     fn bits(&self) -> usize {
         BigUint::bits(&self) as usize
     }
+    #[inline]
+    fn trailing_zeros(&self) -> usize {
+        match BigUint::trailing_zeros(&self) {
+            Some(a) => a as usize,
+            None => 0,
+        }
+    }
 }
 
 // TODO (v0.1): implement fast perfect power check for integers
@@ -38,13 +51,14 @@ impl<T: Roots + Pow<u32, Output = Self> + Clone> ExactRoots for T {}
 macro_rules! impl_jacobi_prim {
     ($T:ty) => {
         fn jacobi(self, n: &$T) -> i8 {
-            // TODO (v0.1): panic here
-            debug_assert!(n % 2 == 1 && n >= &0);
+            if n % 2 == 0 || n < &0 {
+                panic!("The Jacobi symbol is only defined for non-negative odd integers!")
+            }
 
-            if self == &0 {
+            if self == 0 {
                 return 0;
             }
-            if self == &1 {
+            if self == 1 {
                 return 1;
             }
 
@@ -77,7 +91,7 @@ macro_rules! impl_jacobi_prim {
 macro_rules! impl_invm_prim {
     ($T:ty) => {
         fn invm(self, m: &$T) -> Option<Self::Output> {
-            let x = if self >= m { self % m } else { self.clone() };
+            let x = if &self >= m { self % m } else { self.clone() };
 
             let (mut last_r, mut r) = (m.clone(), x);
             let (mut last_t, mut t) = (0, 1);
@@ -87,7 +101,7 @@ macro_rules! impl_invm_prim {
                 last_r = r;
                 r = rem;
 
-                let new_t = last_t.subm(&quo.mulm(&t, m), m);
+                let new_t = last_t.subm(quo.mulm(t, m), m);
                 last_t = t;
                 t = new_t;
             }
@@ -104,19 +118,14 @@ macro_rules! impl_invm_prim {
 
 macro_rules! impl_mod_arithm_uu {
     ($T:ty, $Tdouble:ty) => {
-        // TODO (v0.1): change main implementation to take ownership and then implement other type combination based on this
-        impl ModInt<&$T, &$T> for &$T {
+        impl ModInt<$T, &$T> for $T {
             type Output = $T;
             #[inline]
-            fn fac2(self) -> usize {
-                self.trailing_zeros() as usize
+            fn addm(self, rhs: $T, m: &$T) -> $T {
+                (((self as $Tdouble) + (rhs as $Tdouble)) % (*m as $Tdouble)) as $T
             }
             #[inline]
-            fn addm(self, rhs: &$T, m: &$T) -> $T {
-                (((*self as $Tdouble) + (*rhs as $Tdouble)) % (*m as $Tdouble)) as $T
-            }
-            #[inline]
-            fn subm(self, rhs: &$T, m: &$T) -> $T {
+            fn subm(self, rhs: $T, m: &$T) -> $T {
                 let (lhs, rhs) = (self % m, rhs % m);
                 if lhs >= rhs {
                     lhs - rhs
@@ -125,25 +134,25 @@ macro_rules! impl_mod_arithm_uu {
                 }
             }
             #[inline]
-            fn mulm(self, rhs: &$T, m: &$T) -> $T {
-                (((*self as $Tdouble) * (*rhs as $Tdouble)) % (*m as $Tdouble)) as $T
+            fn mulm(self, rhs: $T, m: &$T) -> $T {
+                (((self as $Tdouble) * (rhs as $Tdouble)) % (*m as $Tdouble)) as $T
             }
-            fn powm(self, exp: &$T, m: &$T) -> $T {
-                if *exp == 1 {
+            fn powm(self, exp: $T, m: &$T) -> $T {
+                if exp == 1 {
                     return self % m;
                 }
-                if *exp == 2 {
+                if exp == 2 {
                     return self.mulm(self, m);
                 }
 
                 let mut multi = self % m;
-                let mut exp = *exp;
+                let mut exp = exp;
                 let mut result = 1;
                 while exp > 0 {
                     if exp & 1 > 0 {
-                        result = result.mulm(&multi, m);
+                        result = result.mulm(multi, m);
                     }
-                    multi = multi.mulm(&multi, m);
+                    multi = multi.mulm(multi, m);
                     exp >>= 1;
                 }
                 result
@@ -160,43 +169,6 @@ macro_rules! impl_mod_arithm_uu {
             impl_jacobi_prim!($T);
             impl_invm_prim!($T);
         }
-
-        // TODO (v0.1): convert to macro
-        impl ModInt<$T, &$T> for &$T {
-            type Output = $T;
-            #[inline]
-            fn fac2(self) -> usize {
-                self.trailing_zeros() as usize
-            }
-            #[inline]
-            fn addm(self, rhs: $T, m: &$T) -> $T {
-                self.addm(&rhs, m)
-            }
-            #[inline]
-            fn subm(self, rhs: $T, m: &$T) -> $T {
-                self.subm(&rhs, m)
-            }
-            #[inline]
-            fn mulm(self, rhs: $T, m: &$T) -> $T {
-                self.mulm(&rhs, m)
-            }
-            #[inline]
-            fn powm(self, exp: $T, m: &$T) -> $T {
-                self.powm(&exp, m)
-            }
-            #[inline]
-            fn negm(self, m: &$T) -> $T {
-                ModInt::<&$T, &$T>::negm(self, m)
-            }
-            #[inline]
-            fn invm(self, m: &$T) -> Option<$T> {
-                ModInt::<&$T, &$T>::invm(self, m)
-            }
-            #[inline]
-            fn jacobi(self, n: &$T) -> i8 {
-                ModInt::<&$T, &$T>::jacobi(self, n)
-            }
-        }
     };
 }
 
@@ -205,18 +177,13 @@ impl_mod_arithm_uu!(u16, u32);
 impl_mod_arithm_uu!(u32, u64);
 impl_mod_arithm_uu!(u64, u128);
 
-impl ModInt<&u128, &u128> for &u128 {
+impl ModInt<u128, &u128> for u128 {
     type Output = u128;
-
-    #[inline]
-    fn fac2(self) -> usize {
-        self.trailing_zeros() as usize
-    }
 
     // XXX: check if these operations are also faster in u64
     #[inline]
-    fn addm(self, rhs: &u128, m: &u128) -> u128 {
-        if let Some(ab) = self.checked_add(*rhs) {
+    fn addm(self, rhs: u128, m: &u128) -> u128 {
+        if let Some(ab) = self.checked_add(rhs) {
             return ab % m;
         }
 
@@ -229,7 +196,7 @@ impl ModInt<&u128, &u128> for &u128 {
     }
 
     #[inline]
-    fn subm(self, rhs: &u128, m: &u128) -> u128 {
+    fn subm(self, rhs: u128, m: &u128) -> u128 {
         let (lhs, rhs) = (self % m, rhs % m);
         if lhs >= rhs {
             lhs - rhs
@@ -239,8 +206,8 @@ impl ModInt<&u128, &u128> for &u128 {
     }
 
     // TODO: benchmark against http://www.janfeitsma.nl/math/psp2/expmod
-    fn mulm(self, rhs: &u128, m: &u128) -> u128 {
-        if let Some(ab) = self.checked_mul(*rhs) {
+    fn mulm(self, rhs: u128, m: &u128) -> u128 {
+        if let Some(ab) = self.checked_mul(rhs) {
             return ab % m;
         }
 
@@ -254,27 +221,27 @@ impl ModInt<&u128, &u128> for &u128 {
         let mut result: u128 = 0;
         while b > 0 {
             if b & 1 > 0 {
-                result = result.addm(&a, m);
+                result = result.addm(a, m);
             }
-            a = a.addm(&a, m);
+            a = a.addm(a, m);
             b >>= 1;
         }
         result
     }
 
-    fn powm(self, exp: &u128, m: &u128) -> u128 {
-        if *exp == 1 {
+    fn powm(self, exp: u128, m: &u128) -> u128 {
+        if exp == 1 {
             return self % m;
         }
 
         let mut multi = self % m;
-        let mut exp = *exp;
+        let mut exp = exp;
         let mut result = 1;
         while exp > 0 {
             if exp & 1 > 0 {
-                result = result.mulm(&multi, m);
+                result = result.mulm(multi, m);
             }
-            multi = multi.mulm(&multi, m);
+            multi = multi.mulm(multi, m);
             exp >>= 1;
         }
         result
@@ -293,52 +260,114 @@ impl ModInt<&u128, &u128> for &u128 {
     impl_invm_prim!(u128);
 }
 
-impl ModInt<u128, &u128> for &u128 {
-    type Output = u128;
-    #[inline]
-    fn fac2(self) -> usize {
-        self.trailing_zeros() as usize
-    }
-    #[inline]
-    fn addm(self, rhs: u128, m: &u128) -> u128 {
-        self.addm(&rhs, m)
-    }
-    #[inline]
-    fn subm(self, rhs: u128, m: &u128) -> u128 {
-        self.subm(&rhs, m)
-    }
-    #[inline]
-    fn mulm(self, rhs: u128, m: &u128) -> u128 {
-        self.mulm(&rhs, m)
-    }
-    #[inline]
-    fn powm(self, exp: u128, m: &u128) -> u128 {
-        self.powm(&exp, m)
-    }
-    #[inline]
-    fn negm(self, m: &u128) -> u128 {
-        ModInt::<&u128, &u128>::negm(self, m)
-    }
-    #[inline]
-    fn invm(self, m: &u128) -> Option<u128> {
-        ModInt::<&u128, &u128>::invm(self, m)
-    }
-    #[inline]
-    fn jacobi(self, n: &u128) -> i8 {
-        ModInt::<&u128, &u128>::jacobi(self, n)
+macro_rules! impl_mod_arithm_by_deref {
+    ($T:ty) => {
+        impl ModInt<$T, &$T> for &$T {
+            type Output = $T;
+            #[inline]
+            fn addm(self, rhs: $T, m: &$T) -> $T {
+                (*self).addm(rhs, &m)
+            }
+            #[inline]
+            fn subm(self, rhs: $T, m: &$T) -> $T {
+                (*self).subm(rhs, &m)
+            }
+            #[inline]
+            fn mulm(self, rhs: $T, m: &$T) -> $T {
+                (*self).mulm(rhs, &m)
+            }
+            #[inline]
+            fn powm(self, exp: $T, m: &$T) -> $T {
+                (*self).powm(exp, &m)
+            }
+            #[inline]
+            fn negm(self, m: &$T) -> $T {
+                ModInt::<$T, &$T>::negm(*self, m)
+            }
+            #[inline]
+            fn invm(self, m: &$T) -> Option<$T> {
+                ModInt::<$T, &$T>::invm(*self, m)
+            }
+            #[inline]
+            fn jacobi(self, n: &$T) -> i8 {
+                ModInt::<$T, &$T>::jacobi(*self, n)
+            }
+        }
+
+        impl ModInt<&$T, &$T> for $T {
+            type Output = $T;
+            #[inline]
+            fn addm(self, rhs: &$T, m: &$T) -> $T {
+                self.addm(*rhs, &m)
+            }
+            #[inline]
+            fn subm(self, rhs: &$T, m: &$T) -> $T {
+                self.subm(*rhs, &m)
+            }
+            #[inline]
+            fn mulm(self, rhs: &$T, m: &$T) -> $T {
+                self.mulm(*rhs, &m)
+            }
+            #[inline]
+            fn powm(self, exp: &$T, m: &$T) -> $T {
+                self.powm(*exp, &m)
+            }
+            #[inline]
+            fn negm(self, m: &$T) -> $T {
+                ModInt::<$T, &$T>::negm(self, m)
+            }
+            #[inline]
+            fn invm(self, m: &$T) -> Option<$T> {
+                ModInt::<$T, &$T>::invm(self, m)
+            }
+            #[inline]
+            fn jacobi(self, n: &$T) -> i8 {
+                ModInt::<$T, &$T>::jacobi(self, n)
+            }
+        }
+
+        impl ModInt<&$T, &$T> for &$T {
+            type Output = $T;
+            #[inline]
+            fn addm(self, rhs: &$T, m: &$T) -> $T {
+                (*self).addm(*rhs, &m)
+            }
+            #[inline]
+            fn subm(self, rhs: &$T, m: &$T) -> $T {
+                (*self).subm(*rhs, &m)
+            }
+            #[inline]
+            fn mulm(self, rhs: &$T, m: &$T) -> $T {
+                (*self).mulm(*rhs, &m)
+            }
+            #[inline]
+            fn powm(self, exp: &$T, m: &$T) -> $T {
+                (*self).powm(*exp, &m)
+            }
+            #[inline]
+            fn negm(self, m: &$T) -> $T {
+                ModInt::<$T, &$T>::negm(*self, m)
+            }
+            #[inline]
+            fn invm(self, m: &$T) -> Option<$T> {
+                ModInt::<$T, &$T>::invm(*self, m)
+            }
+            #[inline]
+            fn jacobi(self, n: &$T) -> i8 {
+                ModInt::<$T, &$T>::jacobi(*self, n)
+            }
+        }
     }
 }
 
+impl_mod_arithm_by_deref!(u8);
+impl_mod_arithm_by_deref!(u16);
+impl_mod_arithm_by_deref!(u32);
+impl_mod_arithm_by_deref!(u64);
+impl_mod_arithm_by_deref!(u128);
+
 impl ModInt<&BigUint, &BigUint> for &BigUint {
     type Output = BigUint;
-
-    #[inline]
-    fn fac2(self) -> usize {
-        match BigUint::trailing_zeros(self) {
-            Some(a) => a as usize,
-            None => 0,
-        }
-    }
 
     #[inline]
     fn addm(self, rhs: &BigUint, m: &BigUint) -> BigUint {
@@ -360,7 +389,7 @@ impl ModInt<&BigUint, &BigUint> for &BigUint {
         if let Some(sm) = m.to_u64() {
             let sself = a.to_u64().unwrap();
             let srhs = b.to_u64().unwrap();
-            return BigUint::from(sself.mulm(&srhs, &sm));
+            return BigUint::from(sself.mulm(srhs, &sm));
         }
 
         (a * b) % m
@@ -443,45 +472,107 @@ impl ModInt<&BigUint, &BigUint> for &BigUint {
     }
 }
 
-impl ModInt<BigUint, &BigUint> for &BigUint {
-    type Output = BigUint;
+macro_rules! impl_mod_arithm_by_ref {
+    ($T:ty) => {
+        impl ModInt<$T, &$T> for &$T {
+            type Output = $T;
+            #[inline]
+            fn addm(self, rhs: $T, m: &$T) -> $T {
+                self.addm(&rhs, &m)
+            }
+            #[inline]
+            fn subm(self, rhs: $T, m: &$T) -> $T {
+                self.subm(&rhs, &m)
+            }
+            #[inline]
+            fn mulm(self, rhs: $T, m: &$T) -> $T {
+                self.mulm(&rhs, &m)
+            }
+            #[inline]
+            fn powm(self, exp: $T, m: &$T) -> $T {
+                self.powm(&exp, &m)
+            }
+            #[inline]
+            fn negm(self, m: &$T) -> $T {
+                ModInt::<&$T, &$T>::negm(self, m)
+            }
+            #[inline]
+            fn invm(self, m: &$T) -> Option<$T> {
+                ModInt::<&$T, &$T>::invm(self, m)
+            }
+            #[inline]
+            fn jacobi(self, n: &$T) -> i8 {
+                ModInt::<&$T, &$T>::jacobi(self, n)
+            }
+        }
 
-    #[inline]
-    fn fac2(self) -> usize {
-        match BigUint::trailing_zeros(self) {
-            Some(a) => a as usize,
-            None => 0,
+        impl ModInt<&$T, &$T> for $T {
+            type Output = $T;
+            #[inline]
+            fn addm(self, rhs: &$T, m: &$T) -> $T {
+                (&self).addm(rhs, &m)
+            }
+            #[inline]
+            fn subm(self, rhs: &$T, m: &$T) -> $T {
+                (&self).subm(rhs, &m)
+            }
+            #[inline]
+            fn mulm(self, rhs: &$T, m: &$T) -> $T {
+                (&self).mulm(rhs, &m)
+            }
+            #[inline]
+            fn powm(self, exp: &$T, m: &$T) -> $T {
+                (&self).powm(exp, &m)
+            }
+            #[inline]
+            fn negm(self, m: &$T) -> $T {
+                ModInt::<&$T, &$T>::negm(&self, m)
+            }
+            #[inline]
+            fn invm(self, m: &$T) -> Option<$T> {
+                ModInt::<&$T, &$T>::invm(&self, m)
+            }
+            #[inline]
+            fn jacobi(self, n: &$T) -> i8 {
+                ModInt::<&$T, &$T>::jacobi(&self, n)
+            }
+        }
+
+        impl ModInt<$T, &$T> for $T {
+            type Output = $T;
+            #[inline]
+            fn addm(self, rhs: $T, m: &$T) -> $T {
+                (&self).addm(&rhs, &m)
+            }
+            #[inline]
+            fn subm(self, rhs: $T, m: &$T) -> $T {
+                (&self).subm(&rhs, &m)
+            }
+            #[inline]
+            fn mulm(self, rhs: $T, m: &$T) -> $T {
+                (&self).mulm(&rhs, &m)
+            }
+            #[inline]
+            fn powm(self, exp: $T, m: &$T) -> $T {
+                (&self).powm(&exp, &m)
+            }
+            #[inline]
+            fn negm(self, m: &$T) -> $T {
+                ModInt::<&$T, &$T>::negm(&self, m)
+            }
+            #[inline]
+            fn invm(self, m: &$T) -> Option<$T> {
+                ModInt::<&$T, &$T>::invm(&self, m)
+            }
+            #[inline]
+            fn jacobi(self, n: &$T) -> i8 {
+                ModInt::<&$T, &$T>::jacobi(&self, n)
+            }
         }
     }
-    #[inline]
-    fn addm(self, rhs: BigUint, m: &BigUint) -> BigUint {
-        self.addm(&rhs, m)
-    }
-    #[inline]
-    fn subm(self, rhs: BigUint, m: &BigUint) -> BigUint {
-        self.subm(&rhs, m)
-    }
-    #[inline]
-    fn mulm(self, rhs: BigUint, m: &BigUint) -> BigUint {
-        self.mulm(&rhs, m)
-    }
-    #[inline]
-    fn powm(self, exp: BigUint, m: &BigUint) -> BigUint {
-        self.powm(&exp, m)
-    }
-    #[inline]
-    fn negm(self, m: &BigUint) -> BigUint {
-        ModInt::<&BigUint, &BigUint>::negm(self, m)
-    }
-    #[inline]
-    fn jacobi(self, n: &BigUint) -> i8 {
-        ModInt::<&BigUint, &BigUint>::jacobi(self, n)
-    }
-    #[inline]
-    fn invm(self, m: &BigUint) -> Option<BigUint> {
-        ModInt::<&BigUint, &BigUint>::invm(self, m)
-    }
 }
+
+impl_mod_arithm_by_ref!(BigUint);
 
 #[cfg(test)]
 mod tests {

@@ -117,7 +117,7 @@ where
     }
 }
 
-impl<T: Integer + NumRef + Clone + FromPrimitive + LucasUtils> PrimalityUtils for T
+impl<T: Integer + NumRef + Clone + FromPrimitive + LucasUtils + BitTest> PrimalityUtils for T
 where
     for<'r> &'r T: RefNum<T> + std::ops::Shr<usize, Output = T> + ModInt<&'r T, &'r T, Output = T>,
 {
@@ -136,7 +136,7 @@ where
 
         // find 2^shift*u + 1 = n
         let tm1 = self - T::one();
-        let shift = tm1.fac2();
+        let shift = tm1.trailing_zeros();
         let u = &tm1 >> shift;
 
         let mut x = base.powm(&u, self);
@@ -221,7 +221,7 @@ where
             _ => panic!(""),
         };
 
-        let shift = delta.fac2();
+        let shift = delta.trailing_zeros();
         let base = &delta >> shift;
 
         let (ud, vd) = LucasUtils::lucasm(p, q, self.clone(), base.clone());
@@ -289,7 +289,7 @@ where
             _ => panic!(""),
         };
 
-        let shift = delta.fac2();
+        let shift = delta.trailing_zeros();
         let base = &delta >> shift;
 
         let (ud, mut vd) = LucasUtils::lucasm(p, 1, self.clone(), base.clone());
