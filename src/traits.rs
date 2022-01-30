@@ -66,7 +66,7 @@ pub struct FactorizationConfig {
 
     /// prime limit of trial division, you also need to reserve the buffer if all primes under the limit are to be tested.
     /// None means using all available primes
-    pub tf_limit: Option<u64>,
+    pub td_limit: Option<u64>,
 
     /// number of trials with Pollard's rho method
     pub rho_trials: usize,
@@ -85,7 +85,7 @@ impl FactorizationConfig {
     pub fn default() -> Self {
         Self {
             prime_test_config: PrimalityTestConfig::default(),
-            tf_limit: Some(1 << 14),
+            td_limit: Some(1 << 14),
             rho_trials: 4,
             brent_trials: 0,
             pm1_trials: 0,

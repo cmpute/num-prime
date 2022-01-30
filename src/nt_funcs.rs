@@ -1,8 +1,11 @@
 //! Standalone number theoretic functions that can be used without prime cache
 
 use crate::factor::{trial_division, pollard_rho, squfof};
-use crate::tables::SMALL_PRIMES;
-use crate::traits::{Primality, PrimalityUtils, PrimalityTestConfig, FactorizationConfig};
+use crate::tables::{SMALL_PRIMES, MOEBIUS_ODD};
+use crate::traits::{Primality, PrimalityUtils, PrimalityTestConfig, FactorizationConfig, PrimeBuffer};
+use crate::buffer::{NaiveBuffer, PrimeBufferExt};
+use num_integer::Integer;
+use num_traits::{FromPrimitive, NumRef, ToPrimitive, RefNum};
 use rand::random;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
@@ -101,7 +104,9 @@ pub fn factors64(target: u64) -> BTreeMap<u64, usize> {
     if f2 > 0 { result.insert(2, f2 as usize); } // add back 2
     let residual = match factored {
         Ok(res) => {
-            result.insert(res, 1);
+            if res != 1 {
+                result.insert(res, 1);
+            }
             return result;
         }
         Err(res) => res
@@ -137,7 +142,9 @@ pub fn factors64(target: u64) -> BTreeMap<u64, usize> {
     result
 }
 
+/// This function test if an integer is a prime number
 pub fn is_prime<T>(target: T, config: Option<PrimalityTestConfig>) -> Primality {
+    // TODO (v0.1) NaiveBuffer::new().is_prime(target, config)
     unimplemented!()
 }
 
@@ -156,9 +163,58 @@ pub fn primorial<T>(n: u64) -> T {
     unimplemented!()
 }
 
-// TODO (v0.1): implement
-pub fn moebius_mu<T>(target: T) {
-    unimplemented!()
+/// This function calculate the Möbius function of the input integer
+/// It will panic if the factorization failed. If the input integer is
+/// very hard to factorize, it's better to use the `factors` function to
+/// control how the factorization is done.
+pub fn moebius_mu<T: Integer + FromPrimitive + ToPrimitive + NumRef>(target: &T) -> i8 where
+for<'r> &'r T: RefNum<T> {
+    // remove factor 2
+    if target.is_even() {
+        let two = T::one() + T::one();
+        let four = &two + &two;
+        if (target % four).is_zero() {
+            return 0
+        } else {
+            return -moebius_mu(&(target / &two));
+        }
+    }
+
+    // look up tables when input is smaller than 256
+    if let Some(v) = (target - T::one()).to_u8() {
+        let m = MOEBIUS_ODD[(v >> 6) as usize];
+        let m = m & (3 << (v & 63));
+        let m = m >> (v & 63);
+        return m as i8 - 1;
+    }
+
+    // short cut for common primes
+    let three_sq = T::from_u8(9).unwrap();
+    let five_sq = T::from_u8(25).unwrap();
+    let seven_sq = T::from_u8(49).unwrap();
+    if (target % three_sq).is_zero() || (target % five_sq).is_zero() || (target % seven_sq).is_zero() {
+        return 0;
+    }
+
+    // then try complete factorization
+    match factors(target, None){
+        Ok(result) => {
+            for exp in result.values() {
+                if exp > &1 {
+                    return 0;
+                }
+            }
+            return if result.len() % 2 == 0 { 1 } else { -1 };
+        }
+        Err(_) => { panic!("Failed to factor the integer!"); }
+    }
+}
+
+/// This function tests if the integer doesn't have any square number factor.
+/// It will panic if the factorization failed.
+pub fn is_square_free<T: Integer + FromPrimitive + ToPrimitive + NumRef>(target: &T) -> bool where
+for<'r> &'r T: RefNum<T> {
+    moebius_mu(target) != 0
 }
 
 // TODO: More functions
@@ -181,13 +237,22 @@ pub fn moebius_mu<T>(target: T) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::random;
+    use rand::{random, prelude::SliceRandom};
     use std::iter::FromIterator;
 
     #[test]
     fn is_prime64_test() {
-        // test for is_prime
+        // test small primes
+        for x in 2..100 {
+            assert_eq!(SMALL_PRIMES.contains(&x), is_prime64(x as u64));
+        }
+
+        // some large primes
         assert!(is_prime64(6469693333));
+        assert!(is_prime64(13756265695458089029));
+        assert!(is_prime64(13496181268022124907));
+        assert!(is_prime64(10953742525620032441));
+        assert!(is_prime64(17908251027575790097));
 
         // primes from examples in Bradley Berg's hash method
         assert!(is_prime64(480194653));
@@ -197,8 +262,19 @@ mod tests {
         assert!(!is_prime64(8651776913431));
         assert!(!is_prime64(1152965996591997761));
 
-        for x in 2..100 {
-            assert_eq!(SMALL_PRIMES.contains(&x), is_prime64(x as u64));
+        // ensure no factor for 100 random primes
+        let mut rng = rand::thread_rng();
+        for _ in 0..100 {
+            let x = random();
+            if !is_prime64(x) {continue;}
+            assert_ne!(x % (*SMALL_PRIMES.choose(&mut rng).unwrap() as u64), 0);
+        }
+
+        // create random composites
+        for _ in 0..100 {
+            let x = random::<u32>() as u64;
+            let y = random::<u32>() as u64;
+            assert!(!is_prime64(x*y));
         }
     }
 
@@ -225,4 +301,6 @@ mod tests {
             assert_eq!(x, prod, "factorization check failed! ({} != {})", x, prod);
         }
     }
+
+    // TODO (v0.1): moebius and is_sqaure_free test
 }

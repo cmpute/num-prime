@@ -9,7 +9,7 @@ pub const SMALL_PRIMES: [u8; 54] = [
     197, 199, 211, 223, 227, 229, 233, 239, 241, 251,
 ];
 #[cfg(not(feature = "big-table"))]
-pub const SMALL_PRIMES_LIMIT: u64 = 255;
+pub const SMALL_PRIMES_NEXT: u64 = 257;
 
 // list 1024 primes if big-table feature is enabled
 #[cfg(feature = "big-table")]
@@ -79,7 +79,7 @@ pub const SMALL_PRIMES: [u16; 1024] = [
     8161, // 8167, 8171, 8179, 8191
 ];
 #[cfg(feature = "big-table")]
-pub const SMALL_PRIMES_LIMIT: u64 = 8167;
+pub const SMALL_PRIMES_NEXT: u64 = 8167;
 
 // tables for Miller-rabin bases of 32/64-bit integers using Bradley's hashing
 /*
@@ -1139,4 +1139,9 @@ pub const MILLER_RABIN_BASE64: [u32; 16384] = [
     4051, 4923, 165, 16132, 16827, 1913, 6590, 322, 741, 522, 7666, 1655, 5087, 468, 8541, 1169,
     4455, 22993, 2801, 6623, 446, 1979, 10923, 3503, 32053, 523, 5721, 9608, 955, 11766, 49919,
     1982, 66, 3347, 9508, 439, 145, 5697, 1026, 1569,
+];
+
+// tables for moebius function with small input
+pub const MOEBIUS_ODD: [u64; 4] = [
+    0x4289108a05208102, 0x19988004a8a12422, 0x1a8245028906a062, 0x229428012aa26a00
 ];

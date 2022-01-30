@@ -1,6 +1,6 @@
 use crate::factor::{trial_division, pollard_rho};
 use crate::nt_funcs::{factors64, is_prime64};
-use crate::tables::{SMALL_PRIMES, SMALL_PRIMES_LIMIT};
+use crate::tables::{SMALL_PRIMES, SMALL_PRIMES_NEXT};
 use crate::traits::{
     FactorizationConfig, Primality, PrimalityTestConfig, PrimalityUtils, PrimeBuffer,
 };
@@ -94,7 +94,7 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
         let config = config.unwrap_or(FactorizationConfig::default());
 
         // test the existing primes
-        let (result, factored) = trial_division(self.iter().cloned(), target, config.tf_limit);
+        let (result, factored) = trial_division(self.iter().cloned(), target, config.td_limit);
         let mut result: BTreeMap<BigUint, usize> = result
             .into_iter()
             .map(|(k, v)| (BigUint::from(k), v))
@@ -103,10 +103,12 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
         // find factors by dividing
         let mut successful = true;
         let mut config = config;
-        config.tf_limit = Some(0); // disable TF when finding divisor
+        config.td_limit = Some(0); // disable trial division when finding divisor
         match factored {
             Ok(res) => {
-                result.insert(res, 1);
+                if !res.is_one() {
+                    result.insert(res, 1);
+                }
             }
             Err(res) => {
                 successful = true;
@@ -140,10 +142,10 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
     /// Return a proper divisor of target (randomly), even works for very large numbers
     /// Return None if no factor is found (this method will not do a primality check)
     fn divisor(&self, target: &BigUint, config: &mut FactorizationConfig) -> Option<BigUint> {
-        if matches!(config.tf_limit, Some(0)) {
+        if matches!(config.td_limit, Some(0)) {
             // try to get a factor by trial division
             let tsqrt: BigUint = Roots::sqrt(target) + BigUint::one();
-            let limit = if let Some(l) = config.tf_limit {
+            let limit = if let Some(l) = config.td_limit {
                 tsqrt.clone().min(BigUint::from_u64(l).unwrap())
             } else {
                 tsqrt.clone()
@@ -188,7 +190,7 @@ impl NaiveBuffer {
     #[inline]
     pub fn new() -> Self {
         let list = SMALL_PRIMES.iter().map(|&p| p as u64).collect();
-        NaiveBuffer { list, current: SMALL_PRIMES_LIMIT }
+        NaiveBuffer { list, current: SMALL_PRIMES_NEXT }
     }
 }
 

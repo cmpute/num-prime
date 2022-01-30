@@ -7,7 +7,7 @@ use num_traits::{FromPrimitive, NumRef, RefNum};
 
 /// Find factors by trial division. The target is guaranteed fully factored
 /// only if bound() * bound() > target. The parameter limit sets the max prime to be tried aside from bound()
-/// Return factors, and if the target is fully factored, return Ok(residual), otherwise return Err(residual)
+/// Return the found factors and the residual. The residual will be Ok(1) or Ok(p) if fully factored.
 pub fn trial_division<I: Iterator<Item = u64>, T: Integer + Clone + Roots + NumRef + FromPrimitive>(
     primes: I,
     target: T,
