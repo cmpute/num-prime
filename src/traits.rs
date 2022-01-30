@@ -9,6 +9,7 @@ pub trait BitTest {
 }
 
 /// This enum describes the result of a primality check
+#[derive(Debug, Clone, Copy)]
 pub enum Primality {
     Yes,
     No,

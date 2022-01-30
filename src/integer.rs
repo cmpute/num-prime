@@ -1,9 +1,12 @@
 //! Backend implementations for integers
 
 use crate::traits::{BitTest, ExactRoots, ModInt};
-use num_bigint::BigUint;
 use num_integer::Integer;
-use num_traits::{One, ToPrimitive, Zero};
+
+#[cfg(feature="num-bigint")]
+use num_traits::{Zero, One, ToPrimitive};
+#[cfg(feature="num-bigint")]
+use num_bigint::BigUint;
 
 macro_rules! impl_bititer_prim {
     ($($T:ty)*) => {$(
@@ -25,6 +28,7 @@ macro_rules! impl_bititer_prim {
 }
 impl_bititer_prim!(u8 u16 u32 u64 u128 usize);
 
+#[cfg(feature="num-bigint")]
 impl BitTest for BigUint {
     fn bit(&self, position: usize) -> bool {
         self.bit(position as u64)
@@ -41,11 +45,11 @@ impl BitTest for BigUint {
     }
 }
 
-// LEGENDRE[N] has a bit i set iff i is a quadratic residue mod N.
-const LEGENDRE64: u64 = 0x0202021202030213;
-const LEGENDRE63: u64 = 0x0402483012450293;
-const LEGENDRE65: u64 = 0x218a019866014613;
-const LEGENDRE11: u64 = 0x23b;
+// QUAD_RESIDUAL[N] has a bit i set iff i is a quadratic residue mod N.
+const QUAD_RESIDUAL64: u64 = 0x0202021202030213;
+const QUAD_RESIDUAL63: u64 = 0x0402483012450293;
+const QUAD_RESIDUAL65: u64 = 0x218a019866014613;
+const QUAD_RESIDUAL11: u64 = 0x23b;
 
 macro_rules! impl_exactroot_prim {
     ($($T:ty)*) => {$(
@@ -54,17 +58,17 @@ macro_rules! impl_exactroot_prim {
                 // eliminate most non-squares by checking legendre symbols.
                 // See H. Cohen's "Course in Computational Algebraic Number Theory",
                 // algorithm 1.7.3, page 40.
-                if (LEGENDRE64 >> (self & 63)) & 1 == 0 {
+                if (QUAD_RESIDUAL64 >> (self & 63)) & 1 == 0 {
                     return None;
                 }
-                if (LEGENDRE63 >> (self % 63)) & 1 == 0 {
+                if (QUAD_RESIDUAL63 >> (self % 63)) & 1 == 0 {
                     return None;
                 }
-                if (LEGENDRE65 >> ((self % 65) & 63)) & 1 == 0 {
+                if (QUAD_RESIDUAL65 >> ((self % 65) & 63)) & 1 == 0 {
                     // Both 0 and 64 are squares mod 65
                     return None;
                 }
-                if (LEGENDRE11 >> (self % 11)) & 1 == 0 {
+                if (QUAD_RESIDUAL11 >> (self % 11)) & 1 == 0 {
                     return None;
                 }
                 self.nth_root_exact(2)
@@ -74,18 +78,19 @@ macro_rules! impl_exactroot_prim {
 }
 impl_exactroot_prim!(u8 u16 u32 u64 u128 usize);
 
+#[cfg(feature="num-bigint")]
 impl ExactRoots for BigUint {
     fn sqrt_exact(&self) -> Option<Self> {
-        if (LEGENDRE64 >> (self % 64u8).to_u64().unwrap()) & 1 == 0 {
+        if (QUAD_RESIDUAL64 >> (self % 64u8).to_u64().unwrap()) & 1 == 0 {
             return None;
         }
-        if (LEGENDRE63 >> (self % 63u8).to_u64().unwrap()) & 1 == 0 {
+        if (QUAD_RESIDUAL63 >> (self % 63u8).to_u64().unwrap()) & 1 == 0 {
             return None;
         }
-        if (LEGENDRE65 >> ((self % 65u8) % 64u8).to_u64().unwrap()) & 1 == 0 {
+        if (QUAD_RESIDUAL65 >> ((self % 65u8) % 64u8).to_u64().unwrap()) & 1 == 0 {
             return None;
         }
-        if (LEGENDRE11 >> (self % 11u8).to_u64().unwrap()) & 1 == 0 {
+        if (QUAD_RESIDUAL11 >> (self % 11u8).to_u64().unwrap()) & 1 == 0 {
             return None;
         }
         self.nth_root_exact(2)
@@ -407,6 +412,7 @@ macro_rules! impl_mod_arithm_by_deref {
 
 impl_mod_arithm_by_deref!(u8 u16 u32 u64 u128 usize);
 
+#[cfg(feature="num-bigint")]
 impl ModInt<&BigUint, &BigUint> for &BigUint {
     type Output = BigUint;
 
@@ -513,6 +519,7 @@ impl ModInt<&BigUint, &BigUint> for &BigUint {
     }
 }
 
+#[cfg(feature="num-bigint")]
 macro_rules! impl_mod_arithm_by_ref {
     ($T:ty) => {
         impl ModInt<$T, &$T> for &$T {
@@ -613,12 +620,12 @@ macro_rules! impl_mod_arithm_by_ref {
     };
 }
 
+#[cfg(feature="num-bigint")]
 impl_mod_arithm_by_ref!(BigUint);
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use num_bigint::RandBigInt;
     use rand;
 
     #[test]
@@ -631,12 +638,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature="num-bigint")]
     fn biguint_basic_mod_test() {
         let mut rng = rand::thread_rng();
-        let a = rng.gen_biguint(500);
-        let ra = &a;
-        let m = rng.gen_biguint(500);
-        let rm = &m;
+        let a = rand::random::<u128>();
+        let ra = &BigUint::from(a);
+        let m = rand::random::<u128>();
+        let rm = &BigUint::from(m);
         assert_eq!(ra.addm(ra, rm), (ra + ra) % rm);
         assert_eq!(ra.mulm(ra, rm), (ra * ra) % rm);
         assert_eq!(ra.powm(BigUint::from(3u8), rm), ra.pow(3) % rm);
@@ -690,13 +698,17 @@ mod tests {
                 x,
                 y
             );
-            assert_eq!(
-                BigUint::from(*x).addm(BigUint::from(*y), &BigUint::from(m)),
-                BigUint::from(*r),
-                "biguint x: {}, y: {}",
-                x,
-                y
-            );
+
+            #[cfg(feature="num-bigint")]
+            {
+                assert_eq!(
+                    BigUint::from(*x).addm(BigUint::from(*y), &BigUint::from(m)),
+                    BigUint::from(*r),
+                    "biguint x: {}, y: {}",
+                    x,
+                    y
+                );
+            }
         }
     }
 
@@ -748,13 +760,17 @@ mod tests {
                 x,
                 y
             );
-            assert_eq!(
-                BigUint::from(*x).subm(BigUint::from(*y), &BigUint::from(m)),
-                BigUint::from(*r),
-                "biguint x: {}, y: {}",
-                x,
-                y
-            );
+            
+            #[cfg(feature="num-bigint")]
+            {
+                assert_eq!(
+                    BigUint::from(*x).subm(BigUint::from(*y), &BigUint::from(m)),
+                    BigUint::from(*r),
+                    "biguint x: {}, y: {}",
+                    x,
+                    y
+                );
+            }
         }
     }
 
@@ -784,13 +800,17 @@ mod tests {
                 a,
                 m
             );
-            assert_eq!(
-                ModInt::<&BigUint>::invm(&BigUint::from(*a), &BigUint::from(*m)).unwrap(),
-                BigUint::from(*x),
-                "a: {}, m: {}",
-                a,
-                m
-            );
+            
+            #[cfg(feature="num-bigint")]
+            {
+                assert_eq!(
+                    ModInt::<&BigUint>::invm(&BigUint::from(*a), &BigUint::from(*m)).unwrap(),
+                    BigUint::from(*x),
+                    "a: {}, m: {}",
+                    a,
+                    m
+                );
+            }
         }
     }
 
@@ -844,13 +864,17 @@ mod tests {
                 a,
                 n
             );
-            assert_eq!(
-                ModInt::<&BigUint>::jacobi(&(BigUint::from(*a)), &(BigUint::from(*n))),
-                *res,
-                "u32 a: {}, n: {}",
-                a,
-                n
-            );
+
+            #[cfg(feature="num-bigint")]
+            {
+                assert_eq!(
+                    ModInt::<&BigUint>::jacobi(&(BigUint::from(*a)), &(BigUint::from(*n))),
+                    *res,
+                    "u32 a: {}, n: {}",
+                    a,
+                    n
+                );
+            }
         }
     }
 

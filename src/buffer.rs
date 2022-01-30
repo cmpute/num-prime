@@ -7,7 +7,6 @@ use crate::traits::{
     PrimeBuffer,
 };
 use bitvec::bitvec;
-use num_bigint::BigUint; // TODO (v0.1): make the dependency for this optional
 use num_integer::Roots;
 use rand::{random, seq::IteratorRandom};
 use std::{collections::BTreeMap, convert::TryInto};
@@ -317,7 +316,8 @@ impl NaiveBuffer {
 mod tests {
     use super::*;
     use rand::random;
-    use std::iter::FromIterator;
+    #[cfg(feature="num-bigint")]
+    use num_bigint::BigUint;
 
     const PRIME50: [u64; 15] = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47];
     const PRIME100: [u64; 25] = [
@@ -339,15 +339,14 @@ mod tests {
 
         // some mersenne numbers
         assert!(matches!(
-            pb.is_prime(&BigUint::from(2u32.pow(19) - 1), None),
+            pb.is_prime(&(2u32.pow(19) - 1), None),
             Primality::Yes
         ));
         assert!(matches!(
-            pb.is_prime(&BigUint::from(2u32.pow(23) - 1), None),
+            pb.is_prime(&(2u32.pow(23) - 1), None),
             Primality::No
         ));
-        let m89 = BigUint::from(2u8).pow(89) - 1u8;
-        assert!(matches!(pb.is_prime(&m89, None), Primality::Probable(_)));
+        assert!(matches!(pb.is_prime(&(2u128.pow(89) - 1), None), Primality::Probable(_)));
 
         // test against small prime assertion
         for _ in 0..100 {
@@ -355,7 +354,7 @@ mod tests {
             assert_eq!(
                 !is_prime64(target),
                 matches!(
-                    pb.is_prime(&BigUint::from(target), Some(PrimalityTestConfig::bpsw())),
+                    pb.is_prime(&target, Some(PrimalityTestConfig::bpsw())),
                     Primality::No
                 )
             );
@@ -366,8 +365,11 @@ mod tests {
     fn pb_factors_test() {
         let pb = NaiveBuffer::new();
 
-        let m131 = BigUint::from(2u8).pow(131) - 1u8; // m131/263 is a large prime
-        let fac = pb.factors(m131, None);
-        assert!(matches!(fac, Ok(f) if f.len() == 2));
+        #[cfg(feature="num-bigint")]
+        {
+            let m131 = BigUint::from(2u8).pow(131) - 1u8; // m131/263 is a large prime
+            let fac = pb.factors(m131, None);
+            assert!(matches!(fac, Ok(f) if f.len() == 2));
+        }
     }
 }

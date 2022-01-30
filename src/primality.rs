@@ -340,8 +340,10 @@ impl<T, Base> PrimalityRefBase<Base> for T where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use num_bigint::BigUint;
     use rand::random;
+
+    #[cfg(feature="num-bigint")]
+    use num_bigint::BigUint;
 
     #[test]
     fn fermat_prp_test() {
@@ -400,8 +402,13 @@ mod tests {
         for n in 2..p3qm1.len() {
             let (uk, _) = LucasUtils::lucasm(3, -1, m as u64, n as u64);
             assert_eq!(uk, p3qm1[n] % (m as u64));
-            let (uk, _) = LucasUtils::lucasm(3, -1, BigUint::from(m), BigUint::from(n));
-            assert_eq!(uk, BigUint::from(p3qm1[n] % (m as u64)));
+
+            
+            #[cfg(feature="num-bigint")]
+            {
+                let (uk, _) = LucasUtils::lucasm(3, -1, BigUint::from(m), BigUint::from(n));
+                assert_eq!(uk, BigUint::from(p3qm1[n] % (m as u64)));
+            }
         }
     }
 
