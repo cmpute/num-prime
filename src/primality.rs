@@ -22,14 +22,14 @@ pub trait LucasUtils {
 
 impl<T: Integer + FromPrimitive + ToPrimitive + NumRef + BitTest + ExactRoots + Clone> LucasUtils for T 
 where
-    for<'r> &'r T: RefNum<T> + ModInt<T, &'r T, Output = T> + ModInt<&'r T, &'r T, Output = T>
+    for<'r> &'r T: RefNum<T> + ModInt<&'r T, &'r T, Output = T>
 {
     fn lucasm(p: usize, q: isize, m: Self, n: Self) -> (Self, Self) {
         let p = T::from_usize(p).unwrap() % &m;
         let q = if q >= 0 {
             T::from_isize(q).unwrap() % &m
         } else {
-            ModInt::<&T, &T>::negm(&T::from_isize(-q).unwrap(), &m)
+            (&T::from_isize(-q).unwrap()).negm(&m)
         };
 
         let mut uk = T::zero(); // U(k)
@@ -42,11 +42,11 @@ where
                 // U(k'+1) = U(2k+2) = PU(k+1)² - 2*QU(k+1)U(k)
                 let t1 = p.mulm(&uk1, &m).mulm(&uk1, &m);
                 let t2 = two.mulm(&q, &m).mulm(&uk1, &m).mulm(&uk, &m);
-                let new_uk1 = t1.subm(t2, &m);
+                let new_uk1 = t1.subm(&t2, &m);
                 // U(k') = U(2k+1) = U(k+1)² - QU(k)²
                 let t1 = uk1.mulm(&uk1, &m);
-                let t2 = q.mulm(&uk, &m).mulm(uk, &m);
-                let new_uk = t1.subm(t2, &m);
+                let t2 = q.mulm(&uk, &m).mulm(&uk, &m);
+                let new_uk = t1.subm(&t2, &m);
                 uk1 = new_uk1;
                 uk = new_uk;
             } else {
@@ -54,17 +54,17 @@ where
                 // U(k'+1) = U(2k+1) = U(k+1)² - QU(k)²
                 let t1 = uk1.mulm(&uk1, &m);
                 let t2 = q.mulm(&uk, &m).mulm(&uk, &m);
-                let new_uk1 = t1.subm(t2, &m);
+                let new_uk1 = t1.subm(&t2, &m);
                 // U(k') = U(2k) = 2U(k+1)U(k) - PU(k)²
-                let t1 = two.mulm(uk1, &m).mulm(&uk, &m);
-                let t2 = p.mulm(&uk, &m).mulm(uk, &m);
-                let new_uk = t1.subm(t2, &m);
+                let t1 = two.mulm(&uk1, &m).mulm(&uk, &m);
+                let t2 = p.mulm(&uk, &m).mulm(&uk, &m);
+                let new_uk = t1.subm(&t2, &m);
                 uk1 = new_uk1;
                 uk = new_uk;
             }
         }
 
-        let vk = two.mulm(uk1, &m).subm(p.mulm(&uk, &m), &m);
+        let vk = two.mulm(&uk1, &m).subm(&p.mulm(&uk, &m), &m);
         (uk, vk)
     }
 
@@ -78,7 +78,7 @@ where
             }
 
             let sd = if neg {
-                ModInt::<&T, &T>::negm(&d, n)
+                (&d).negm(n)
             } else {
                 d.clone()
             };
@@ -177,7 +177,7 @@ where
         let d = if d > 0 {
             Self::from_isize(d).unwrap()
         } else {
-            ModInt::<&Self, &Self>::negm(&Self::from_isize(-d).unwrap(), self)
+            (&Self::from_isize(-d).unwrap()).negm(self)
         };
         let delta = match d.jacobi(self) {
             0 => self.clone(),
@@ -212,7 +212,7 @@ where
         let d = if d > 0 {
             Self::from_isize(d).unwrap()
         } else {
-            ModInt::<&Self, &Self>::negm(&Self::from_isize(-d).unwrap(), self)
+            (&Self::from_isize(-d).unwrap()).negm(self)
         };
         let delta = match d.jacobi(self) {
             0 => self.clone(),
@@ -280,7 +280,7 @@ where
         let d = if d > 0 {
             Self::from_isize(d).unwrap()
         } else {
-            ModInt::<&Self, &Self>::negm(&Self::from_isize(-d).unwrap(), self)
+            (&Self::from_isize(-d).unwrap()).negm(self)
         };
         let delta = match d.jacobi(self) {
             0 => self.clone(),

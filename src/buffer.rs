@@ -3,24 +3,33 @@ use crate::nt_funcs::{factors64, is_prime64};
 use crate::tables::{SMALL_PRIMES, SMALL_PRIMES_NEXT};
 use crate::traits::{
     FactorizationConfig, Primality, PrimalityTestConfig, PrimalityUtils, PrimeBuffer,
+    ModInt, BitTest
 };
+use crate::primality::LucasUtils;
 use bitvec::bitvec;
 use num_bigint::BigUint; // TODO (v0.1): make the dependency for this optional
 use num_integer::{Integer, Roots};
-use num_traits::{FromPrimitive, One, ToPrimitive};
+use num_traits::{FromPrimitive, ToPrimitive, NumRef, RefNum};
 use rand::{random, seq::IteratorRandom};
 use std::{
     collections::BTreeMap,
     convert::TryInto,
 };
 
+pub trait PrimalityBase : Integer + Roots + NumRef + Clone + FromPrimitive + ToPrimitive + LucasUtils + BitTest {}
+impl<T: Integer + Roots + NumRef + Clone + FromPrimitive + ToPrimitive + LucasUtils + BitTest> PrimalityBase for T {}
+pub trait PrimalityRefBase<Base>: RefNum<Base> + std::ops::Shr<usize, Output = Base> + for <'r> ModInt<&'r Base, &'r Base, Output = Base> {}
+impl<T, Base> PrimalityRefBase<Base> for T where T: RefNum<Base> + std::ops::Shr<usize, Output = Base> + for <'r>  ModInt<&'r Base, &'r Base, Output = Base> {}
+
 pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
     /// Test if an integer is a prime, the config will take effect only if the target is larger
     /// than 2^64.
-    fn is_prime(&self, target: &BigUint, config: Option<PrimalityTestConfig>) -> Primality {
+    fn is_prime<T: PrimalityBase>(&self, target: &T, config: Option<PrimalityTestConfig>) -> Primality
+    where for<'r> &'r T: PrimalityRefBase<T>
+    {
         // shortcuts
         if target.is_even() {
-            return if target == &BigUint::from(2u8) {
+            return if target == &T::from_u8(2u8).unwrap() {
                 Primality::Yes
             } else {
                 Primality::No
@@ -54,7 +63,7 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
         }
         if !witness_list
             .iter()
-            .all(|&x| target.is_sprp(BigUint::from(x)))
+            .all(|&x| target.is_sprp(T::from_u64(x).unwrap()))
         {
             return Primality::No;
         }
@@ -77,27 +86,26 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
     }
 
     /// Return list of found factors if not fully factored
-    // TODO (v0.1): accept general integer as input (thus potentially support other bigint such as crypto-bigint)
-    // REF: https://pypi.org/project/primefac/
-    fn factors(
-        &mut self,
-        target: BigUint,
+    fn factors<T: PrimalityBase>(
+        &self,
+        target: T,
         config: Option<FactorizationConfig>,
-    ) -> Result<BTreeMap<BigUint, usize>, Vec<BigUint>> {
+    ) -> Result<BTreeMap<T, usize>, Vec<T>>
+    where for<'r> &'r T: PrimalityRefBase<T> {
         // shortcut if the target is in u64 range
         if let Some(x) = target.to_u64() {
             return Ok(factors64(x)
                 .iter()
-                .map(|(&k, &v)| (BigUint::from(k), v))
+                .map(|(&k, &v)| (T::from_u64(k).unwrap(), v))
                 .collect());
         }
         let config = config.unwrap_or(FactorizationConfig::default());
 
         // test the existing primes
         let (result, factored) = trial_division(self.iter().cloned(), target, config.td_limit);
-        let mut result: BTreeMap<BigUint, usize> = result
+        let mut result: BTreeMap<T, usize> = result
             .into_iter()
-            .map(|(k, v)| (BigUint::from(k), v))
+            .map(|(k, v)| (T::from_u64(k).unwrap(), v))
             .collect();
 
         // find factors by dividing
@@ -141,17 +149,19 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
 
     /// Return a proper divisor of target (randomly), even works for very large numbers
     /// Return None if no factor is found (this method will not do a primality check)
-    fn divisor(&self, target: &BigUint, config: &mut FactorizationConfig) -> Option<BigUint> {
+    fn divisor<T: PrimalityBase>(
+        &self, target: &T, config: &mut FactorizationConfig) -> Option<T> where
+        for<'r> &'r T: PrimalityRefBase<T> {
         if matches!(config.td_limit, Some(0)) {
             // try to get a factor by trial division
-            let tsqrt: BigUint = Roots::sqrt(target) + BigUint::one();
+            let tsqrt: T = Roots::sqrt(target) + T::one();
             let limit = if let Some(l) = config.td_limit {
-                tsqrt.clone().min(BigUint::from_u64(l).unwrap())
+                tsqrt.clone().min(T::from_u64(l).unwrap())
             } else {
                 tsqrt.clone()
             };
 
-            for p in self.iter().map(|p| BigUint::from_u64(*p).unwrap()) {
+            for p in self.iter().map(|p| T::from_u64(*p).unwrap()) {
                 if &p > &tsqrt {
                     return None; // the number is a prime
                 }
@@ -165,9 +175,13 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
         }
 
         // try to get a factor using pollard_rho with 4x4 trials
+        let below64 = target.to_u64().is_some();
         while config.rho_trials > 0 {
-            let start = random::<u64>() % target;
-            let offset = random::<u64>() % target;
+            let (start, offset) = if below64 {
+                (T::from_u8(random::<u8>()).unwrap() % target, T::from_u8(random::<u8>()).unwrap() % target)
+            } else {
+                (T::from_u64(random::<u64>()).unwrap() % target, T::from_u8(random::<u8>()).unwrap() % target)
+            };
             config.rho_trials -= 1;
             if let Some(p) = pollard_rho(target, start, offset) {
                 return Some(p);
@@ -301,7 +315,7 @@ mod tests {
     #[test]
     fn pb_is_prime_test() {
         // test for is_prime
-        let mut pb = NaiveBuffer::new();
+        let pb = NaiveBuffer::new();
 
         // some mersenne numbers
         assert!(matches!(
@@ -330,7 +344,7 @@ mod tests {
 
     #[test]
     fn pb_factors_test() {
-        let mut pb = NaiveBuffer::new();
+        let pb = NaiveBuffer::new();
 
         let m131 = BigUint::from(2u8).pow(131) - 1u8; // m131/263 is a large prime
         let fac = pb.factors(m131, None);

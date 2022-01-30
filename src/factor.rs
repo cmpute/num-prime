@@ -138,11 +138,11 @@ where
     if d > T::one() && &d < target { Some(d) } else { None }
 }
 
-pub fn pollard_brent() {}
-pub fn pollard_pp1() {}
-pub fn williams_pp1() {}
 // TODO: ECM, Quadratic sieve / Prime field sieve, Fermat(https://en.wikipedia.org/wiki/Fermat%27s_factorization_method)
-
+// REF: https://pypi.org/project/primefac/
+fn pollard_brent() {}
+fn pollard_pp1() {}
+fn williams_pp1() {}
 
 #[cfg(test)]
 mod tests {

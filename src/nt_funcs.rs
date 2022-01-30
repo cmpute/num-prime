@@ -3,12 +3,13 @@
 use crate::factor::{trial_division, pollard_rho, squfof};
 use crate::tables::{SMALL_PRIMES, MOEBIUS_ODD};
 use crate::traits::{Primality, PrimalityUtils, PrimalityTestConfig, FactorizationConfig, PrimeBuffer};
-use crate::buffer::{NaiveBuffer, PrimeBufferExt};
+use crate::buffer::{NaiveBuffer, PrimeBufferExt, PrimalityBase, PrimalityRefBase};
 use num_integer::Integer;
 use num_traits::{FromPrimitive, NumRef, ToPrimitive, RefNum};
 use rand::random;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
+use std::iter::Product;
 
 #[cfg(feature = "big-table")]
 use crate::tables::{MILLER_RABIN_BASE32, MILLER_RABIN_BASE64};
@@ -143,32 +144,30 @@ pub fn factors64(target: u64) -> BTreeMap<u64, usize> {
 }
 
 /// This function test if an integer is a prime number
-pub fn is_prime<T>(target: T, config: Option<PrimalityTestConfig>) -> Primality {
-    // TODO (v0.1) NaiveBuffer::new().is_prime(target, config)
-    unimplemented!()
+pub fn is_prime<T: PrimalityBase>
+(target: &T, config: Option<PrimalityTestConfig>) -> Primality
+where for<'r> &'r T: PrimalityRefBase<T>
+{
+    NaiveBuffer::new().is_prime(target, config)
 }
 
 /// This function performs integer factorization on the target.
-pub fn factors<T>(target: T, config: Option<FactorizationConfig>) -> Result<BTreeMap<T, usize>, Vec<T>> {
-    unimplemented!()
+pub fn factors<T: PrimalityBase>(target: T, config: Option<FactorizationConfig>) -> Result<BTreeMap<T, usize>, Vec<T>>
+where for<'r> &'r T: PrimalityRefBase<T> {
+    NaiveBuffer::new().factors(target, config)
 }
 
-pub fn primes(limit: u64) {
-    unimplemented!()
-}
-pub fn nprimes(count: usize) {
-    unimplemented!()
-}
-pub fn primorial<T>(n: u64) -> T {
-    unimplemented!()
+/// This function calculates primorial function on n
+pub fn primorial<T: PrimalityBase + Product>(n: usize) -> T {
+    NaiveBuffer::new().nprimes(n).map(|&p| T::from_u64(p).unwrap()).product()
 }
 
 /// This function calculate the Möbius function of the input integer
 /// It will panic if the factorization failed. If the input integer is
 /// very hard to factorize, it's better to use the `factors` function to
 /// control how the factorization is done.
-pub fn moebius_mu<T: Integer + FromPrimitive + ToPrimitive + NumRef>(target: &T) -> i8 where
-for<'r> &'r T: RefNum<T> {
+pub fn moebius_mu<T: PrimalityBase>(target: &T) -> i8 where
+for<'r> &'r T: PrimalityRefBase<T> {
     // remove factor 2
     if target.is_even() {
         let two = T::one() + T::one();
@@ -197,7 +196,7 @@ for<'r> &'r T: RefNum<T> {
     }
 
     // then try complete factorization
-    match factors(target, None){
+    match factors(target.clone(), None){
         Ok(result) => {
             for exp in result.values() {
                 if exp > &1 {
@@ -212,8 +211,8 @@ for<'r> &'r T: RefNum<T> {
 
 /// This function tests if the integer doesn't have any square number factor.
 /// It will panic if the factorization failed.
-pub fn is_square_free<T: Integer + FromPrimitive + ToPrimitive + NumRef>(target: &T) -> bool where
-for<'r> &'r T: RefNum<T> {
+pub fn is_square_free<T: PrimalityBase>(target: &T) -> bool where
+for<'r> &'r T: PrimalityRefBase<T> {
     moebius_mu(target) != 0
 }
 
