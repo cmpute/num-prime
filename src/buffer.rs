@@ -6,7 +6,7 @@ use crate::traits::{
 };
 use bitvec::bitvec;
 use num_bigint::BigUint; // TODO (v0.1): make the dependency for this optional
-use num_integer::Integer;
+use num_integer::{Integer, Roots};
 use num_traits::{FromPrimitive, One, ToPrimitive};
 use rand::{random, seq::IteratorRandom};
 use std::{
@@ -142,7 +142,7 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
     fn divisor(&self, target: &BigUint, config: &mut FactorizationConfig) -> Option<BigUint> {
         if matches!(config.tf_limit, Some(0)) {
             // try to get a factor by trial division
-            let tsqrt: BigUint = num_integer::sqrt(target.clone()) + BigUint::one();
+            let tsqrt: BigUint = Roots::sqrt(target) + BigUint::one();
             let limit = if let Some(l) = config.tf_limit {
                 tsqrt.clone().min(BigUint::from_u64(l).unwrap())
             } else {
@@ -236,7 +236,7 @@ impl<'a> PrimeBuffer<'a> for NaiveBuffer {
         }
 
         // sieve with new primes
-        for p in (current..num_integer::sqrt(odd_limit) + 1).step_by(2) {
+        for p in (current..Roots::sqrt(&odd_limit) + 1).step_by(2) {
             for multi in (p * p..odd_limit).step_by(2 * (p as usize)) {
                 if multi >= current {
                     sieve.set(((multi - current) / 2) as usize, true);

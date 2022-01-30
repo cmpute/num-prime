@@ -17,6 +17,7 @@ This crate provides utilities for integer modular arithmetics and prime related 
 - Integer factorization
   - Trial division
   - Pollard's rho algorithm
+  - Shanks's square forms factorization (SQUFOF)
   - Fast implementation of `u64` integers
 
 It's based on the `num` creates.

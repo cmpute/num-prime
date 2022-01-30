@@ -1,6 +1,6 @@
 //! Standalone number theoretic functions that can be used without prime cache
 
-use crate::factor::{trial_division, pollard_rho};
+use crate::factor::{trial_division, pollard_rho, squfof};
 use crate::tables::SMALL_PRIMES;
 use crate::traits::{Primality, PrimalityUtils, PrimalityTestConfig, FactorizationConfig};
 use rand::random;
@@ -81,7 +81,9 @@ pub fn is_prime64(target: u64) -> bool {
 
 pub fn factors64(target: u64) -> BTreeMap<u64, usize> {
     // TODO: improve factorization performance
-    // REF: https://github.com/coreutils/coreutils/blob/master/src/factor.c
+    // REF: https://mathoverflow.net/questions/114018/fastest-way-to-factor-integers-260
+    //      https://hal.inria.fr/inria-00188645v3/document
+    //      https://github.com/coreutils/coreutils/blob/master/src/factor.c
     //      https://github.com/uutils/coreutils/blob/master/src/uu/factor/src/cli.rs
     //      https://github.com/elmomoilanen/prime-factorization
     //      https://github.com/radii/msieve
@@ -93,6 +95,7 @@ pub fn factors64(target: u64) -> BTreeMap<u64, usize> {
     }
 
     // trial division using primes in the table
+    let target = target >> f2;
     let piter = SMALL_PRIMES.iter().skip(1).map(|&p| p as u64); // skip 2
     let (mut result, factored) = trial_division(piter, target, None);
     if f2 > 0 { result.insert(2, f2 as usize); } // add back 2
@@ -104,18 +107,28 @@ pub fn factors64(target: u64) -> BTreeMap<u64, usize> {
         Err(res) => res
     };
 
-    // then try pollard's rho method util fully factored
+    // then try pollard's rho and SQUFOF methods util fully factored
     let mut todo = vec![residual];
+    const SQUFOF_MULTIPLIERS: [u16; 16] = [1, 3, 5, 7, 11, 3*5, 3*7, 3*11, 5*7, 5*11, 7*11, 3*5*7, 3*5*11, 3*7*11, 5*7*11, 3*5*7*11];
     while let Some(target) = todo.pop() {
         if is_prime64(target) {
             *result.entry(target).or_insert(0) += 1;
         } else {
+            let mut i = 1usize;
             let divisor = loop {
-                let start = random::<u64>() % target;
-                let offset = random::<u64>() % target;
-                if let Some(p) = pollard_rho(&target, start, offset) {
-                    break p;
+                // try SQUFOF after 4 failed pollard rho trials
+                if i % 5 == 0 && (i / 5) < SQUFOF_MULTIPLIERS.len() {
+                    if let Some(p) = squfof(&target, SQUFOF_MULTIPLIERS[i/5] as u64) {
+                        break p;
+                    }
+                } else {
+                    let start = random::<u64>() % target;
+                    let offset = random::<u64>() % target;
+                    if let Some(p) = pollard_rho(&target, start, offset) {
+                        break p;
+                    }
                 }
+                i += 1;
             };
             todo.push(divisor);
             todo.push(target / divisor);
@@ -140,6 +153,11 @@ pub fn nprimes(count: usize) {
     unimplemented!()
 }
 pub fn primorial<T>(n: u64) -> T {
+    unimplemented!()
+}
+
+// TODO (v0.1): implement
+pub fn moebius_mu<T>(target: T) {
     unimplemented!()
 }
 
@@ -186,8 +204,25 @@ mod tests {
 
     #[test]
     fn factors64_test() {
+        // some known cases
         let fac123456789 = BTreeMap::from_iter([(3, 2), (3803, 1), (3607, 1)]);
         let fac = factors64(123456789);
         assert_eq!(fac, fac123456789);
+
+        let fac1_17 = BTreeMap::from_iter([(2071723, 1), (5363222357, 1)]);
+        let fac = factors64(11111111111111111);
+        assert_eq!(fac, fac1_17);
+
+        // 100 random factorization tests
+        for _ in 0..100 {
+            let x = random();
+            let fac = factors64(x);
+            let mut prod = 1;
+            for (p, exp) in fac {
+                assert!(is_prime64(p), "factorization result should have prime factors! (get {})", p);
+                prod *= p.pow(exp as u32);
+            }
+            assert_eq!(x, prod, "factorization check failed! ({} != {})", x, prod);
+        }
     }
 }

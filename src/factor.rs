@@ -1,6 +1,6 @@
 //! Implementations for various factorization algorithms
 
-use crate::traits::ModInt;
+use crate::traits::{ModInt, ExactRoots};
 use num_integer::{Integer, Roots};
 use std::collections::BTreeMap;
 use num_traits::{FromPrimitive, NumRef, RefNum};
@@ -16,7 +16,7 @@ pub fn trial_division<I: Iterator<Item = u64>, T: Integer + Clone + Roots + NumR
 where
     for<'r> &'r T: RefNum<T>,
 {
-    let tsqrt: T = num_integer::sqrt(target.clone()) + T::one();
+    let tsqrt: T = Roots::sqrt(&target) + T::one();
     let limit = if let Some(l) = limit {
         tsqrt.clone().min(T::from_u64(l).unwrap())
     } else {
@@ -87,8 +87,77 @@ where
     None
 }
 
+/// This function implements Shanks's square forms factorization (SQUFOF). It will assume that target
+/// is not a perfect square and the multiplier is square-free.
+pub fn squfof<T: Integer + NumRef + Clone + ExactRoots + std::fmt::Debug>(target: &T, multiplier: T) -> Option<T>
+where
+    for<'r> &'r T: RefNum<T> {
+    let kn = multiplier * target;
+
+    // the strategy of limiting iterations is from GNU factor
+    let s = Roots::sqrt(&kn);
+    let two = T::one() + T::one();
+    let max_iter = &two * Roots::sqrt(&(&two * &s));
+
+    // forward
+    let p0 = s;
+    let mut pm1 = p0.clone(); let mut p = T::zero(); // p is given dummy value here
+    let mut qm1 = T::one(); let mut q = &kn - &p0*&p0;
+    let mut i = T::one();
+    let qsqrt = loop {
+        let b = (&p0 + &pm1) / &q;
+        p = &b*&q - &pm1;
+        let qnext = if pm1 > p { &qm1 + &b*(&pm1 - &p)} else {&qm1 - &b*(&p - &pm1)};
+        if i.is_odd() {
+            if let Some(v) = qnext.sqrt_exact() { break v; }
+        }
+
+        pm1 = p;
+        qm1 = q; q = qnext; i = i + T::one();
+
+        if i == max_iter { return None; }
+    };
+
+    // backward
+    let b0 = (&p0 - &p) / &qsqrt;
+    pm1 = &b0 * &qsqrt + &p;
+    qm1 = qsqrt;
+    q = (&kn - &pm1 * &pm1) / &qm1;
+
+    loop {
+        let b = (&p0 + &pm1) / &q;
+        p = &b*&q - &pm1;
+        if p == pm1 { break; }
+
+        let qnext = if pm1 > p { &qm1 + &b*(&pm1 - &p)} else {&qm1 - &b*(&p - &pm1)};
+        pm1 = p;
+        qm1 = q; q = qnext;
+    };
+    
+    let d = target.gcd(&p);
+    if d > T::one() && &d < target { Some(d) } else { None }
+}
+
 pub fn pollard_brent() {}
 pub fn pollard_pp1() {}
 pub fn williams_pp1() {}
+// TODO: ECM, Quadratic sieve / Prime field sieve, Fermat(https://en.wikipedia.org/wiki/Fermat%27s_factorization_method)
 
-// TODO: ECM, Quadratic sieve / Prime field sieve, SQUFOF, Fermat(https://en.wikipedia.org/wiki/Fermat%27s_factorization_method)
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand::random;
+
+    #[test]
+    fn pollard_rho_test() {
+        assert!(matches!(pollard_rho(&8051u16, 2, 1), Some(97)));
+        assert!(matches!(pollard_rho(&8051u16, random(), 1), Some(i) if i == 97 || i == 83));
+        assert!(matches!(pollard_rho(&455459u32, 2, 1), Some(743)))
+    }
+
+    #[test]
+    fn squfof_test() {
+        assert!(matches!(squfof(&11111u32, 1), Some(41)));
+    }
+}
