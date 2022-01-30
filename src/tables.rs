@@ -1143,5 +1143,8 @@ pub const MILLER_RABIN_BASE64: [u32; 16384] = [
 
 // tables for moebius function with small input
 pub const MOEBIUS_ODD: [u64; 4] = [
-    0x4289108a05208102, 0x19988004a8a12422, 0x1a8245028906a062, 0x229428012aa26a00
+    0x4289108a05208102,
+    0x19988004a8a12422,
+    0x1a8245028906a062,
+    0x229428012aa26a00,
 ];

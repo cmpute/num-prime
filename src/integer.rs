@@ -1,10 +1,9 @@
 //! Backend implementations for integers
 
-use crate::traits::{ExactRoots, ModInt, BitTest};
+use crate::traits::{BitTest, ExactRoots, ModInt};
 use num_bigint::BigUint;
 use num_integer::{Integer, Roots};
 use num_traits::{One, Pow, ToPrimitive, Zero};
-
 
 macro_rules! impl_bititer_prim {
     ($($T:ty)*) => {$(
@@ -357,7 +356,7 @@ macro_rules! impl_mod_arithm_by_deref {
                 ModInt::<$T, &$T>::jacobi(*self, n)
             }
         }
-    }
+    };
 }
 
 impl_mod_arithm_by_deref!(u8);
@@ -569,7 +568,7 @@ macro_rules! impl_mod_arithm_by_ref {
                 ModInt::<&$T, &$T>::jacobi(&self, n)
             }
         }
-    }
+    };
 }
 
 impl_mod_arithm_by_ref!(BigUint);

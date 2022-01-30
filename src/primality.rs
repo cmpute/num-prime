@@ -1,4 +1,4 @@
-use crate::traits::{ExactRoots, ModInt, PrimalityUtils, BitTest};
+use crate::traits::{BitTest, ExactRoots, ModInt, PrimalityUtils};
 use num_integer::Integer;
 use num_traits::{FromPrimitive, NumRef, RefNum, ToPrimitive};
 
@@ -20,9 +20,10 @@ pub trait LucasUtils {
     fn p_bruteforce(n: &Self) -> usize;
 }
 
-impl<T: Integer + FromPrimitive + ToPrimitive + NumRef + BitTest + ExactRoots + Clone> LucasUtils for T 
+impl<T: Integer + FromPrimitive + ToPrimitive + NumRef + BitTest + ExactRoots + Clone> LucasUtils
+    for T
 where
-    for<'r> &'r T: RefNum<T> + ModInt<&'r T, &'r T, Output = T>
+    for<'r> &'r T: RefNum<T> + ModInt<&'r T, &'r T, Output = T>,
 {
     fn lucasm(p: usize, q: isize, m: Self, n: Self) -> (Self, Self) {
         let p = T::from_usize(p).unwrap() % &m;
@@ -77,17 +78,17 @@ where
                 break (0, 0);
             }
 
-            let sd = if neg {
-                (&d).negm(n)
-            } else {
-                d.clone()
-            };
+            let sd = if neg { (&d).negm(n) } else { d.clone() };
             let j = ModInt::<&T, &T>::jacobi(&sd, n);
             if j == 0 && &d != n {
                 break (0, 0);
             } // modification from Baillie, see https://oeis.org/A217120/a217120_1.txt
             if j == -1 {
-                let d = if neg { -d.to_isize().unwrap() } else { d.to_isize().unwrap() };
+                let d = if neg {
+                    -d.to_isize().unwrap()
+                } else {
+                    d.to_isize().unwrap()
+                };
                 break (1, (1 - d) / 4);
             }
 

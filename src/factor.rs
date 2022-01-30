@@ -1,14 +1,17 @@
 //! Implementations for various factorization algorithms
 
-use crate::traits::{ModInt, ExactRoots};
+use crate::traits::{ExactRoots, ModInt};
 use num_integer::{Integer, Roots};
-use std::collections::BTreeMap;
 use num_traits::{FromPrimitive, NumRef, RefNum};
+use std::collections::BTreeMap;
 
 /// Find factors by trial division. The target is guaranteed fully factored
 /// only if bound() * bound() > target. The parameter limit sets the max prime to be tried aside from bound()
 /// Return the found factors and the residual. The residual will be Ok(1) or Ok(p) if fully factored.
-pub fn trial_division<I: Iterator<Item = u64>, T: Integer + Clone + Roots + NumRef + FromPrimitive>(
+pub fn trial_division<
+    I: Iterator<Item = u64>,
+    T: Integer + Clone + Roots + NumRef + FromPrimitive,
+>(
     primes: I,
     target: T,
     limit: Option<u64>,
@@ -51,7 +54,6 @@ where
     }
 }
 
-
 pub fn pollard_rho<T: Integer + FromPrimitive + NumRef + Clone>(
     target: &T,
     start: T,
@@ -89,9 +91,13 @@ where
 
 /// This function implements Shanks's square forms factorization (SQUFOF). It will assume that target
 /// is not a perfect square and the multiplier is square-free.
-pub fn squfof<T: Integer + NumRef + Clone + ExactRoots + std::fmt::Debug>(target: &T, multiplier: T) -> Option<T>
+pub fn squfof<T: Integer + NumRef + Clone + ExactRoots + std::fmt::Debug>(
+    target: &T,
+    multiplier: T,
+) -> Option<T>
 where
-    for<'r> &'r T: RefNum<T> {
+    for<'r> &'r T: RefNum<T>,
+{
     let kn = multiplier * target;
 
     // the strategy of limiting iterations is from GNU factor
@@ -101,21 +107,33 @@ where
 
     // forward
     let p0 = s;
-    let mut pm1 = p0.clone(); let mut p = T::zero(); // p is given dummy value here
-    let mut qm1 = T::one(); let mut q = &kn - &p0*&p0;
+    let mut pm1 = p0.clone();
+    let mut p = T::zero(); // p is given dummy value here
+    let mut qm1 = T::one();
+    let mut q = &kn - &p0 * &p0;
     let mut i = T::one();
     let qsqrt = loop {
         let b = (&p0 + &pm1) / &q;
-        p = &b*&q - &pm1;
-        let qnext = if pm1 > p { &qm1 + &b*(&pm1 - &p)} else {&qm1 - &b*(&p - &pm1)};
+        p = &b * &q - &pm1;
+        let qnext = if pm1 > p {
+            &qm1 + &b * (&pm1 - &p)
+        } else {
+            &qm1 - &b * (&p - &pm1)
+        };
         if i.is_odd() {
-            if let Some(v) = qnext.sqrt_exact() { break v; }
+            if let Some(v) = qnext.sqrt_exact() {
+                break v;
+            }
         }
 
         pm1 = p;
-        qm1 = q; q = qnext; i = i + T::one();
+        qm1 = q;
+        q = qnext;
+        i = i + T::one();
 
-        if i == max_iter { return None; }
+        if i == max_iter {
+            return None;
+        }
     };
 
     // backward
@@ -126,16 +144,27 @@ where
 
     loop {
         let b = (&p0 + &pm1) / &q;
-        p = &b*&q - &pm1;
-        if p == pm1 { break; }
+        p = &b * &q - &pm1;
+        if p == pm1 {
+            break;
+        }
 
-        let qnext = if pm1 > p { &qm1 + &b*(&pm1 - &p)} else {&qm1 - &b*(&p - &pm1)};
+        let qnext = if pm1 > p {
+            &qm1 + &b * (&pm1 - &p)
+        } else {
+            &qm1 - &b * (&p - &pm1)
+        };
         pm1 = p;
-        qm1 = q; q = qnext;
-    };
-    
+        qm1 = q;
+        q = qnext;
+    }
+
     let d = target.gcd(&p);
-    if d > T::one() && &d < target { Some(d) } else { None }
+    if d > T::one() && &d < target {
+        Some(d)
+    } else {
+        None
+    }
 }
 
 // TODO: ECM, Quadratic sieve / Prime field sieve, Fermat(https://en.wikipedia.org/wiki/Fermat%27s_factorization_method)

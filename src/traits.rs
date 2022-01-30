@@ -21,7 +21,8 @@ impl Primality {
     /// (very) probably a prime. Return false only on Primaliy::No
     pub fn probably(self) -> bool {
         match self {
-            Primality::No => false, _ => true
+            Primality::No => false,
+            _ => true,
         }
     }
 }

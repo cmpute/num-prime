@@ -1,31 +1,49 @@
-use crate::factor::{trial_division, pollard_rho};
+use crate::factor::{pollard_rho, trial_division};
 use crate::nt_funcs::{factors64, is_prime64};
+use crate::primality::LucasUtils;
 use crate::tables::{SMALL_PRIMES, SMALL_PRIMES_NEXT};
 use crate::traits::{
-    FactorizationConfig, Primality, PrimalityTestConfig, PrimalityUtils, PrimeBuffer,
-    ModInt, BitTest
+    BitTest, FactorizationConfig, ModInt, Primality, PrimalityTestConfig, PrimalityUtils,
+    PrimeBuffer,
 };
-use crate::primality::LucasUtils;
 use bitvec::bitvec;
 use num_bigint::BigUint; // TODO (v0.1): make the dependency for this optional
 use num_integer::{Integer, Roots};
-use num_traits::{FromPrimitive, ToPrimitive, NumRef, RefNum};
+use num_traits::{FromPrimitive, NumRef, RefNum, ToPrimitive};
 use rand::{random, seq::IteratorRandom};
-use std::{
-    collections::BTreeMap,
-    convert::TryInto,
-};
+use std::{collections::BTreeMap, convert::TryInto};
 
-pub trait PrimalityBase : Integer + Roots + NumRef + Clone + FromPrimitive + ToPrimitive + LucasUtils + BitTest {}
-impl<T: Integer + Roots + NumRef + Clone + FromPrimitive + ToPrimitive + LucasUtils + BitTest> PrimalityBase for T {}
-pub trait PrimalityRefBase<Base>: RefNum<Base> + std::ops::Shr<usize, Output = Base> + for <'r> ModInt<&'r Base, &'r Base, Output = Base> {}
-impl<T, Base> PrimalityRefBase<Base> for T where T: RefNum<Base> + std::ops::Shr<usize, Output = Base> + for <'r>  ModInt<&'r Base, &'r Base, Output = Base> {}
+pub trait PrimalityBase:
+    Integer + Roots + NumRef + Clone + FromPrimitive + ToPrimitive + LucasUtils + BitTest
+{
+}
+impl<T: Integer + Roots + NumRef + Clone + FromPrimitive + ToPrimitive + LucasUtils + BitTest>
+    PrimalityBase for T
+{
+}
+pub trait PrimalityRefBase<Base>:
+    RefNum<Base>
+    + std::ops::Shr<usize, Output = Base>
+    + for<'r> ModInt<&'r Base, &'r Base, Output = Base>
+{
+}
+impl<T, Base> PrimalityRefBase<Base> for T where
+    T: RefNum<Base>
+        + std::ops::Shr<usize, Output = Base>
+        + for<'r> ModInt<&'r Base, &'r Base, Output = Base>
+{
+}
 
 pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
     /// Test if an integer is a prime, the config will take effect only if the target is larger
     /// than 2^64.
-    fn is_prime<T: PrimalityBase>(&self, target: &T, config: Option<PrimalityTestConfig>) -> Primality
-    where for<'r> &'r T: PrimalityRefBase<T>
+    fn is_prime<T: PrimalityBase>(
+        &self,
+        target: &T,
+        config: Option<PrimalityTestConfig>,
+    ) -> Primality
+    where
+        for<'r> &'r T: PrimalityRefBase<T>,
     {
         // shortcuts
         if target.is_even() {
@@ -91,7 +109,9 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
         target: T,
         config: Option<FactorizationConfig>,
     ) -> Result<BTreeMap<T, usize>, Vec<T>>
-    where for<'r> &'r T: PrimalityRefBase<T> {
+    where
+        for<'r> &'r T: PrimalityRefBase<T>,
+    {
         // shortcut if the target is in u64 range
         if let Some(x) = target.to_u64() {
             return Ok(factors64(x)
@@ -122,7 +142,10 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
                 successful = true;
                 let mut todo = vec![res];
                 while let Some(target) = todo.pop() {
-                    if self.is_prime(&target, Some(config.prime_test_config)).probably() {
+                    if self
+                        .is_prime(&target, Some(config.prime_test_config))
+                        .probably()
+                    {
                         *result.entry(target).or_insert(0) += 1;
                     } else {
                         if let Some(divisor) = self.divisor(&target, &mut config) {
@@ -149,9 +172,10 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
 
     /// Return a proper divisor of target (randomly), even works for very large numbers
     /// Return None if no factor is found (this method will not do a primality check)
-    fn divisor<T: PrimalityBase>(
-        &self, target: &T, config: &mut FactorizationConfig) -> Option<T> where
-        for<'r> &'r T: PrimalityRefBase<T> {
+    fn divisor<T: PrimalityBase>(&self, target: &T, config: &mut FactorizationConfig) -> Option<T>
+    where
+        for<'r> &'r T: PrimalityRefBase<T>,
+    {
         if matches!(config.td_limit, Some(0)) {
             // try to get a factor by trial division
             let tsqrt: T = Roots::sqrt(target) + T::one();
@@ -178,9 +202,15 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
         let below64 = target.to_u64().is_some();
         while config.rho_trials > 0 {
             let (start, offset) = if below64 {
-                (T::from_u8(random::<u8>()).unwrap() % target, T::from_u8(random::<u8>()).unwrap() % target)
+                (
+                    T::from_u8(random::<u8>()).unwrap() % target,
+                    T::from_u8(random::<u8>()).unwrap() % target,
+                )
             } else {
-                (T::from_u64(random::<u64>()).unwrap() % target, T::from_u8(random::<u8>()).unwrap() % target)
+                (
+                    T::from_u64(random::<u64>()).unwrap() % target,
+                    T::from_u64(random::<u64>()).unwrap() % target,
+                )
             };
             config.rho_trials -= 1;
             if let Some(p) = pollard_rho(target, start, offset) {
@@ -204,7 +234,10 @@ impl NaiveBuffer {
     #[inline]
     pub fn new() -> Self {
         let list = SMALL_PRIMES.iter().map(|&p| p as u64).collect();
-        NaiveBuffer { list, current: SMALL_PRIMES_NEXT }
+        NaiveBuffer {
+            list,
+            current: SMALL_PRIMES_NEXT,
+        }
     }
 }
 
@@ -233,7 +266,9 @@ impl<'a> PrimeBuffer<'a> for NaiveBuffer {
         let odd_limit = limit | 1; // make sure limit is odd
         let current = self.current; // prevent borrowing self
         debug_assert!(current % 2 == 1);
-        if odd_limit <= current { return; }
+        if odd_limit <= current {
+            return;
+        }
 
         // create sieve and filter with existing primes
         let mut sieve = bitvec![0; ((odd_limit - current) / 2) as usize];
