@@ -1,24 +1,22 @@
 //! Standalone number theoretic functions that can be used without prime cache
 
-use crate::buffer::{NaiveBuffer, PrimalityBase, PrimalityRefBase, PrimeBufferExt};
+use crate::buffer::{NaiveBuffer, PrimeBufferExt};
 use crate::factor::{pollard_rho, squfof, trial_division};
 use crate::tables::{MOEBIUS_ODD, SMALL_PRIMES};
 use crate::traits::{
-    FactorizationConfig, Primality, PrimalityTestConfig, PrimalityUtils, PrimeBuffer,
+    FactorizationConfig, Primality, PrimalityTestConfig, PrimalityUtils,
 };
-use num_integer::Integer;
-use num_traits::{FromPrimitive, NumRef, RefNum, ToPrimitive};
+use crate::primality::{PrimalityBase, PrimalityRefBase};
 use rand::random;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
-use std::iter::Product;
 
 #[cfg(feature = "big-table")]
 use crate::tables::{MILLER_RABIN_BASE32, MILLER_RABIN_BASE64};
 
-/// This function does fast primality test on a u64 integer is a prime number. It's based on
-/// deterministic Miller-rabin tests. if target is larger than 2^64 or more controlled primality
-/// tests are desired, please use is_prime() or PrimeBuffer::is_prime()
+/// This function does fast primality test on a u64 integer. It's based on
+/// deterministic Miller-rabin tests. if target is larger than 2^64 or more
+/// controlled primality tests are desired, please use [is_prime()]
 #[cfg(not(feature = "big-table"))]
 pub fn is_prime64(target: u64) -> bool {
     // shortcuts
@@ -145,6 +143,7 @@ pub fn factors64(target: u64) -> BTreeMap<u64, usize> {
             let divisor = loop {
                 // try SQUFOF after 4 failed pollard rho trials
                 if i % 5 == 0 && (i / 5) < SQUFOF_MULTIPLIERS.len() {
+                    // TODO: check if the residual is a sqaure number before SQUFOF
                     if let Some(p) = squfof(&target, SQUFOF_MULTIPLIERS[i / 5] as u64) {
                         break p;
                     }
@@ -164,7 +163,7 @@ pub fn factors64(target: u64) -> BTreeMap<u64, usize> {
     result
 }
 
-/// This function test if an integer is a prime number
+/// This function re-exports [crate::buffer::PrimeBufferExt::is_prime()] with a default buffer distance
 pub fn is_prime<T: PrimalityBase>(target: &T, config: Option<PrimalityTestConfig>) -> Primality
 where
     for<'r> &'r T: PrimalityRefBase<T>,
@@ -172,7 +171,7 @@ where
     NaiveBuffer::new().is_prime(target, config)
 }
 
-/// This function performs integer factorization on the target.
+/// This function re-exports [crate::buffer::PrimeBufferExt::factors()] with a default buffer instance
 pub fn factors<T: PrimalityBase>(
     target: T,
     config: Option<FactorizationConfig>,
@@ -183,12 +182,9 @@ where
     NaiveBuffer::new().factors(target, config)
 }
 
-/// This function calculates primorial function on n
-pub fn primorial<T: PrimalityBase + Product>(n: usize) -> T {
-    NaiveBuffer::new()
-        .nprimes(n)
-        .map(|&p| T::from_u64(p).unwrap())
-        .product()
+/// This function re-exports [NaiveBuffer::primorial()]
+pub fn primorial<T: PrimalityBase + std::iter::Product>(n: usize) -> T {
+    NaiveBuffer::new().primorial(n)
 }
 
 /// This function calculate the Möbius function of the input integer
@@ -345,5 +341,26 @@ mod tests {
         }
     }
 
-    // TODO (v0.1): moebius and is_sqaure_free test
+    #[test]
+    fn moebius_mu_test() {
+        // test small examples
+        let mu20: [i8; 20] = [1,-1,-1,0,-1,1,-1,0,0,1,-1,0,-1,1,1,0,-1,0,-1,0];
+        for i in 0..20 {
+            assert_eq!(moebius_mu(&(i+1)), mu20[i], "moebius on {}", i);
+        }
+
+        // some square numbers
+        assert_eq!(moebius_mu(&1024u32), 0);
+        assert_eq!(moebius_mu(&(8081u32 * 8081)), 0);
+
+        // sphenic numbers
+        let sphenic3: [u8; 20] = [30, 42, 66, 70, 78, 102, 105, 110, 114, 130, 138, 154, 165, 170, 174, 182, 186, 190, 195, 222]; // OEIS A007304
+        for i in 0..20 {
+            assert_eq!(moebius_mu(&sphenic3[i]), -1i8, "moebius on {}", sphenic3[i]);
+        }
+        let sphenic5: [u16; 23] = [2310, 2730, 3570, 3990, 4290, 4830, 5610, 6006, 6090, 6270, 6510, 6630, 7410, 7590, 7770, 7854, 8610, 8778, 8970, 9030, 9282, 9570, 9690]; // OEIS A046387
+        for i in 0..20 {
+            assert_eq!(moebius_mu(&sphenic5[i]), -1i8, "moebius on {}", sphenic5[i]);
+        }
+    }
 }

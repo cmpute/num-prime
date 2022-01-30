@@ -1,38 +1,16 @@
 use crate::factor::{pollard_rho, trial_division};
 use crate::nt_funcs::{factors64, is_prime64};
-use crate::primality::LucasUtils;
+use crate::primality::{PrimalityBase, PrimalityRefBase};
 use crate::tables::{SMALL_PRIMES, SMALL_PRIMES_NEXT};
 use crate::traits::{
-    BitTest, FactorizationConfig, ModInt, Primality, PrimalityTestConfig, PrimalityUtils,
+    FactorizationConfig, Primality, PrimalityTestConfig, PrimalityUtils,
     PrimeBuffer,
 };
 use bitvec::bitvec;
 use num_bigint::BigUint; // TODO (v0.1): make the dependency for this optional
-use num_integer::{Integer, Roots};
-use num_traits::{FromPrimitive, NumRef, RefNum, ToPrimitive};
+use num_integer::Roots;
 use rand::{random, seq::IteratorRandom};
 use std::{collections::BTreeMap, convert::TryInto};
-
-pub trait PrimalityBase:
-    Integer + Roots + NumRef + Clone + FromPrimitive + ToPrimitive + LucasUtils + BitTest
-{
-}
-impl<T: Integer + Roots + NumRef + Clone + FromPrimitive + ToPrimitive + LucasUtils + BitTest>
-    PrimalityBase for T
-{
-}
-pub trait PrimalityRefBase<Base>:
-    RefNum<Base>
-    + std::ops::Shr<usize, Output = Base>
-    + for<'r> ModInt<&'r Base, &'r Base, Output = Base>
-{
-}
-impl<T, Base> PrimalityRefBase<Base> for T where
-    T: RefNum<Base>
-        + std::ops::Shr<usize, Output = Base>
-        + for<'r> ModInt<&'r Base, &'r Base, Output = Base>
-{
-}
 
 pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
     /// Test if an integer is a prime, the config will take effect only if the target is larger
@@ -303,8 +281,15 @@ impl<'a> PrimeBuffer<'a> for NaiveBuffer {
 }
 
 impl NaiveBuffer {
-    // FIXME: These two functions could be implemented in the trait, but only after
+    // FIXME: These functions could be implemented in the trait, but only after
     // RFC 2071 and https://github.com/cramertj/impl-trait-goals/issues/3
+
+    /// This function calculates primorial function on n
+    pub fn primorial<T: PrimalityBase + std::iter::Product>(&mut self, n: usize) -> T {
+        self.nprimes(n)
+            .map(|&p| T::from_u64(p).unwrap())
+            .product()
+    }
 
     /// Returns all primes **below** limit. The primes are sorted.
     pub fn primes(&mut self, limit: u64) -> std::iter::Take<<Self as PrimeBuffer>::PrimeIter> {

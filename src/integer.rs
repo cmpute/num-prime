@@ -2,8 +2,8 @@
 
 use crate::traits::{BitTest, ExactRoots, ModInt};
 use num_bigint::BigUint;
-use num_integer::{Integer, Roots};
-use num_traits::{One, Pow, ToPrimitive, Zero};
+use num_integer::Integer;
+use num_traits::{One, ToPrimitive, Zero};
 
 macro_rules! impl_bititer_prim {
     ($($T:ty)*) => {$(
@@ -41,11 +41,56 @@ impl BitTest for BigUint {
     }
 }
 
-// TODO (v0.1): implement fast perfect power check for integers
-// REF: https://github.com/coreutils/coreutils/blob/master/src/factor.c#L1833
-//      https://math.stackexchange.com/a/878338
-//      https://github.com/nbraud/coreutils/blob/factor/sqrt/src/uu/factor/src/numeric/sqrt.rs#L35
-impl<T: Roots + Pow<u32, Output = Self> + Clone> ExactRoots for T {}
+// LEGENDRE[N] has a bit i set iff i is a quadratic residue mod N.
+const LEGENDRE64: u64 = 0x0202021202030213;
+const LEGENDRE63: u64 = 0x0402483012450293;
+const LEGENDRE65: u64 = 0x218a019866014613;
+const LEGENDRE11: u64 = 0x23b;
+
+macro_rules! impl_exactroot_prim {
+    ($($T:ty)*) => {$(
+        impl ExactRoots for $T {
+            fn sqrt_exact(&self) -> Option<Self> {
+                // eliminate most non-squares by checking legendre symbols.
+                // See H. Cohen's "Course in Computational Algebraic Number Theory",
+                // algorithm 1.7.3, page 40.
+                if (LEGENDRE64 >> (self & 63)) & 1 == 0 {
+                    return None;
+                }
+                if (LEGENDRE63 >> (self % 63)) & 1 == 0 {
+                    return None;
+                }
+                if (LEGENDRE65 >> ((self % 65) & 63)) & 1 == 0 {
+                    // Both 0 and 64 are squares mod 65
+                    return None;
+                }
+                if (LEGENDRE11 >> (self % 11)) & 1 == 0 {
+                    return None;
+                }
+                self.nth_root_exact(2)
+            }
+        }
+    )*};
+}
+impl_exactroot_prim!(u8 u16 u32 u64 u128 usize);
+
+impl ExactRoots for BigUint {
+    fn sqrt_exact(&self) -> Option<Self> {
+        if (LEGENDRE64 >> (self % 64u8).to_u64().unwrap()) & 1 == 0 {
+            return None;
+        }
+        if (LEGENDRE63 >> (self % 63u8).to_u64().unwrap()) & 1 == 0 {
+            return None;
+        }
+        if (LEGENDRE65 >> ((self % 65u8) % 64u8).to_u64().unwrap()) & 1 == 0 {
+            return None;
+        }
+        if (LEGENDRE11 >> (self % 11u8).to_u64().unwrap()) & 1 == 0 {
+            return None;
+        }
+        self.nth_root_exact(2)
+    }
+}
 
 macro_rules! impl_jacobi_prim {
     ($T:ty) => {
@@ -175,6 +220,7 @@ impl_mod_arithm_uu!(u8, u16);
 impl_mod_arithm_uu!(u16, u32);
 impl_mod_arithm_uu!(u32, u64);
 impl_mod_arithm_uu!(u64, u128);
+impl_mod_arithm_uu!(usize, u128);
 
 impl ModInt<u128, &u128> for u128 {
     type Output = u128;
@@ -260,7 +306,7 @@ impl ModInt<u128, &u128> for u128 {
 }
 
 macro_rules! impl_mod_arithm_by_deref {
-    ($T:ty) => {
+    ($($T:ty)*) => {$(
         impl ModInt<$T, &$T> for &$T {
             type Output = $T;
             #[inline]
@@ -356,14 +402,10 @@ macro_rules! impl_mod_arithm_by_deref {
                 ModInt::<$T, &$T>::jacobi(*self, n)
             }
         }
-    };
+    )*};
 }
 
-impl_mod_arithm_by_deref!(u8);
-impl_mod_arithm_by_deref!(u16);
-impl_mod_arithm_by_deref!(u32);
-impl_mod_arithm_by_deref!(u64);
-impl_mod_arithm_by_deref!(u128);
+impl_mod_arithm_by_deref!(u8 u16 u32 u64 u128 usize);
 
 impl ModInt<&BigUint, &BigUint> for &BigUint {
     type Output = BigUint;
@@ -809,6 +851,31 @@ mod tests {
                 a,
                 n
             );
+        }
+    }
+
+    #[test]
+    fn exact_root_test() {
+        // some simple tests
+        assert!(matches!(ExactRoots::sqrt_exact(&3u8), None));
+        assert!(matches!(ExactRoots::sqrt_exact(&4u8), Some(2)));
+        assert!(matches!(ExactRoots::sqrt_exact(&9u8), Some(3)));
+        assert!(matches!(ExactRoots::sqrt_exact(&18u8), None));
+
+        // test fast implementations of sqrt against nth_root
+        for _ in 0..100 {
+            let x = rand::random::<u32>();
+            assert_eq!(ExactRoots::sqrt_exact(&x), ExactRoots::nth_root_exact(&x, 2));
+        }
+        for _ in 0..100 {
+            let x = rand::random::<u32>() as u64;
+            assert!(matches!(ExactRoots::sqrt_exact(&(x * x)), Some(x)));
+        }
+        for _ in 0..100 {
+            let x = rand::random::<u32>() as u64;
+            let y = rand::random::<u32>() as u64;
+            if x == y { continue; }
+            assert!(ExactRoots::sqrt_exact(&(x * y)).is_none());
         }
     }
 }

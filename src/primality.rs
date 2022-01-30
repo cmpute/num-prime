@@ -1,5 +1,5 @@
 use crate::traits::{BitTest, ExactRoots, ModInt, PrimalityUtils};
-use num_integer::Integer;
+use num_integer::{Integer, Roots};
 use num_traits::{FromPrimitive, NumRef, RefNum, ToPrimitive};
 
 /// Utilities for the Lucas pseudoprime test
@@ -312,6 +312,27 @@ where
         }
         false
     }
+}
+
+pub trait PrimalityBase:
+    Integer + Roots + NumRef + Clone + FromPrimitive + ToPrimitive + ExactRoots + BitTest
+{
+}
+impl<T: Integer + Roots + NumRef + Clone + FromPrimitive + ToPrimitive + ExactRoots + BitTest>
+    PrimalityBase for T
+{
+}
+pub trait PrimalityRefBase<Base>:
+    RefNum<Base>
+    + std::ops::Shr<usize, Output = Base>
+    + for<'r> ModInt<&'r Base, &'r Base, Output = Base>
+{
+}
+impl<T, Base> PrimalityRefBase<Base> for T where
+    T: RefNum<Base>
+        + std::ops::Shr<usize, Output = Base>
+        + for<'r> ModInt<&'r Base, &'r Base, Output = Base>
+{
 }
 
 // TODO(v0.1): Add test using https://github.com/dignifiedquire/num-bigint/blob/master/src/prime.rs
