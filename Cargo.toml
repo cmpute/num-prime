@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2018"
 
 repository = "https://github.com/cmpute/num-prime"
-keywords = ["math", "mathematics", "primes", "number-theory", "bigint", "num"]
+keywords = ["mathematics", "primes", "number-theory", "bigint", "num"]
 categories = ["cryptography", "science", "algorithms"]
 documentation = "https://docs.rs/num-prime"
 license = "Apache-2.0"
