@@ -893,7 +893,7 @@ mod tests {
         }
         for _ in 0..100 {
             let x = rand::random::<u32>() as u64;
-            assert!(matches!(ExactRoots::sqrt_exact(&(x * x)), Some(x)));
+            assert!(matches!(ExactRoots::sqrt_exact(&(x * x)), Some(v) if v == x));
         }
         for _ in 0..100 {
             let x = rand::random::<u32>() as u64;

@@ -1,4 +1,11 @@
-//! Standalone number theoretic functions that can be used without prime cache
+//! Standalone number theoretic functions
+//! 
+//! The functions in this module can be called without an instance of [crate::traits::PrimeBuffer].
+//! However, some functions do internally call the implementation on [PrimeBufferExt]
+//! (especially those dependent of integer factorization). For these functions, if you have
+//! to call them repeatedly, it's recommended to create a [crate::traits::PrimeBuffer]
+//! instance and use its associated methods for better performance.
+//! 
 
 use crate::buffer::{NaiveBuffer, PrimeBufferExt};
 use crate::factor::{pollard_rho, squfof, trial_division};
@@ -14,7 +21,7 @@ use std::convert::TryFrom;
 #[cfg(feature = "big-table")]
 use crate::tables::{MILLER_RABIN_BASE32, MILLER_RABIN_BASE64};
 
-/// This function does fast primality test on a u64 integer. It's based on
+/// Fast primality test on a u64 integer. It's based on
 /// deterministic Miller-rabin tests. if target is larger than 2^64 or more
 /// controlled primality tests are desired, please use [is_prime()]
 #[cfg(not(feature = "big-table"))]
@@ -48,7 +55,7 @@ pub fn is_prime64(target: u64) -> bool {
     WITNESS64.iter().all(|&x| target.is_sprp(x))
 }
 
-/// This function does very fast primality test on a u64 integer is a prime number. It's based on
+/// Very fast primality test on a u64 integer is a prime number. It's based on
 /// deterministic Miller-rabin tests with hashing. if target is larger than 2^64 or more controlled
 /// primality tests are desired, please use is_prime() or PrimeBuffer::is_prime()
 #[cfg(feature = "big-table")]
@@ -83,6 +90,8 @@ pub fn is_prime64(target: u64) -> bool {
     target.is_sprp(SECOND_BASES[base as usize])
 }
 
+/// Fast integer factorization on a u64 target. It's based on pollard's rho method and SQUFOF.
+/// if target is larger than 2^64 or more controlled primality tests are desired, please use [is_prime()]
 pub fn factors64(target: u64) -> BTreeMap<u64, usize> {
     // TODO: improve factorization performance
     // REF: https://mathoverflow.net/questions/114018/fastest-way-to-factor-integers-260
@@ -188,9 +197,12 @@ pub fn primorial<T: PrimalityBase + std::iter::Product>(n: usize) -> T {
 }
 
 /// This function calculate the Möbius function of the input integer
-/// It will panic if the factorization failed. If the input integer is
-/// very hard to factorize, it's better to use the `factors` function to
-/// control how the factorization is done.
+/// 
+/// If the input integer is very hard to factorize, it's better to use
+/// the [factors()] function to control how the factorization is done.
+/// 
+/// # Panics
+/// if the factorization failed on target.
 pub fn moebius_mu<T: PrimalityBase>(target: &T) -> i8
 where
     for<'r> &'r T: PrimalityRefBase<T>,
@@ -241,8 +253,10 @@ where
     }
 }
 
-/// This function tests if the integer doesn't have any square number factor.
-/// It will panic if the factorization failed.
+/// Tests if the integer doesn't have any square number factor.
+/// 
+/// # Panics
+/// if the factorization failed on target.
 pub fn is_square_free<T: PrimalityBase>(target: &T) -> bool
 where
     for<'r> &'r T: PrimalityRefBase<T>,
@@ -266,6 +280,8 @@ where
 // - nth_prime
 // - nth_prime_bounds
 // - next_prime
+// - prev_prime
+// - rand_prime
 
 #[cfg(test)]
 mod tests {

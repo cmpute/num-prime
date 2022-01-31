@@ -3,17 +3,25 @@ use num_traits::Pow;
 
 /// This trait support unified bit testing for (unsigned) integers
 pub trait BitTest {
+    /// Get the minimum required number of bits to represent this integer
     fn bits(&self) -> usize;
+
+    /// Get the i-th bit of the integer, with i specified by `position`
     fn bit(&self, position: usize) -> bool;
+
+    /// Get the number of trailing zeros in the integer
     fn trailing_zeros(&self) -> usize;
 }
 
-/// This enum describes the result of a primality check
+/// This enum describes the result of primality checks
 #[derive(Debug, Clone, Copy)]
 pub enum Primality {
+    /// The number passes deterministic primality check.
     Yes,
+    /// The number is a composite and failed at least one specific primality check.
     No,
-    /// carrying the probability of the number being a prime
+    /// The number passes several probabilistic primality check.
+    /// The associated float number carries the probability of the number being a prime
     Probable(f32),
 }
 
@@ -28,15 +36,25 @@ impl Primality {
     }
 }
 
-#[derive(Clone, Copy)]
+/// Represents a configuration for a primality test
+#[derive(Debug, Clone, Copy)]
 pub struct PrimalityTestConfig {
-    pub sprp_trials: usize,        // number of SPRP test, starting from base 2
-    pub sprp_random_trials: usize, // number of SPRP test with random base
+    /// Number of strong probable prime test, starting from base 2
+    pub sprp_trials: usize,
+
+    /// Number of strong probable prime test with random bases
+    pub sprp_random_trials: usize,
+
+    /// Whether perform strong lucas probable prime test (with automatically selected parameters)
     pub slprp_test: bool,
+
+    /// Whether perform extra strong lucas probable prime test (with automatically selected parameters)
     pub eslprp_test: bool,
 }
 
 impl PrimalityTestConfig {
+    /// Create a defalt primality testing configuration. This config will eliminate most
+    /// composites with little computation
     pub fn default() -> Self {
         Self {
             sprp_trials: 2,
@@ -57,31 +75,32 @@ impl PrimalityTestConfig {
     }
 
     /// Create a configuration for PSW test (base 2 SPRP + Fibonacci test)
-    pub fn psw() {
-        todo!()
-    } // TODO: implement Fibonacci PRP
+    fn psw() {
+        todo!() // TODO: implement Fibonacci PRP
+    }
 }
 
-#[derive(Clone, Copy)]
+/// Represents a configuration for integer factorization
+#[derive(Debug, Clone, Copy)]
 pub struct FactorizationConfig {
-    /// config for test if a
+    /// Config for testing if a factor is prime
     pub prime_test_config: PrimalityTestConfig,
 
-    /// prime limit of trial division, you also need to reserve the buffer if all primes under the limit are to be tested.
-    /// None means using all available primes
+    /// Prime limit of trial division, you also need to reserve the primes in the buffer
+    /// if all primes under the limit are to be tested. `None` means using all available primes.
     pub td_limit: Option<u64>,
 
-    /// number of trials with Pollard's rho method
+    /// Number of trials with Pollard's rho method
     pub rho_trials: usize,
 
-    /// number of trials with Pollard's rho method (Brent variant)
-    pub brent_trials: usize,
+    /// Number of trials with Pollard's rho method (Brent variant)
+    brent_trials: usize,
 
-    /// number of trials with Pollard's p-1 method
-    pub pm1_trials: usize,
+    /// Number of trials with Pollard's p-1 method
+    pm1_trials: usize,
 
-    /// number of trials with William's p+1 method
-    pub pp1_trials: usize,
+    /// Number of trials with William's p+1 method
+    pp1_trials: usize,
 }
 
 impl FactorizationConfig {
@@ -97,8 +116,8 @@ impl FactorizationConfig {
     }
 }
 
-/// Extension on num_integer::Roots to support power check on integers
 // FIXME: backport to num_integer (see https://github.com/rust-num/num-traits/issues/233)
+/// Extension on [num_integer::Roots] to support perfect power check on integers
 pub trait ExactRoots: Roots + Pow<u32, Output = Self> + Clone {
     fn nth_root_exact(&self, n: u32) -> Option<Self> {
         let r = self.nth_root(n);
@@ -159,30 +178,32 @@ pub trait ModInt<Rhs = Self, Modulus = Self> {
     // fn sqrtm(self, m: Modulus);
 }
 
+/// This trait represents a general data structure that stores primes.
+/// 
 /// It's recommended to store at least a bunch of small primes in the buffer
-/// to make some of the algorithms more efficient
+/// to make some of the algorithms more efficient.
 pub trait PrimeBuffer<'a> {
-    // TODO: support indexing?
-
     type PrimeIter: Iterator<Item = &'a u64>;
 
-    // directly return an iterator of existing primes
+    /// Directly return an iterator of existing primes
     fn iter(&'a self) -> Self::PrimeIter;
 
-    // generate primes until the upper bound is equal or larger than limit
+    /// Generate primes until the upper bound is equal or larger than limit
     fn reserve(&mut self, limit: u64);
 
-    // get the upper bound of primes in the list
+    /// Get the upper bound of primes in the list
     fn bound(&self) -> u64;
 
-    // test if the number is in the buffer
+    /// Test if the number is in the buffer. If a number is not in the buffer,
+    /// then it's either a composite or large than [PrimeBuffer::bound()]
     fn contains(&self, num: u64) -> bool;
 
-    // clear the prime buffer to save memory
+    /// clear the prime buffer to save memory
     fn clear(&mut self);
 }
 
-/// This trait implements utility functions for primality checks
+/// This trait implements various primality testing algorithms
+/// 
 /// Reference:
 /// - <http://ntheory.org/pseudoprimes.html>
 pub trait PrimalityUtils: Integer + Clone {

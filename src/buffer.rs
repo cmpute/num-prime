@@ -1,3 +1,15 @@
+//! Implementations and extensions for [PrimeBuffer], which represents a container of primes
+//! 
+//! In `num-prime`, there is no global instance to store primes, the user has to generate
+//! and store the primes themselves. The trait [PrimeBuffer] defines a unified interface
+//! for a prime number container. Some methods that can take advantage of pre-generated
+//! primes will be implemented in the [PrimeBufferExt] trait.
+//! 
+//! We also provide [NaiveBuffer] as a simple implementation of [PrimeBuffer] without any
+//! external dependencies. The performance of the [NaiveBuffer] will not be extremely optimized,
+//! but it will be efficient enough for most applications.
+//! 
+
 use crate::factor::{pollard_rho, trial_division};
 use crate::nt_funcs::{factors64, is_prime64};
 use crate::primality::{PrimalityBase, PrimalityRefBase};
@@ -11,9 +23,10 @@ use num_integer::Roots;
 use rand::{random, seq::IteratorRandom};
 use std::{collections::BTreeMap, convert::TryInto};
 
+/// Extension functions that can utilize pre-generated primes
 pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
-    /// Test if an integer is a prime, the config will take effect only if the target is larger
-    /// than 2^64.
+    /// Test if an integer is a prime. The `config` will take effect only if the target is larger
+    /// than 2^64, otherwise [is_prime64] will be used.
     fn is_prime<T: PrimalityBase>(
         &self,
         target: &T,
@@ -80,7 +93,11 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
         Primality::Probable(probability)
     }
 
-    /// Return list of found factors if not fully factored
+    /// Factorize an integer. The `config` will take effect only if the target is larger
+    /// than 2^64, otherwise [factors64] will be used.
+    /// 
+    /// The factorization result will be returned as a map from primes to exponents. If the
+    /// factorization failed, then a list of found factors will be returned.
     fn factors<T: PrimalityBase>(
         &self,
         target: T,
@@ -147,8 +164,10 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
         }
     }
 
-    /// Return a proper divisor of target (randomly), even works for very large numbers
-    /// Return None if no factor is found (this method will not do a primality check)
+    /// Return a proper divisor of target (randomly), even works for very large numbers.
+    /// Return `None` if no factor is found.
+    /// 
+    /// Note: this method will not do a primality check
     fn divisor<T: PrimalityBase>(&self, target: &T, config: &mut FactorizationConfig) -> Option<T>
     where
         for<'r> &'r T: PrimalityRefBase<T>,
@@ -318,6 +337,8 @@ mod tests {
     use rand::random;
     #[cfg(feature="num-bigint")]
     use num_bigint::BigUint;
+    #[cfg(feature="num-bigint")]
+    use core::str::FromStr;
 
     const PRIME50: [u64; 15] = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47];
     const PRIME100: [u64; 25] = [
@@ -358,6 +379,49 @@ mod tests {
                     Primality::No
                 )
             );
+        }
+
+        // test large numbers
+        #[cfg(feature="num-bigint")]
+        {
+            let large_primes = [
+                // https://golang.org/issue/638
+                "18699199384836356663",
+
+                "98920366548084643601728869055592650835572950932266967461790948584315647051443",
+                "94560208308847015747498523884063394671606671904944666360068158221458669711639",
+
+                // http://primes.utm.edu/lists/small/small3.html
+                "449417999055441493994709297093108513015373787049558499205492347871729927573118262811508386655998299074566974373711472560655026288668094291699357843464363003144674940345912431129144354948751003607115263071543163",
+                "230975859993204150666423538988557839555560243929065415434980904258310530753006723857139742334640122533598517597674807096648905501653461687601339782814316124971547968912893214002992086353183070342498989426570593",
+                "5521712099665906221540423207019333379125265462121169655563495403888449493493629943498064604536961775110765377745550377067893607246020694972959780839151452457728855382113555867743022746090187341871655890805971735385789993",
+                "203956878356401977405765866929034577280193993314348263094772646453283062722701277632936616063144088173312372882677123879538709400158306567338328279154499698366071906766440037074217117805690872792848149112022286332144876183376326512083574821647933992961249917319836219304274280243803104015000563790123",
+                // ECC primes: http://tools.ietf.org/html/draft-ladd-safecurves-02
+                "3618502788666131106986593281521497120414687020801267626233049500247285301239",                                                                                  // Curve1174: 2^251-9
+                "57896044618658097711785492504343953926634992332820282019728792003956564819949",                                                                                 // Curve25519: 2^255-19
+                "9850501549098619803069760025035903451269934817616361666987073351061430442874302652853566563721228910201656997576599",                                           // E-382: 2^382-105
+                "42307582002575910332922579714097346549017899709713998034217522897561970639123926132812109468141778230245837569601494931472367",                                 // Curve41417: 2^414-17
+                "6864797660130609714981900799081393217269435300143305409394463459185543183397656052122559640661454554977296311391480858037121987999716643812574028291115057151", // E-521: 2^521-1
+            ];
+            for pstr in large_primes {
+                assert!(pb.is_prime(&BigUint::from_str(pstr).unwrap(), None).probably(), "false negative prime {}", pstr)
+            }
+
+            let large_composites = [
+                "21284175091214687912771199898307297748211672914763848041968395774954376176754",
+                "6084766654921918907427900243509372380954290099172559290432744450051395395951",
+                "84594350493221918389213352992032324280367711247940675652888030554255915464401",
+                "82793403787388584738507275144194252681",
+
+                // Arnault, "Rabin-Miller Primality Test: Composite Numbers Which Pass It",
+                // Mathematics of Computation, 64(209) (January 1995), pp. 335-361.
+                "1195068768795265792518361315725116351898245581", // strong pseudoprime to prime bases 2 through 29
+                // strong pseudoprime to all prime bases up to 200
+                "8038374574536394912570796143419421081388376882875581458374889175222974273765333652186502336163960045457915042023603208766569966760987284043965408232928738791850869166857328267761771029389697739470167082304286871099974399765441448453411558724506334092790222752962294149842306881685404326457534018329786111298960644845216191652872597534901",
+            ];
+            for cstr in large_composites {
+                assert!(!pb.is_prime(&BigUint::from_str(cstr).unwrap(), Some(PrimalityTestConfig::bpsw())).probably(), "false positive prime {}", cstr)
+            }
         }
     }
 

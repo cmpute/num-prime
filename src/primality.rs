@@ -5,8 +5,6 @@ use num_traits::{FromPrimitive, NumRef, RefNum, ToPrimitive};
 /// Utilities for the Lucas pseudoprime test
 pub trait LucasUtils {
     /// Find Lucas sequence to n with modulo m, i.e. $U_{n+1}(P,Q)$ mod m and $V_{n+1}(P,Q)$
-    /// Reference: <https://en.wikipedia.org/wiki/Lucas_sequence>
-    ///            Peter Hackman, "Elementary Number Theory", section "L.XVII Scalar" <http://hackmat.se/kurser/TATM54/booktot.pdf>
     fn lucasm(p: usize, q: isize, m: Self, n: Self) -> (Self, Self)
     where
         Self: Sized;
@@ -26,6 +24,9 @@ where
     for<'r> &'r T: RefNum<T> + ModInt<&'r T, &'r T, Output = T>,
 {
     fn lucasm(p: usize, q: isize, m: Self, n: Self) -> (Self, Self) {
+        // Reference: <https://en.wikipedia.org/wiki/Lucas_sequence>
+        // and Peter Hackman, "Elementary Number Theory", section "L.XVII Scalar" <http://hackmat.se/kurser/TATM54/booktot.pdf>
+
         let p = T::from_usize(p).unwrap() % &m;
         let q = if q >= 0 {
             T::from_isize(q).unwrap() % &m
@@ -314,6 +315,8 @@ where
     }
 }
 
+/// A dummy trait for integer type. All types that implements this and [PrimalityRefBase]
+/// will be supported by most functions in `num-primes`
 pub trait PrimalityBase:
     Integer + Roots + NumRef + Clone + FromPrimitive + ToPrimitive + ExactRoots + BitTest
 {
@@ -322,6 +325,9 @@ impl<T: Integer + Roots + NumRef + Clone + FromPrimitive + ToPrimitive + ExactRo
     PrimalityBase for T
 {
 }
+
+/// A dummy trait for integer reference type. All types that implements this and [PrimalityBase]
+/// will be supported by most functions in `num-primes`
 pub trait PrimalityRefBase<Base>:
     RefNum<Base>
     + std::ops::Shr<usize, Output = Base>
@@ -334,8 +340,6 @@ impl<T, Base> PrimalityRefBase<Base> for T where
         + for<'r> ModInt<&'r Base, &'r Base, Output = Base>
 {
 }
-
-// TODO(v0.1): Add test using https://github.com/dignifiedquire/num-bigint/blob/master/src/prime.rs
 
 #[cfg(test)]
 mod tests {

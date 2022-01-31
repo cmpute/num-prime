@@ -5,6 +5,7 @@ This crate provides utilities for integer modular arithmetics and prime related 
   - Modular operators: `add`, `sub`, `mul`, `pow`, `neg`, `inv`
   - Jacobi Symbol
 - Related Number theoretic functions
+  - Moebius function
 - Primality check
   - Fermat probable prime test
   - Miller-rabin probable prime test

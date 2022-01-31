@@ -108,7 +108,7 @@ where
     // forward
     let p0 = s;
     let mut pm1 = p0.clone();
-    let mut p = T::zero(); // p is given dummy value here
+    let mut p; // to be initialized in the first iteration
     let mut qm1 = T::one();
     let mut q = &kn - &p0 * &p0;
     let mut i = T::one();
