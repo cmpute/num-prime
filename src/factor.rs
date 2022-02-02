@@ -1,8 +1,9 @@
 //! Implementations for various factorization algorithms
 
-use crate::traits::{ExactRoots, ModInt};
+use crate::traits::ExactRoots;
 use num_integer::{Integer, Roots};
 use num_traits::{FromPrimitive, NumRef, RefNum};
+use num_modular::ModularOps;
 use std::collections::BTreeMap;
 
 /// Find factors by trial division. The target is guaranteed fully factored
@@ -60,7 +61,7 @@ pub fn pollard_rho<T: Integer + FromPrimitive + NumRef + Clone>(
     offset: T,
 ) -> Option<T>
 where
-    for<'r> &'r T: RefNum<T> + ModInt<&'r T, &'r T, Output = T>,
+    for<'r> &'r T: RefNum<T> + ModularOps<&'r T, &'r T, Output = T>,
 {
     let mut a = start.clone();
     let mut b = start;

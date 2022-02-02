@@ -143,40 +143,10 @@ pub trait ExactRoots: Roots + Pow<u32, Output = Self> + Clone {
         self.cbrt_exact().is_some()
     }
 }
+// TODO: implement quick is_x_power (specifically is_357_power)
+// REF: PARI/GP
 
-/// This trait describes modular arithmetic on a integer
-pub trait ModInt<Rhs = Self, Modulus = Self> {
-    type Output;
-
-    /// Return (self + rhs) % m
-    fn addm(self, rhs: Rhs, m: Modulus) -> Self::Output;
-
-    /// Return (self + rhs) % m
-    fn subm(self, rhs: Rhs, m: Modulus) -> Self::Output;
-
-    /// Return (self * rhs) % m
-    fn mulm(self, rhs: Rhs, m: Modulus) -> Self::Output;
-
-    /// Return (self ^ exp) % m
-    fn powm(self, exp: Rhs, m: Modulus) -> Self::Output;
-
-    /// Return (-self) % m and make sure the result is in range [0,m)
-    fn negm(self, m: Modulus) -> Self::Output;
-
-    /// Calculate inverse module (x such that self*x = 1 mod m)
-    fn invm(self, m: Modulus) -> Option<Self::Output>
-    where
-        Self: Sized;
-
-    /// Calculate Jacobi Symbol (a|n), where a is self
-    fn jacobi(self, n: Modulus) -> i8;
-
-    // TODO: Calculate Kronecker Symbol (a|n), where a is self
-    // fn kronecker(self, n: Modulus) -> i8;
-
-    // TODO: Modular sqrt
-    // fn sqrtm(self, m: Modulus);
-}
+// TODO: implement quick div_exact (which might be useful in various functions)
 
 /// This trait represents a general data structure that stores primes.
 /// 

@@ -10,7 +10,7 @@ documentation = "https://docs.rs/num-prime"
 license = "Apache-2.0"
 description = """
 `num-prime` is based on `num` and extends it with plenty of prime related utilities.
-It supports integer modular arithmetics and various number theoretic functions with arbitrary precision.
+It supports primality test, factorization and various number theoretic functions with arbitrary precision.
 """
 readme = "README.md"
 
@@ -19,6 +19,7 @@ readme = "README.md"
 [dependencies]
 num-integer = "0.1.44"
 num-traits = "0.2.14"
+num-modular = "0.0.2"
 bitvec = "0.22.3"
 rand = "0.8.4"
 

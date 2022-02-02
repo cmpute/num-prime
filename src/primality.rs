@@ -1,6 +1,7 @@
-use crate::traits::{BitTest, ExactRoots, ModInt, PrimalityUtils};
+use crate::traits::{BitTest, ExactRoots, PrimalityUtils};
 use num_integer::{Integer, Roots};
 use num_traits::{FromPrimitive, NumRef, RefNum, ToPrimitive};
+use num_modular::ModularOps;
 
 /// Utilities for the Lucas pseudoprime test
 pub trait LucasUtils {
@@ -21,7 +22,7 @@ pub trait LucasUtils {
 impl<T: Integer + FromPrimitive + ToPrimitive + NumRef + BitTest + ExactRoots + Clone> LucasUtils
     for T
 where
-    for<'r> &'r T: RefNum<T> + ModInt<&'r T, &'r T, Output = T>,
+    for<'r> &'r T: RefNum<T> + ModularOps<&'r T, &'r T, Output = T>,
 {
     fn lucasm(p: usize, q: isize, m: Self, n: Self) -> (Self, Self) {
         // Reference: <https://en.wikipedia.org/wiki/Lucas_sequence>
@@ -80,7 +81,7 @@ where
             }
 
             let sd = if neg { (&d).negm(n) } else { d.clone() };
-            let j = ModInt::<&T, &T>::jacobi(&sd, n);
+            let j = ModularOps::<&T, &T>::jacobi(&sd, n);
             if j == 0 && &d != n {
                 break (0, 0);
             } // modification from Baillie, see https://oeis.org/A217120/a217120_1.txt
@@ -107,7 +108,7 @@ where
             }
 
             let d = T::from_usize(p * p - 4).unwrap();
-            let j = ModInt::<&T, &T>::jacobi(&d, n);
+            let j = ModularOps::<&T, &T>::jacobi(&d, n);
             if j == 0 && &d != n {
                 break 0;
             }
@@ -121,7 +122,7 @@ where
 
 impl<T: Integer + NumRef + Clone + FromPrimitive + LucasUtils + BitTest> PrimalityUtils for T
 where
-    for<'r> &'r T: RefNum<T> + std::ops::Shr<usize, Output = T> + ModInt<&'r T, &'r T, Output = T>,
+    for<'r> &'r T: RefNum<T> + std::ops::Shr<usize, Output = T> + ModularOps<&'r T, &'r T, Output = T>,
 {
     fn is_prp(&self, base: Self) -> bool {
         if self < &Self::one() {
@@ -131,6 +132,7 @@ where
         base.powm(&tm1, self).is_one()
     }
 
+    // TODO (v0.2): make is_sprp return Either<bool, T>, to let the test return a composite if possible
     fn is_sprp(&self, base: T) -> bool {
         if self < &Self::one() {
             return false;
@@ -331,13 +333,13 @@ impl<T: Integer + Roots + NumRef + Clone + FromPrimitive + ToPrimitive + ExactRo
 pub trait PrimalityRefBase<Base>:
     RefNum<Base>
     + std::ops::Shr<usize, Output = Base>
-    + for<'r> ModInt<&'r Base, &'r Base, Output = Base>
+    + for<'r> ModularOps<&'r Base, &'r Base, Output = Base>
 {
 }
 impl<T, Base> PrimalityRefBase<Base> for T where
     T: RefNum<Base>
         + std::ops::Shr<usize, Output = Base>
-        + for<'r> ModInt<&'r Base, &'r Base, Output = Base>
+        + for<'r> ModularOps<&'r Base, &'r Base, Output = Base>
 {
 }
 
@@ -439,7 +441,7 @@ mod tests {
                     continue;
                 } // skip real primes
                 let d = (p * p + 4) as u16;
-                if n.is_odd() && ModInt::<&u16, &u16>::jacobi(&d, &n) != -1 {
+                if n.is_odd() && ModularOps::<&u16, &u16>::jacobi(&d, &n) != -1 {
                     continue;
                 }
                 assert!(
@@ -464,7 +466,7 @@ mod tests {
                     continue;
                 } // skip real primes
                 let d = (p * p + 4) as u16;
-                if n.is_odd() && ModInt::<&u16, &u16>::jacobi(&d, &n) != -1 {
+                if n.is_odd() && ModularOps::<&u16, &u16>::jacobi(&d, &n) != -1 {
                     continue;
                 }
                 assert!(

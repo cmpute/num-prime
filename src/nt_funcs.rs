@@ -100,6 +100,7 @@ pub fn factors64(target: u64) -> BTreeMap<u64, usize> {
     //      https://github.com/uutils/coreutils/blob/master/src/uu/factor/src/cli.rs
     //      https://github.com/elmomoilanen/prime-factorization
     //      https://github.com/radii/msieve
+    //      Pari/GP: ifac_crack
     let f2 = target.trailing_zeros(); // quick check on factors of 2
     if f2 == 0 && is_prime64(target) {
         let mut result = BTreeMap::new();

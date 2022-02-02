@@ -1,9 +1,6 @@
 # num-prime
 
-This crate provides utilities for integer modular arithmetics and prime related functionalities:
-- Modular Arithmetics
-  - Modular operators: `add`, `sub`, `mul`, `pow`, `neg`, `inv`
-  - Jacobi Symbol
+This crate provides utilities for prime number related functionalities:
 - Related Number theoretic functions
   - Moebius function
 - Primality check

@@ -1,11 +1,7 @@
 // #![doc = include_str!("../README.md")]
 
-//! This crate provides utilities for integer modular arithmetics and prime related functionalities:
-//! - Modular Arithmetics
-//!   - Modular operators: [`add`][ModInt::addm], [`sub`][ModInt::subm], [`mul`][ModInt::mulm], [`pow`][ModInt::powm], [`neg`][ModInt::negm], [`inv`][ModInt::invm]
-//!   - [Jacobi Symbol][ModInt::jacobi]
-//! - Related Number theoretic functions
-//!   - [Moebius function][nt_funcs::moebius_mu]
+//! This crate provides utilities for prime related functionalities and some basic number theoretic functions:
+//! - Primality testing
 //!   - [Primality check][nt_funcs::is_prime]
 //!   - [Fermat probable prime test][PrimalityUtils::is_prp]
 //!   - [Miller-rabin probable prime test][PrimalityUtils::is_sprp]
@@ -20,10 +16,12 @@
 //!   - [Pollard's rho algorithm][factor::pollard_rho]
 //!   - [Shanks's square forms factorization (SQUFOF)][factor::squfof]
 //!   - [Fast factorization of `u64` integers][nt_funcs::factors64]
+//! - Number theoretic functions
+//!   - [Moebius function][nt_funcs::moebius_mu]
 //!
 //! # Usage
 //! Most number theoretic functions can be found in [nt_funcs] module, while some
-//! of them are implemented as member function of [ModInt] or [PrimalityUtils].
+//! of them are implemented as member function of [num_modular::ModularOps] or [PrimalityUtils].
 //! 
 //! Example code for primality testing and integer factorization:
 //! ```rust
