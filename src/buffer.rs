@@ -315,7 +315,7 @@ impl NaiveBuffer {
         let position = match self.list.binary_search(&limit) {
             Ok(p) => p,
             Err(p) => p,
-        };
+        }; // into_ok_or_err()
         return self.list.iter().take(position);
     }
 

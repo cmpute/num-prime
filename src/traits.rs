@@ -64,6 +64,11 @@ impl PrimalityTestConfig {
         }
     }
 
+    /// Create a configuration with the known stongest primality test
+    pub fn strict() -> Self {
+        Self::bpsw()
+    }
+
     /// Create a configuration for Baillie-PSW test (base 2 SPRP test + SLPRP test)
     pub fn bpsw() -> Self {
         Self {
@@ -104,6 +109,8 @@ pub struct FactorizationConfig {
 }
 
 impl FactorizationConfig {
+    /// Create a defalt primality testing configuration. This config will factorize
+    /// most integers within decent time
     pub fn default() -> Self {
         Self {
             prime_test_config: PrimalityTestConfig::default(),
@@ -113,6 +120,13 @@ impl FactorizationConfig {
             pm1_trials: 0,
             pp1_trials: 0,
         }
+    }
+
+    /// Same as the default configuration but with strict primality check
+    pub fn strict() -> Self {
+        let mut config = Self::default();
+        config.prime_test_config = PrimalityTestConfig::strict();
+        config
     }
 }
 

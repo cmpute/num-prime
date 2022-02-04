@@ -12,6 +12,8 @@ pub const SMALL_PRIMES: [u8; 54] = [
 #[cfg(not(feature = "big-table"))]
 pub const SMALL_PRIMES_NEXT: u64 = 257;
 
+// TODO: also store inverse of the primes for fast division check (using div_exact algorithms)
+
 // list 1024 primes if big-table feature is enabled
 #[cfg(feature = "big-table")]
 /// A static table of small primes

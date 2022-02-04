@@ -6,6 +6,10 @@
 //! to call them repeatedly, it's recommended to create a [crate::traits::PrimeBuffer]
 //! instance and use its associated methods for better performance.
 //! 
+//! For number theoretic functions that depends on integer factorization, strongest primality
+//! check will be used in factorization, since for these functions we prefer correctness
+//! over speed.
+//! 
 
 use crate::buffer::{NaiveBuffer, PrimeBufferExt};
 use crate::factor::{pollard_rho, squfof, trial_division};
@@ -14,6 +18,7 @@ use crate::traits::{
     FactorizationConfig, Primality, PrimalityTestConfig, PrimalityUtils,
 };
 use crate::primality::{PrimalityBase, PrimalityRefBase};
+use num_traits::{ToPrimitive, FromPrimitive};
 use rand::random;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
@@ -91,7 +96,10 @@ pub fn is_prime64(target: u64) -> bool {
 }
 
 /// Fast integer factorization on a u64 target. It's based on pollard's rho method and SQUFOF.
-/// if target is larger than 2^64 or more controlled primality tests are desired, please use [is_prime()]
+/// if target is larger than 2^64 or more controlled primality tests are desired, please use [is_prime()].
+/// 
+/// The factorization can be quite faster under 2^64 because: 1) faster and deterministic primality check,
+/// 2) efficient montgomery multiplication implementation of u64
 pub fn factors64(target: u64) -> BTreeMap<u64, usize> {
     // TODO: improve factorization performance
     // REF: https://mathoverflow.net/questions/114018/fastest-way-to-factor-integers-260
@@ -239,7 +247,8 @@ where
     }
 
     // then try complete factorization
-    match factors(target.clone(), None) {
+    let config = Some(FactorizationConfig::strict());
+    match factors(target.clone(), config) {
         Ok(result) => {
             for exp in result.values() {
                 if exp > &1 {
@@ -263,6 +272,127 @@ where
     for<'r> &'r T: PrimalityRefBase<T>,
 {
     moebius_mu(target) != 0
+}
+
+/// Returns the estimated bounds (low, high) of prime π function, such that
+/// low <= π(target) <= high
+/// 
+/// # Reference:
+/// - \[1] Dusart, Pierre. "Estimates of Some Functions Over Primes without R.H."
+/// [arxiv:1002.0442](http://arxiv.org/abs/1002.0442). 2010.
+/// - \[2] Dusart, Pierre. "Explicit estimates of some functions over primes."
+/// The Ramanujan Journal 45.1 (2018): 227-251.
+pub fn prime_pi_bounds<T: ToPrimitive + FromPrimitive>(target: &T) -> (T, T) {
+    if let Some(x) = target.to_u64() {
+        // use existing primes and return exact value
+        if x <= (*SMALL_PRIMES.last().unwrap()) as u64 {
+            let n = match SMALL_PRIMES.binary_search(&(x as u8)) {
+                Ok(p) => p + 1,
+                Err(p) => p,
+            };
+            return (T::from_usize(n).unwrap(), T::from_usize(n).unwrap());
+        }
+
+        // use function approximation
+        let n = x as f64;
+        let ln = n.ln();
+        let invln = ln.recip();
+
+        let lo = match () {
+            // [2] Collary 5.3
+            _ if x >= 468049 => n / (ln - 1. - invln),
+            // [2] Collary 5.2
+            _ if x >= 88789 => n * invln * (1. + invln * (1. + 2. * invln)),
+            // [2] Collary 5.3
+            _ if x >= 5393 => n / (ln - 1.),
+            // [2] Collary 5.2
+            _ if x >= 599 => n * invln * (1. + invln),
+            // [2] Collary 5.2
+            _ => n * invln
+        };
+        let hi = match () {
+            // [2] Theorem 5.1, valid for x > 4e9, intersects at 7.3986e9
+            _ if x >= 7398600000 => n * invln * (1. + invln * (1. + invln * (2. + invln * 7.59))),
+            // [1] Theorem 6.9
+            _ if x >= 2953652287 => n * invln * (1. + invln * (1. + invln * 2.334)),
+            // [2] Collary 5.3, valid for x > 5.6, intersects at 5668
+            _ if x >= 467345 => n / (ln - 1. - 1.2311 * invln),
+            // [2] Collary 5.2, valid for x > 1, intersects at 29927
+            _ if x >= 29927 => n * invln * (1. + invln * (1. + invln * 2.53816)),
+            // [2] Collary 5.3, valid for x > exp(1.112), intersects at 5668
+            _ if x >= 5668 => n / (ln - 1.112),
+            // [2] Collary 5.2, valid for x > 1, intersects at 148
+            _ if x >= 148 => n * invln * (1. + invln * 1.2762),
+            // [2] Collary 5.2, valid for x > 1
+            _ => 1.25506 * n * invln
+        };
+        (T::from_f64(lo).unwrap(), T::from_f64(hi).unwrap())
+    } else {
+        let n = target.to_f64().unwrap();
+        let ln = n.ln();
+        let invln = ln.recip();
+
+        // best bounds so far
+        let lo = n / (ln - 1. - invln);
+        let hi = n * invln * (1. + invln * (1. + invln * (2. + invln * 7.59)));
+        (T::from_f64(lo).unwrap(), T::from_f64(hi).unwrap())
+    }
+}
+
+/// Returns the estimated inclusive bounds (low, high) of the n-th prime
+/// 
+/// # Reference:
+/// - \[1] Dusart, Pierre. "Estimates of Some Functions Over Primes without R.H."
+/// [arxiv:1002.0442](http://arxiv.org/abs/1002.0442). 2010.
+/// - \[2] Rosser, J. Barkley, and Lowell Schoenfeld. "Approximate formulas for some
+/// functions of prime numbers." Illinois Journal of Mathematics 6.1 (1962): 64-94.
+/// - \[3] Dusart, Pierre. "The k th prime is greater than k (ln k+ ln ln k-1) for k≥ 2."
+/// Mathematics of computation (1999): 411-415.
+pub fn nth_prime_bounds<T: ToPrimitive + FromPrimitive>(target: &T) -> (T, T) {
+    if let Some(x) = target.to_usize() {
+        if x == 0 { return (T::from_u8(0).unwrap(), T::from_u8(0).unwrap()); }
+
+        // use existing primes and return exact value
+        if x <= SMALL_PRIMES.len() { 
+            let p = SMALL_PRIMES[x - 1];
+            return (T::from_u8(p).unwrap(), T::from_u8(p).unwrap())
+        }
+
+        // use function approximation
+        let n = x as f64;
+        let ln = n.ln();
+        let lnln = ln.ln();
+
+        let lo = match () {
+            // [1] Proposition 6.7, valid for x >= 3, intersects at 3520
+            _ if x >= 3520 => n * (ln + lnln - 1. + (lnln - 2.1) / ln),
+            // [3] title
+            _ => n * (ln + lnln - 1.),
+        };
+        let hi = match () {
+            // [1] Proposition 6.6
+            _ if x >= 688383 => n * (ln + lnln - 1. + (lnln - 2.) / ln),
+            // [1] Lemma 6.5
+            _ if x >= 178974 => n * (ln + lnln - 1. + (lnln - 1.95) / ln),
+            // [3] in "Further Results"
+            _ if x >= 39017 => n * (ln + lnln - 0.9484),
+            // [3] in "Further Results"
+            _ if x >= 27076 => n * (ln + lnln - 1. + (lnln - 1.8) / ln),
+            // [2] Theorem 3, valid for x >= 20
+            _ => n * (ln + lnln - 0.5),
+
+        };
+        (T::from_f64(lo).unwrap(), T::from_f64(hi).unwrap())
+    } else {
+        let n = target.to_f64().unwrap();
+        let ln = n.ln();
+        let lnln = ln.ln();
+
+        // best bounds so far
+        let lo = n * (ln + lnln - 1. + (lnln - 2.1) / ln);
+        let hi = n * (ln + lnln - 1. + (lnln - 2.) / ln);
+        (T::from_f64(lo).unwrap(), T::from_f64(hi).unwrap())
+    }
 }
 
 // TODO: More functions
@@ -378,6 +508,92 @@ mod tests {
         let sphenic5: [u16; 23] = [2310, 2730, 3570, 3990, 4290, 4830, 5610, 6006, 6090, 6270, 6510, 6630, 7410, 7590, 7770, 7854, 8610, 8778, 8970, 9030, 9282, 9570, 9690]; // OEIS A046387
         for i in 0..20 {
             assert_eq!(moebius_mu(&sphenic5[i]), -1i8, "moebius on {}", sphenic5[i]);
+        }
+    }
+
+    #[test]
+    fn prime_pi_test() {
+        fn check(n: u64, pi: u64) {
+            let (lo, hi) = prime_pi_bounds(&n);
+            assert!(lo <= pi && pi <= hi,
+                    "fail to satisfy {} <= pi({}) = {} <= {}",
+                    lo, n, pi, hi)
+        }
+
+        // test with sieved primes
+        let mut pb = NaiveBuffer::new();
+        let mut last = 0;
+        for (i, p) in pb.primes(100000).cloned().enumerate() {
+            println!("{}, {}", i, p);
+            for j in last..p {
+                check(j, i as u64);
+            }
+            last = p;
+        }
+
+        // test with some known cases with input as 10^n
+        let pow10_values = [
+            (1, 4),
+            (2, 25),
+            (3, 168),
+            (4, 1229),
+            (5, 9592),
+            (6, 78498),
+            (7, 664579),
+            (8, 5761455),
+            (9, 50847534),
+            (10, 455052511),
+            (11, 4118054813),
+            (12, 37607912018),
+            (13, 346065536839),
+            (14, 3204941750802),
+            (15, 29844570422669),
+            (16, 279238341033925),
+            (17, 2623557157654233),
+        ];
+        for &(exponent, gt) in pow10_values.iter() {
+            let n = 10u64.pow(exponent);
+            check(n, gt);
+        }
+    }
+
+    #[test]
+    fn nth_prime_test() {
+        fn check(n: u64, p: u64) {
+            let (lo, hi) = super::nth_prime_bounds(&n);
+            assert!(lo <= p && p <= hi,
+                    "fail to satisfy: {} <= {}-th prime = {} <= {}",
+                    lo, n, p, hi);
+        }
+
+        // test with sieved primes
+        let mut pb = NaiveBuffer::new();
+        for (i, p) in pb.primes(100000).cloned().enumerate() {
+            check(i as u64 + 1, p as u64);
+        }
+
+        // test with some known cases with input as 10^n
+        let pow10_values = [
+            (0, 2),
+            (1, 29),
+            (2, 541),
+            (3, 7919),
+            (4, 104729),
+            (5, 1299709),
+            (6, 15485863),
+            (7, 179424673),
+            (8, 2038074743),
+            (9, 22801763489),
+            (10, 252097800623),
+            (11, 2760727302517),
+            (12, 29996224275833),
+            (13, 323780508946331),
+            (14, 3475385758524527),
+            (15, 37124508045065437),
+        ];
+        for &(exponent, nth_prime) in pow10_values.iter() {
+            let n = 10u64.pow(exponent);
+            check(n, nth_prime);
         }
     }
 }
