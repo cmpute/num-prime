@@ -29,4 +29,5 @@ version = "0.4.3"
 default-features = false
 
 [features]
+default = ['big-table']
 big-table = []

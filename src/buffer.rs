@@ -11,7 +11,7 @@
 //! 
 
 use crate::factor::{pollard_rho, trial_division};
-use crate::nt_funcs::{factors64, is_prime64};
+use crate::nt_funcs::{factors64, is_prime64, nth_prime_bounds};
 use crate::primality::{PrimalityBase, PrimalityRefBase};
 use crate::tables::{SMALL_PRIMES, SMALL_PRIMES_NEXT};
 use crate::traits::{
@@ -309,11 +309,11 @@ impl NaiveBuffer {
             .product()
     }
 
-    /// Returns all primes **below** limit. The primes are sorted.
+    /// Returns all primes ≤ `limit`. The primes are sorted.
     pub fn primes(&mut self, limit: u64) -> std::iter::Take<<Self as PrimeBuffer>::PrimeIter> {
         self.reserve(limit);
         let position = match self.list.binary_search(&limit) {
-            Ok(p) => p,
+            Ok(p) => p + 1,
             Err(p) => p,
         }; // into_ok_or_err()
         return self.list.iter().take(position);
@@ -321,13 +321,25 @@ impl NaiveBuffer {
 
     /// Returns primes of certain amount counting from 2. The primes are sorted.
     pub fn nprimes(&mut self, count: usize) -> std::iter::Take<<Self as PrimeBuffer>::PrimeIter> {
-        loop {
-            // TODO: use a more accurate function to estimate the upper/lower bound of prime number function pi(.)
-            self.reserve(self.current * (count as u64) / (self.list.len() as u64));
-            if self.list.len() >= count {
-                break self.list.iter().take(count);
-            }
-        }
+        let (_, bound) = nth_prime_bounds(&(count as u64)).expect("Estimated size of the largest prime will be larger than u64 limit");
+        self.reserve(bound);
+        debug_assert!(self.list.len() >= count);
+        self.list.iter().take(count)
+    }
+
+    /// Calculate and return the nth prime 
+    pub fn nth_prime(&mut self, n: usize) -> u64 {
+        *self.nprimes(n).last().unwrap()
+    }
+
+    /// Calculate and return the prime pi function, i.e. number of primes ≤ `limit`.
+    pub fn prime_pi(&mut self, limit: u64) -> usize {
+        self.reserve(limit);
+
+        // Count from the end of the list. Binary search is not used here since usually
+        // this function is called without reserve() in advance.
+        let fcount = self.list.iter().rev().take_while(|&p| p > &limit).count();
+        self.list.len() - fcount
     }
 }
 
@@ -351,6 +363,20 @@ mod tests {
         let mut pb = NaiveBuffer::new();
         assert_eq!(pb.primes(50).cloned().collect::<Vec<_>>(), PRIME50);
         assert_eq!(pb.primes(100).cloned().collect::<Vec<_>>(), PRIME100);
+
+        // test when limit itself is a prime
+        pb.clear();
+        assert_eq!(pb.primes(97).cloned().collect::<Vec<_>>(), PRIME100);
+
+        pb.clear();
+        assert_eq!(pb.nth_prime(10000), 104729);
+        assert_eq!(pb.nth_prime(20000), 224737);
+        assert_eq!(pb.nth_prime(10000), 104729); // use existing primes
+
+        pb.clear();
+        assert_eq!(pb.prime_pi(10000), 1229);
+        assert_eq!(pb.prime_pi(20000), 2262);
+        assert_eq!(pb.prime_pi(10000), 1229); // use existing primes
     }
 
     #[test]

@@ -200,6 +200,28 @@ where
     NaiveBuffer::new().factors(target, config)
 }
 
+/// This function re-exports [NaiveBuffer::primes()] and collect result as a vector.
+pub fn primes(limit: u64) -> Vec<u64> {
+    // TODO (v0.1.1): create a 'into' version to prevent copy
+    NaiveBuffer::new().primes(limit).cloned().collect()
+}
+
+/// This function re-exports [NaiveBuffer::nprimes()] and collect result as a vector.
+pub fn nprimes(count: usize) -> Vec<u64> {
+    // TODO (v0.1.1): create a 'into' version to prevent copy
+    NaiveBuffer::new().nprimes(count).cloned().collect()
+}
+
+/// This function re-exports [NaiveBuffer::prime_pi()]
+pub fn prime_pi(limit: u64) -> usize {
+    NaiveBuffer::new().prime_pi(limit)
+}
+
+/// This function re-exports [NaiveBuffer::nth_prime()]
+pub fn nth_prime(n: usize) -> u64 {
+    NaiveBuffer::new().nth_prime(n)
+}
+
 /// This function re-exports [NaiveBuffer::primorial()]
 pub fn primorial<T: PrimalityBase + std::iter::Product>(n: usize) -> T {
     NaiveBuffer::new().primorial(n)
@@ -286,7 +308,12 @@ pub fn prime_pi_bounds<T: ToPrimitive + FromPrimitive>(target: &T) -> (T, T) {
     if let Some(x) = target.to_u64() {
         // use existing primes and return exact value
         if x <= (*SMALL_PRIMES.last().unwrap()) as u64 {
-            let n = match SMALL_PRIMES.binary_search(&(x as u8)) {
+            #[cfg(not(feature = "big-table"))]
+            let pos = SMALL_PRIMES.binary_search(&(x as u8));
+            #[cfg(feature = "big-table")]
+            let pos = SMALL_PRIMES.binary_search(&(x as u16));
+
+            let n = match pos {
                 Ok(p) => p + 1,
                 Err(p) => p,
             };
@@ -339,23 +366,36 @@ pub fn prime_pi_bounds<T: ToPrimitive + FromPrimitive>(target: &T) -> (T, T) {
     }
 }
 
-/// Returns the estimated inclusive bounds (low, high) of the n-th prime
+/// Returns the estimated inclusive bounds (low, high) of the n-th prime. If the result
+/// is larger than maximum of T, None will be returned.
 /// 
 /// # Reference:
 /// - \[1] Dusart, Pierre. "Estimates of Some Functions Over Primes without R.H."
-/// [arxiv:1002.0442](http://arxiv.org/abs/1002.0442). 2010.
+/// arXiv preprint [arXiv:1002.0442](https://arxiv.org/abs/1002.0442) (2010).
 /// - \[2] Rosser, J. Barkley, and Lowell Schoenfeld. "Approximate formulas for some
 /// functions of prime numbers." Illinois Journal of Mathematics 6.1 (1962): 64-94.
 /// - \[3] Dusart, Pierre. "The k th prime is greater than k (ln k+ ln ln k-1) for k≥ 2."
 /// Mathematics of computation (1999): 411-415.
-pub fn nth_prime_bounds<T: ToPrimitive + FromPrimitive>(target: &T) -> (T, T) {
+/// - \[4] Axler, Christian. ["New Estimates for the nth Prime Number."](https://www.emis.de/journals/JIS/VOL22/Axler/axler17.pdf)
+/// Journal of Integer Sequences 22.2 (2019): 3.
+/// - \[5] Axler, Christian. [Uber die Primzahl-Zählfunktion, die n-te Primzahl und verallgemeinerte Ramanujan-Primzahlen. Diss.](http://docserv.uniduesseldorf.de/servlets/DerivateServlet/Derivate-28284/pdfa-1b.pdf)
+/// PhD thesis, Düsseldorf, 2013.
+/// 
+/// Note that some of the results might depend on the Riemann Hypothesis. If you find
+/// any prime that doesn't fall in the bound, then it might be a big discovery!
+pub fn nth_prime_bounds<T: ToPrimitive + FromPrimitive>(target: &T) -> Option<(T, T)> {
     if let Some(x) = target.to_usize() {
-        if x == 0 { return (T::from_u8(0).unwrap(), T::from_u8(0).unwrap()); }
+        if x == 0 { return Some((T::from_u8(0).unwrap(), T::from_u8(0).unwrap())); }
 
         // use existing primes and return exact value
         if x <= SMALL_PRIMES.len() { 
             let p = SMALL_PRIMES[x - 1];
-            return (T::from_u8(p).unwrap(), T::from_u8(p).unwrap())
+
+            #[cfg(not(feature = "big-table"))]
+            return Some((T::from_u8(p).unwrap(), T::from_u8(p).unwrap()));
+
+            #[cfg(feature = "big-table")]
+            return Some((T::from_u16(p).unwrap(), T::from_u16(p).unwrap()));
         }
 
         // use function approximation
@@ -364,12 +404,18 @@ pub fn nth_prime_bounds<T: ToPrimitive + FromPrimitive>(target: &T) -> (T, T) {
         let lnln = ln.ln();
 
         let lo = match () {
+            // [4] Theroem 4, valid for x >= 2, intersects as 3.172e5
+            _ if x >= 317200 => n * (ln + lnln - 1. + (lnln - 2.) / ln - (lnln * lnln - 6. * lnln + 11.321) / (2.*ln*ln)),
             // [1] Proposition 6.7, valid for x >= 3, intersects at 3520
             _ if x >= 3520 => n * (ln + lnln - 1. + (lnln - 2.1) / ln),
             // [3] title
             _ => n * (ln + lnln - 1.),
         };
         let hi = match () {
+            // [4] Theroem 1, valid for x >= 46254381
+            _ if x >= 46254381 => n * (ln + lnln - 1. + (lnln - 2.) / ln - (lnln * lnln - 6. * lnln + 10.667) / (2.*ln*ln)),
+            // [5] Korollar 2.11, valid for x >= 8009824
+            _ if x >= 8009824 => n * (ln + lnln - 1. + (lnln - 2.) / ln - (lnln * lnln - 6. * lnln + 10.273) / (2.*ln*ln)),
             // [1] Proposition 6.6
             _ if x >= 688383 => n * (ln + lnln - 1. + (lnln - 2.) / ln),
             // [1] Lemma 6.5
@@ -382,16 +428,16 @@ pub fn nth_prime_bounds<T: ToPrimitive + FromPrimitive>(target: &T) -> (T, T) {
             _ => n * (ln + lnln - 0.5),
 
         };
-        (T::from_f64(lo).unwrap(), T::from_f64(hi).unwrap())
+        Some((T::from_f64(lo)?, T::from_f64(hi)?))
     } else {
         let n = target.to_f64().unwrap();
         let ln = n.ln();
         let lnln = ln.ln();
 
         // best bounds so far
-        let lo = n * (ln + lnln - 1. + (lnln - 2.1) / ln);
-        let hi = n * (ln + lnln - 1. + (lnln - 2.) / ln);
-        (T::from_f64(lo).unwrap(), T::from_f64(hi).unwrap())
+        let lo = n * (ln + lnln - 1. + (lnln - 2.) / ln - (lnln * lnln - 6. * lnln + 11.321) / (2.*ln*ln));
+        let hi = n * (ln + lnln - 1. + (lnln - 2.) / ln - (lnln * lnln - 6. * lnln + 10.667) / (2.*ln*ln));
+        Some((T::from_f64(lo)?, T::from_f64(hi)?))
     }
 }
 
@@ -406,10 +452,6 @@ pub fn nth_prime_bounds<T: ToPrimitive + FromPrimitive>(target: &T) -> (T, T) {
 // Others include Louiville function, Mangoldt function, Dedekind psi function, Dickman rho function, etc..
 //
 // These function might be implemented in PrimeBuffer, ref http://flintlib.org/doc/ulong_extras.html#prime-number-generation-and-counting
-// - prime_pi
-// - prime_pi_bounds
-// - nth_prime
-// - nth_prime_bounds
 // - next_prime
 // - prev_prime
 // - rand_prime
@@ -512,7 +554,7 @@ mod tests {
     }
 
     #[test]
-    fn prime_pi_test() {
+    fn prime_pi_bounds_test() {
         fn check(n: u64, pi: u64) {
             let (lo, hi) = prime_pi_bounds(&n);
             assert!(lo <= pi && pi <= hi,
@@ -531,36 +573,37 @@ mod tests {
             last = p;
         }
 
-        // test with some known cases with input as 10^n
+        // test with some known cases with input as 10^n, OEIS A006880
         let pow10_values = [
-            (1, 4),
-            (2, 25),
-            (3, 168),
-            (4, 1229),
-            (5, 9592),
-            (6, 78498),
-            (7, 664579),
-            (8, 5761455),
-            (9, 50847534),
-            (10, 455052511),
-            (11, 4118054813),
-            (12, 37607912018),
-            (13, 346065536839),
-            (14, 3204941750802),
-            (15, 29844570422669),
-            (16, 279238341033925),
-            (17, 2623557157654233),
+            0,
+            4,
+            25,
+            168,
+            1229,
+            9592,
+            78498,
+            664579,
+            5761455,
+            50847534,
+            455052511,
+            4118054813,
+            37607912018,
+            346065536839,
+            3204941750802,
+            29844570422669,
+            279238341033925,
+            2623557157654233,
         ];
-        for &(exponent, gt) in pow10_values.iter() {
-            let n = 10u64.pow(exponent);
-            check(n, gt);
+        for (exponent, gt) in pow10_values.iter().enumerate() {
+            let n = 10u64.pow(exponent as u32);
+            check(n, *gt);
         }
     }
 
     #[test]
-    fn nth_prime_test() {
+    fn nth_prime_bounds_test() {
         fn check(n: u64, p: u64) {
-            let (lo, hi) = super::nth_prime_bounds(&n);
+            let (lo, hi) = super::nth_prime_bounds(&n).unwrap();
             assert!(lo <= p && p <= hi,
                     "fail to satisfy: {} <= {}-th prime = {} <= {}",
                     lo, n, p, hi);
@@ -572,28 +615,28 @@ mod tests {
             check(i as u64 + 1, p as u64);
         }
 
-        // test with some known cases with input as 10^n
+        // test with some known cases with input as 10^n, OEIS A006988
         let pow10_values = [
-            (0, 2),
-            (1, 29),
-            (2, 541),
-            (3, 7919),
-            (4, 104729),
-            (5, 1299709),
-            (6, 15485863),
-            (7, 179424673),
-            (8, 2038074743),
-            (9, 22801763489),
-            (10, 252097800623),
-            (11, 2760727302517),
-            (12, 29996224275833),
-            (13, 323780508946331),
-            (14, 3475385758524527),
-            (15, 37124508045065437),
+            2,
+            29,
+            541,
+            7919,
+            104729,
+            1299709,
+            15485863,
+            179424673,
+            2038074743,
+            22801763489,
+            252097800623,
+            2760727302517,
+            29996224275833,
+            323780508946331,
+            3475385758524527,
+            37124508045065437,
         ];
-        for &(exponent, nth_prime) in pow10_values.iter() {
-            let n = 10u64.pow(exponent);
-            check(n, nth_prime);
+        for (exponent, nth_prime) in pow10_values.iter().enumerate() {
+            let n = 10u64.pow(exponent as u32);
+            check(n, *nth_prime);
         }
     }
 }
