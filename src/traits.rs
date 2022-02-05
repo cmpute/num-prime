@@ -157,13 +157,19 @@ pub trait ExactRoots: Roots + Pow<u32, Output = Self> + Clone {
         self.cbrt_exact().is_some()
     }
 }
-// TODO: implement quick is_x_power (specifically is_357_power)
-// REF: PARI/GP
 
-// TODO: implement quick div_exact (which might be useful in various functions)
+// TODO (v0.2): implement quick div_exact (which might be useful in various functions)
+// REF: GMP `mpz_divexact`
+//      FLINT `fmpz_divexact`
+//      factor.c `divexact_21`
+
+// TODO: implement quick is_x_power (specifically is_235_power)
+// REF: PARI/GP `Z_ispowerall`, `is_357_power`
+//      FLINT `n_is_perfect_power235`, `fmpz_is_perfect_power`
+//      GMP `mpz_perfect_power_p`
 
 /// This trait represents a general data structure that stores primes.
-/// 
+///
 /// It's recommended to store at least a bunch of small primes in the buffer
 /// to make some of the algorithms more efficient.
 pub trait PrimeBuffer<'a> {
@@ -187,7 +193,7 @@ pub trait PrimeBuffer<'a> {
 }
 
 /// This trait implements various primality testing algorithms
-/// 
+///
 /// Reference:
 /// - <http://ntheory.org/pseudoprimes.html>
 pub trait PrimalityUtils: Integer + Clone {

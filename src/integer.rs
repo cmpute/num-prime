@@ -3,10 +3,10 @@
 use crate::traits::{BitTest, ExactRoots};
 use num_integer::Integer;
 
-#[cfg(feature="num-bigint")]
-use num_traits::{Zero, One, ToPrimitive};
-#[cfg(feature="num-bigint")]
+#[cfg(feature = "num-bigint")]
 use num_bigint::BigUint;
+#[cfg(feature = "num-bigint")]
+use num_traits::{One, ToPrimitive, Zero};
 
 macro_rules! impl_bititer_prim {
     ($($T:ty)*) => {$(
@@ -28,7 +28,7 @@ macro_rules! impl_bititer_prim {
 }
 impl_bititer_prim!(u8 u16 u32 u64 u128 usize);
 
-#[cfg(feature="num-bigint")]
+#[cfg(feature = "num-bigint")]
 impl BitTest for BigUint {
     fn bit(&self, position: usize) -> bool {
         self.bit(position as u64)
@@ -78,7 +78,7 @@ macro_rules! impl_exactroot_prim {
 }
 impl_exactroot_prim!(u8 u16 u32 u64 u128 usize);
 
-#[cfg(feature="num-bigint")]
+#[cfg(feature = "num-bigint")]
 impl ExactRoots for BigUint {
     fn sqrt_exact(&self) -> Option<Self> {
         if (QUAD_RESIDUAL64 >> (self % 64u8).to_u64().unwrap()) & 1 == 0 {
@@ -113,7 +113,10 @@ mod tests {
         // test fast implementations of sqrt against nth_root
         for _ in 0..100 {
             let x = rand::random::<u32>();
-            assert_eq!(ExactRoots::sqrt_exact(&x), ExactRoots::nth_root_exact(&x, 2));
+            assert_eq!(
+                ExactRoots::sqrt_exact(&x),
+                ExactRoots::nth_root_exact(&x, 2)
+            );
         }
         for _ in 0..100 {
             let x = rand::random::<u32>() as u64;
@@ -122,7 +125,9 @@ mod tests {
         for _ in 0..100 {
             let x = rand::random::<u32>() as u64;
             let y = rand::random::<u32>() as u64;
-            if x == y { continue; }
+            if x == y {
+                continue;
+            }
             assert!(ExactRoots::sqrt_exact(&(x * y)).is_none());
         }
     }

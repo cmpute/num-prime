@@ -2,8 +2,8 @@
 
 use crate::traits::ExactRoots;
 use num_integer::{Integer, Roots};
-use num_traits::{FromPrimitive, NumRef, RefNum};
 use num_modular::ModularOps;
+use num_traits::{FromPrimitive, NumRef, RefNum};
 use std::collections::BTreeMap;
 
 /// Find factors by trial division. The target is guaranteed fully factored

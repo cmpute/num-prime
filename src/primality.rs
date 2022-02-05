@@ -1,7 +1,7 @@
 use crate::traits::{BitTest, ExactRoots, PrimalityUtils};
 use num_integer::{Integer, Roots};
-use num_traits::{FromPrimitive, NumRef, RefNum, ToPrimitive};
 use num_modular::ModularOps;
+use num_traits::{FromPrimitive, NumRef, RefNum, ToPrimitive};
 
 /// Utilities for the Lucas pseudoprime test
 pub trait LucasUtils {
@@ -122,7 +122,8 @@ where
 
 impl<T: Integer + NumRef + Clone + FromPrimitive + LucasUtils + BitTest> PrimalityUtils for T
 where
-    for<'r> &'r T: RefNum<T> + std::ops::Shr<usize, Output = T> + ModularOps<&'r T, &'r T, Output = T>,
+    for<'r> &'r T:
+        RefNum<T> + std::ops::Shr<usize, Output = T> + ModularOps<&'r T, &'r T, Output = T>,
 {
     fn is_prp(&self, base: Self) -> bool {
         if self < &Self::one() {
@@ -348,7 +349,7 @@ mod tests {
     use super::*;
     use rand::random;
 
-    #[cfg(feature="num-bigint")]
+    #[cfg(feature = "num-bigint")]
     use num_bigint::BigUint;
 
     #[test]
@@ -409,8 +410,7 @@ mod tests {
             let (uk, _) = LucasUtils::lucasm(3, -1, m as u64, n as u64);
             assert_eq!(uk, p3qm1[n] % (m as u64));
 
-            
-            #[cfg(feature="num-bigint")]
+            #[cfg(feature = "num-bigint")]
             {
                 let (uk, _) = LucasUtils::lucasm(3, -1, BigUint::from(m), BigUint::from(n));
                 assert_eq!(uk, BigUint::from(p3qm1[n] % (m as u64)));

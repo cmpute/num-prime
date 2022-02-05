@@ -24,22 +24,22 @@
 //! # Usage
 //! Most number theoretic functions can be found in [nt_funcs] module, while some
 //! of them are implemented as member function of [num_modular::ModularOps] or [PrimalityUtils].
-//! 
+//!
 //! Example code for primality testing and integer factorization:
 //! ```rust
 //! use num_prime::PrimalityTestConfig;
 //! use num_prime::nt_funcs::{is_prime, factors};
-//! 
+//!
 //! let p = 2u128.pow(89) - 1; // a prime number
 //! assert!(is_prime(&p, None).probably()); // use default primality check config
 //! assert!(is_prime(&p, Some(PrimalityTestConfig::bpsw())).probably()); // BPSW test
-//! 
+//!
 //! let c = 2u128.pow(83) - 1; // a composite number
 //! assert!(!is_prime(&c, None).probably());
 //! let fac = factors(c, None); // use default factorization config
 //! assert!(matches!(fac, Ok(f) if f.len() == 2)); // 2^83-1 = 167 * 57912614113275649087721
 //! ```
-//! 
+//!
 //! # Backends
 //! This crate is built with modular integer type and prime generation backends.
 //! Most functions support generic input types, and support for `num-bigint` is
@@ -47,21 +47,21 @@
 //! by this crate, the type has to implement [detail::PrimalityBase] and [detail::PrimalityRefBase].
 //! For prime generation, there's a builtin implementation (see [buffer] module),
 //! but you can also use other backends (such as `primal`) as long as it implements [PrimeBuffer].
-//! 
+//!
 //! # Features
 //! - `num-bigint`: Enable this feature to support `num-bigint::BigUint` as integer inputs.
 //! - `big-table`: Enable this feature to allow compiling large precomputed tables which
 //!     could improve the performance of various functions.
-//! 
+//!
 
 pub mod buffer;
 pub mod factor;
 pub mod nt_funcs;
 
-mod traits;
 mod integer;
 mod primality;
 mod tables;
+mod traits;
 
 pub use traits::*;
 pub mod detail {

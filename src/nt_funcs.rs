@@ -1,24 +1,22 @@
 //! Standalone number theoretic functions
-//! 
+//!
 //! The functions in this module can be called without an instance of [crate::traits::PrimeBuffer].
 //! However, some functions do internally call the implementation on [PrimeBufferExt]
 //! (especially those dependent of integer factorization). For these functions, if you have
 //! to call them repeatedly, it's recommended to create a [crate::traits::PrimeBuffer]
 //! instance and use its associated methods for better performance.
-//! 
+//!
 //! For number theoretic functions that depends on integer factorization, strongest primality
 //! check will be used in factorization, since for these functions we prefer correctness
 //! over speed.
-//! 
+//!
 
 use crate::buffer::{NaiveBuffer, PrimeBufferExt};
 use crate::factor::{pollard_rho, squfof, trial_division};
-use crate::tables::{MOEBIUS_ODD, SMALL_PRIMES};
-use crate::traits::{
-    FactorizationConfig, Primality, PrimalityTestConfig, PrimalityUtils,
-};
 use crate::primality::{PrimalityBase, PrimalityRefBase};
-use num_traits::{ToPrimitive, FromPrimitive};
+use crate::tables::{MOEBIUS_ODD, SMALL_PRIMES};
+use crate::traits::{FactorizationConfig, Primality, PrimalityTestConfig, PrimalityUtils};
+use num_traits::{FromPrimitive, ToPrimitive};
 use rand::random;
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
@@ -97,12 +95,13 @@ pub fn is_prime64(target: u64) -> bool {
 
 /// Fast integer factorization on a u64 target. It's based on pollard's rho method and SQUFOF.
 /// if target is larger than 2^64 or more controlled primality tests are desired, please use [is_prime()].
-/// 
+///
 /// The factorization can be quite faster under 2^64 because: 1) faster and deterministic primality check,
 /// 2) efficient montgomery multiplication implementation of u64
 pub fn factors64(target: u64) -> BTreeMap<u64, usize> {
     // TODO: improve factorization performance
-    // REF: https://mathoverflow.net/questions/114018/fastest-way-to-factor-integers-260
+    // REF: http://flintlib.org/doc/ulong_extras.html#factorisation
+    //      https://mathoverflow.net/questions/114018/fastest-way-to-factor-integers-260
     //      https://hal.inria.fr/inria-00188645v3/document
     //      https://github.com/coreutils/coreutils/blob/master/src/factor.c
     //      https://github.com/uutils/coreutils/blob/master/src/uu/factor/src/cli.rs
@@ -214,11 +213,13 @@ pub fn nprimes(count: usize) -> Vec<u64> {
 
 /// This function re-exports [NaiveBuffer::prime_pi()]
 pub fn prime_pi(limit: u64) -> usize {
+    // TODO (v0.2): Implement stand alone prime_pi with Meissel-Lehmer method
     NaiveBuffer::new().prime_pi(limit)
 }
 
 /// This function re-exports [NaiveBuffer::nth_prime()]
 pub fn nth_prime(n: usize) -> u64 {
+    // TODO (v0.2): Implement stand alone nth_prime with prime_pi and next_prime/prev_prime
     NaiveBuffer::new().nth_prime(n)
 }
 
@@ -228,10 +229,10 @@ pub fn primorial<T: PrimalityBase + std::iter::Product>(n: usize) -> T {
 }
 
 /// This function calculate the Möbius function of the input integer
-/// 
+///
 /// If the input integer is very hard to factorize, it's better to use
 /// the [factors()] function to control how the factorization is done.
-/// 
+///
 /// # Panics
 /// if the factorization failed on target.
 pub fn moebius_mu<T: PrimalityBase>(target: &T) -> i8
@@ -286,7 +287,7 @@ where
 }
 
 /// Tests if the integer doesn't have any square number factor.
-/// 
+///
 /// # Panics
 /// if the factorization failed on target.
 pub fn is_square_free<T: PrimalityBase>(target: &T) -> bool
@@ -298,7 +299,7 @@ where
 
 /// Returns the estimated bounds (low, high) of prime π function, such that
 /// low <= π(target) <= high
-/// 
+///
 /// # Reference:
 /// - \[1] Dusart, Pierre. "Estimates of Some Functions Over Primes without R.H."
 /// [arxiv:1002.0442](http://arxiv.org/abs/1002.0442). 2010.
@@ -335,7 +336,7 @@ pub fn prime_pi_bounds<T: ToPrimitive + FromPrimitive>(target: &T) -> (T, T) {
             // [2] Collary 5.2
             _ if x >= 599 => n * invln * (1. + invln),
             // [2] Collary 5.2
-            _ => n * invln
+            _ => n * invln,
         };
         let hi = match () {
             // [2] Theorem 5.1, valid for x > 4e9, intersects at 7.3986e9
@@ -351,7 +352,7 @@ pub fn prime_pi_bounds<T: ToPrimitive + FromPrimitive>(target: &T) -> (T, T) {
             // [2] Collary 5.2, valid for x > 1, intersects at 148
             _ if x >= 148 => n * invln * (1. + invln * 1.2762),
             // [2] Collary 5.2, valid for x > 1
-            _ => 1.25506 * n * invln
+            _ => 1.25506 * n * invln,
         };
         (T::from_f64(lo).unwrap(), T::from_f64(hi).unwrap())
     } else {
@@ -368,7 +369,7 @@ pub fn prime_pi_bounds<T: ToPrimitive + FromPrimitive>(target: &T) -> (T, T) {
 
 /// Returns the estimated inclusive bounds (low, high) of the n-th prime. If the result
 /// is larger than maximum of T, None will be returned.
-/// 
+///
 /// # Reference:
 /// - \[1] Dusart, Pierre. "Estimates of Some Functions Over Primes without R.H."
 /// arXiv preprint [arXiv:1002.0442](https://arxiv.org/abs/1002.0442) (2010).
@@ -380,15 +381,17 @@ pub fn prime_pi_bounds<T: ToPrimitive + FromPrimitive>(target: &T) -> (T, T) {
 /// Journal of Integer Sequences 22.2 (2019): 3.
 /// - \[5] Axler, Christian. [Uber die Primzahl-Zählfunktion, die n-te Primzahl und verallgemeinerte Ramanujan-Primzahlen. Diss.](http://docserv.uniduesseldorf.de/servlets/DerivateServlet/Derivate-28284/pdfa-1b.pdf)
 /// PhD thesis, Düsseldorf, 2013.
-/// 
+///
 /// Note that some of the results might depend on the Riemann Hypothesis. If you find
 /// any prime that doesn't fall in the bound, then it might be a big discovery!
 pub fn nth_prime_bounds<T: ToPrimitive + FromPrimitive>(target: &T) -> Option<(T, T)> {
     if let Some(x) = target.to_usize() {
-        if x == 0 { return Some((T::from_u8(0).unwrap(), T::from_u8(0).unwrap())); }
+        if x == 0 {
+            return Some((T::from_u8(0).unwrap(), T::from_u8(0).unwrap()));
+        }
 
         // use existing primes and return exact value
-        if x <= SMALL_PRIMES.len() { 
+        if x <= SMALL_PRIMES.len() {
             let p = SMALL_PRIMES[x - 1];
 
             #[cfg(not(feature = "big-table"))]
@@ -405,7 +408,10 @@ pub fn nth_prime_bounds<T: ToPrimitive + FromPrimitive>(target: &T) -> Option<(T
 
         let lo = match () {
             // [4] Theroem 4, valid for x >= 2, intersects as 3.172e5
-            _ if x >= 317200 => n * (ln + lnln - 1. + (lnln - 2.) / ln - (lnln * lnln - 6. * lnln + 11.321) / (2.*ln*ln)),
+            _ if x >= 317200 => {
+                n * (ln + lnln - 1. + (lnln - 2.) / ln
+                    - (lnln * lnln - 6. * lnln + 11.321) / (2. * ln * ln))
+            }
             // [1] Proposition 6.7, valid for x >= 3, intersects at 3520
             _ if x >= 3520 => n * (ln + lnln - 1. + (lnln - 2.1) / ln),
             // [3] title
@@ -413,9 +419,15 @@ pub fn nth_prime_bounds<T: ToPrimitive + FromPrimitive>(target: &T) -> Option<(T
         };
         let hi = match () {
             // [4] Theroem 1, valid for x >= 46254381
-            _ if x >= 46254381 => n * (ln + lnln - 1. + (lnln - 2.) / ln - (lnln * lnln - 6. * lnln + 10.667) / (2.*ln*ln)),
+            _ if x >= 46254381 => {
+                n * (ln + lnln - 1. + (lnln - 2.) / ln
+                    - (lnln * lnln - 6. * lnln + 10.667) / (2. * ln * ln))
+            }
             // [5] Korollar 2.11, valid for x >= 8009824
-            _ if x >= 8009824 => n * (ln + lnln - 1. + (lnln - 2.) / ln - (lnln * lnln - 6. * lnln + 10.273) / (2.*ln*ln)),
+            _ if x >= 8009824 => {
+                n * (ln + lnln - 1. + (lnln - 2.) / ln
+                    - (lnln * lnln - 6. * lnln + 10.273) / (2. * ln * ln))
+            }
             // [1] Proposition 6.6
             _ if x >= 688383 => n * (ln + lnln - 1. + (lnln - 2.) / ln),
             // [1] Lemma 6.5
@@ -426,7 +438,6 @@ pub fn nth_prime_bounds<T: ToPrimitive + FromPrimitive>(target: &T) -> Option<(T
             _ if x >= 27076 => n * (ln + lnln - 1. + (lnln - 1.8) / ln),
             // [2] Theorem 3, valid for x >= 20
             _ => n * (ln + lnln - 0.5),
-
         };
         Some((T::from_f64(lo)?, T::from_f64(hi)?))
     } else {
@@ -435,8 +446,12 @@ pub fn nth_prime_bounds<T: ToPrimitive + FromPrimitive>(target: &T) -> Option<(T
         let lnln = ln.ln();
 
         // best bounds so far
-        let lo = n * (ln + lnln - 1. + (lnln - 2.) / ln - (lnln * lnln - 6. * lnln + 11.321) / (2.*ln*ln));
-        let hi = n * (ln + lnln - 1. + (lnln - 2.) / ln - (lnln * lnln - 6. * lnln + 10.667) / (2.*ln*ln));
+        let lo = n
+            * (ln + lnln - 1. + (lnln - 2.) / ln
+                - (lnln * lnln - 6. * lnln + 11.321) / (2. * ln * ln));
+        let hi = n
+            * (ln + lnln - 1. + (lnln - 2.) / ln
+                - (lnln * lnln - 6. * lnln + 10.667) / (2. * ln * ln));
         Some((T::from_f64(lo)?, T::from_f64(hi)?))
     }
 }
@@ -451,9 +466,9 @@ pub fn nth_prime_bounds<T: ToPrimitive + FromPrimitive>(target: &T) -> Option<(T
 // - moebius_mu: Möbius mu function
 // Others include Louiville function, Mangoldt function, Dedekind psi function, Dickman rho function, etc..
 //
-// These function might be implemented in PrimeBuffer, ref http://flintlib.org/doc/ulong_extras.html#prime-number-generation-and-counting
-// - next_prime
-// - prev_prime
+// TODO (v0.2): Implement these prime indexing functions
+// - next_prime (ref `n_primes_next` in FLINT)
+// - prev_prime (similar strategy with `n_primes_next`)
 // - rand_prime
 
 #[cfg(test)]
@@ -533,9 +548,11 @@ mod tests {
     #[test]
     fn moebius_mu_test() {
         // test small examples
-        let mu20: [i8; 20] = [1,-1,-1,0,-1,1,-1,0,0,1,-1,0,-1,1,1,0,-1,0,-1,0];
+        let mu20: [i8; 20] = [
+            1, -1, -1, 0, -1, 1, -1, 0, 0, 1, -1, 0, -1, 1, 1, 0, -1, 0, -1, 0,
+        ];
         for i in 0..20 {
-            assert_eq!(moebius_mu(&(i+1)), mu20[i], "moebius on {}", i);
+            assert_eq!(moebius_mu(&(i + 1)), mu20[i], "moebius on {}", i);
         }
 
         // some square numbers
@@ -543,11 +560,17 @@ mod tests {
         assert_eq!(moebius_mu(&(8081u32 * 8081)), 0);
 
         // sphenic numbers
-        let sphenic3: [u8; 20] = [30, 42, 66, 70, 78, 102, 105, 110, 114, 130, 138, 154, 165, 170, 174, 182, 186, 190, 195, 222]; // OEIS A007304
+        let sphenic3: [u8; 20] = [
+            30, 42, 66, 70, 78, 102, 105, 110, 114, 130, 138, 154, 165, 170, 174, 182, 186, 190,
+            195, 222,
+        ]; // OEIS A007304
         for i in 0..20 {
             assert_eq!(moebius_mu(&sphenic3[i]), -1i8, "moebius on {}", sphenic3[i]);
         }
-        let sphenic5: [u16; 23] = [2310, 2730, 3570, 3990, 4290, 4830, 5610, 6006, 6090, 6270, 6510, 6630, 7410, 7590, 7770, 7854, 8610, 8778, 8970, 9030, 9282, 9570, 9690]; // OEIS A046387
+        let sphenic5: [u16; 23] = [
+            2310, 2730, 3570, 3990, 4290, 4830, 5610, 6006, 6090, 6270, 6510, 6630, 7410, 7590,
+            7770, 7854, 8610, 8778, 8970, 9030, 9282, 9570, 9690,
+        ]; // OEIS A046387
         for i in 0..20 {
             assert_eq!(moebius_mu(&sphenic5[i]), -1i8, "moebius on {}", sphenic5[i]);
         }
@@ -557,9 +580,14 @@ mod tests {
     fn prime_pi_bounds_test() {
         fn check(n: u64, pi: u64) {
             let (lo, hi) = prime_pi_bounds(&n);
-            assert!(lo <= pi && pi <= hi,
-                    "fail to satisfy {} <= pi({}) = {} <= {}",
-                    lo, n, pi, hi)
+            assert!(
+                lo <= pi && pi <= hi,
+                "fail to satisfy {} <= pi({}) = {} <= {}",
+                lo,
+                n,
+                pi,
+                hi
+            )
         }
 
         // test with sieved primes
@@ -604,9 +632,14 @@ mod tests {
     fn nth_prime_bounds_test() {
         fn check(n: u64, p: u64) {
             let (lo, hi) = super::nth_prime_bounds(&n).unwrap();
-            assert!(lo <= p && p <= hi,
-                    "fail to satisfy: {} <= {}-th prime = {} <= {}",
-                    lo, n, p, hi);
+            assert!(
+                lo <= p && p <= hi,
+                "fail to satisfy: {} <= {}-th prime = {} <= {}",
+                lo,
+                n,
+                p,
+                hi
+            );
         }
 
         // test with sieved primes

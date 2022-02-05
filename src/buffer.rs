@@ -1,22 +1,21 @@
 //! Implementations and extensions for [PrimeBuffer], which represents a container of primes
-//! 
+//!
 //! In `num-prime`, there is no global instance to store primes, the user has to generate
 //! and store the primes themselves. The trait [PrimeBuffer] defines a unified interface
 //! for a prime number container. Some methods that can take advantage of pre-generated
 //! primes will be implemented in the [PrimeBufferExt] trait.
-//! 
+//!
 //! We also provide [NaiveBuffer] as a simple implementation of [PrimeBuffer] without any
 //! external dependencies. The performance of the [NaiveBuffer] will not be extremely optimized,
 //! but it will be efficient enough for most applications.
-//! 
+//!
 
 use crate::factor::{pollard_rho, trial_division};
 use crate::nt_funcs::{factors64, is_prime64, nth_prime_bounds};
 use crate::primality::{PrimalityBase, PrimalityRefBase};
 use crate::tables::{SMALL_PRIMES, SMALL_PRIMES_NEXT};
 use crate::traits::{
-    FactorizationConfig, Primality, PrimalityTestConfig, PrimalityUtils,
-    PrimeBuffer,
+    FactorizationConfig, Primality, PrimalityTestConfig, PrimalityUtils, PrimeBuffer,
 };
 use bitvec::bitvec;
 use num_integer::Roots;
@@ -95,7 +94,7 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
 
     /// Factorize an integer. The `config` will take effect only if the target is larger
     /// than 2^64, otherwise [factors64] will be used.
-    /// 
+    ///
     /// The factorization result will be returned as a map from primes to exponents. If the
     /// factorization failed, then a list of found factors will be returned.
     fn factors<T: PrimalityBase>(
@@ -166,7 +165,7 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
 
     /// Return a proper divisor of target (randomly), even works for very large numbers.
     /// Return `None` if no factor is found.
-    /// 
+    ///
     /// Note: this method will not do a primality check
     fn divisor<T: PrimalityBase>(&self, target: &T, config: &mut FactorizationConfig) -> Option<T>
     where
@@ -304,9 +303,7 @@ impl NaiveBuffer {
 
     /// This function calculates primorial function on n
     pub fn primorial<T: PrimalityBase + std::iter::Product>(&mut self, n: usize) -> T {
-        self.nprimes(n)
-            .map(|&p| T::from_u64(p).unwrap())
-            .product()
+        self.nprimes(n).map(|&p| T::from_u64(p).unwrap()).product()
     }
 
     /// Returns all primes ≤ `limit`. The primes are sorted.
@@ -321,13 +318,14 @@ impl NaiveBuffer {
 
     /// Returns primes of certain amount counting from 2. The primes are sorted.
     pub fn nprimes(&mut self, count: usize) -> std::iter::Take<<Self as PrimeBuffer>::PrimeIter> {
-        let (_, bound) = nth_prime_bounds(&(count as u64)).expect("Estimated size of the largest prime will be larger than u64 limit");
+        let (_, bound) = nth_prime_bounds(&(count as u64))
+            .expect("Estimated size of the largest prime will be larger than u64 limit");
         self.reserve(bound);
         debug_assert!(self.list.len() >= count);
         self.list.iter().take(count)
     }
 
-    /// Calculate and return the nth prime 
+    /// Calculate and return the nth prime
     pub fn nth_prime(&mut self, n: usize) -> u64 {
         *self.nprimes(n).last().unwrap()
     }
@@ -346,11 +344,11 @@ impl NaiveBuffer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::random;
-    #[cfg(feature="num-bigint")]
-    use num_bigint::BigUint;
-    #[cfg(feature="num-bigint")]
+    #[cfg(feature = "num-bigint")]
     use core::str::FromStr;
+    #[cfg(feature = "num-bigint")]
+    use num_bigint::BigUint;
+    use rand::random;
 
     const PRIME50: [u64; 15] = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47];
     const PRIME100: [u64; 25] = [
@@ -393,7 +391,10 @@ mod tests {
             pb.is_prime(&(2u32.pow(23) - 1), None),
             Primality::No
         ));
-        assert!(matches!(pb.is_prime(&(2u128.pow(89) - 1), None), Primality::Probable(_)));
+        assert!(matches!(
+            pb.is_prime(&(2u128.pow(89) - 1), None),
+            Primality::Probable(_)
+        ));
 
         // test against small prime assertion
         for _ in 0..100 {
@@ -408,7 +409,7 @@ mod tests {
         }
 
         // test large numbers
-        #[cfg(feature="num-bigint")]
+        #[cfg(feature = "num-bigint")]
         {
             let large_primes = [
                 // https://golang.org/issue/638
@@ -430,7 +431,12 @@ mod tests {
                 "6864797660130609714981900799081393217269435300143305409394463459185543183397656052122559640661454554977296311391480858037121987999716643812574028291115057151", // E-521: 2^521-1
             ];
             for pstr in large_primes {
-                assert!(pb.is_prime(&BigUint::from_str(pstr).unwrap(), None).probably(), "false negative prime {}", pstr)
+                assert!(
+                    pb.is_prime(&BigUint::from_str(pstr).unwrap(), None)
+                        .probably(),
+                    "false negative prime {}",
+                    pstr
+                )
             }
 
             let large_composites = [
@@ -446,7 +452,15 @@ mod tests {
                 "8038374574536394912570796143419421081388376882875581458374889175222974273765333652186502336163960045457915042023603208766569966760987284043965408232928738791850869166857328267761771029389697739470167082304286871099974399765441448453411558724506334092790222752962294149842306881685404326457534018329786111298960644845216191652872597534901",
             ];
             for cstr in large_composites {
-                assert!(!pb.is_prime(&BigUint::from_str(cstr).unwrap(), Some(PrimalityTestConfig::bpsw())).probably(), "false positive prime {}", cstr)
+                assert!(
+                    !pb.is_prime(
+                        &BigUint::from_str(cstr).unwrap(),
+                        Some(PrimalityTestConfig::bpsw())
+                    )
+                    .probably(),
+                    "false positive prime {}",
+                    cstr
+                )
             }
         }
     }
@@ -455,7 +469,7 @@ mod tests {
     fn pb_factors_test() {
         let pb = NaiveBuffer::new();
 
-        #[cfg(feature="num-bigint")]
+        #[cfg(feature = "num-bigint")]
         {
             let m131 = BigUint::from(2u8).pow(131) - 1u8; // m131/263 is a large prime
             let fac = pb.factors(m131, None);
