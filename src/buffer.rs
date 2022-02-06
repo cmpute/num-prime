@@ -316,6 +316,17 @@ impl NaiveBuffer {
         return self.list.iter().take(position);
     }
 
+    /// Returns all primes ≤ `limit` and takes ownership. The primes are sorted.
+    pub fn into_primes(mut self, limit: u64) -> std::vec::IntoIter<u64> {
+        self.reserve(limit);
+        let position = match self.list.binary_search(&limit) {
+            Ok(p) => p + 1,
+            Err(p) => p,
+        }; // into_ok_or_err()
+        self.list.truncate(position);
+        return self.list.into_iter();
+    }
+
     /// Returns primes of certain amount counting from 2. The primes are sorted.
     pub fn nprimes(&mut self, count: usize) -> std::iter::Take<<Self as PrimeBuffer>::PrimeIter> {
         let (_, bound) = nth_prime_bounds(&(count as u64))
@@ -323,6 +334,16 @@ impl NaiveBuffer {
         self.reserve(bound);
         debug_assert!(self.list.len() >= count);
         self.list.iter().take(count)
+    }
+
+    /// Returns primes of certain amount counting from 2 and takes ownership. The primes are sorted.
+    pub fn into_nprimes(mut self, count: usize) -> std::vec::IntoIter<u64> {
+        let (_, bound) = nth_prime_bounds(&(count as u64))
+            .expect("Estimated size of the largest prime will be larger than u64 limit");
+        self.reserve(bound);
+        debug_assert!(self.list.len() >= count);
+        self.list.truncate(count);
+        return self.list.into_iter();
     }
 
     /// Calculate and return the nth prime

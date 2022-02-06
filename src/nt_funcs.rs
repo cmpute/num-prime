@@ -12,10 +12,13 @@
 //!
 
 use crate::buffer::{NaiveBuffer, PrimeBufferExt};
-use crate::factor::{pollard_rho, squfof, trial_division};
+use crate::factor::{pollard_rho, squfof};
 use crate::primality::{PrimalityBase, PrimalityRefBase};
 use crate::tables::{MOEBIUS_ODD, SMALL_PRIMES};
+#[cfg(feature = "big-table")]
+use crate::tables::{SMALL_PRIMES_INV, SMALL_PRIMES_INVLIM};
 use crate::traits::{FactorizationConfig, Primality, PrimalityTestConfig, PrimalityUtils};
+use num_integer::Roots;
 use num_traits::{FromPrimitive, ToPrimitive};
 use rand::random;
 use std::collections::BTreeMap;
@@ -108,29 +111,82 @@ pub fn factors64(target: u64) -> BTreeMap<u64, usize> {
     //      https://github.com/elmomoilanen/prime-factorization
     //      https://github.com/radii/msieve
     //      Pari/GP: ifac_crack
+    let mut result = BTreeMap::new();
     let f2 = target.trailing_zeros(); // quick check on factors of 2
-    if f2 == 0 && is_prime64(target) {
-        let mut result = BTreeMap::new();
-        result.insert(target, 1);
-        return result;
+    if f2 == 0 {
+        if is_prime64(target) {
+            result.insert(target, 1);
+            return result;
+        }
+    } else {
+        result.insert(2, f2 as usize);
     }
 
     // trial division using primes in the table
-    let target = target >> f2;
-    let piter = SMALL_PRIMES.iter().skip(1).map(|&p| p as u64); // skip 2
-    let (mut result, factored) = trial_division(piter, target, None);
-    if f2 > 0 {
-        result.insert(2, f2 as usize);
-    } // add back 2
-    let residual = match factored {
-        Ok(res) => {
-            if res != 1 {
-                result.insert(res, 1);
-            }
-            return result;
+    let tsqrt = target.sqrt() + 1;
+
+    let mut residual = target >> f2;
+    let mut factored = false;
+
+    #[cfg(not(feature = "big-table"))]
+    for &p in SMALL_PRIMES.iter().skip(1) {
+        let p64 = p as u64;
+        if p64 > tsqrt {
+            factored = true;
+            break;
         }
-        Err(res) => res,
-    };
+
+        while residual % p64 == 0 {
+            residual = residual / p64;
+            *result.entry(p64).or_insert(0) += 1;
+        }
+        if residual == 1 {
+            factored = true;
+            break;
+        }
+    }
+
+    #[cfg(feature = "big-table")]
+    // divisibility check with pre-computed tables
+    for (&p, (&pinv, plim)) in SMALL_PRIMES
+        .iter()
+        .zip(SMALL_PRIMES_INV.iter().zip(SMALL_PRIMES_INVLIM))
+        .skip(1)
+    {
+        let p64 = p as u64;
+        if p64 > tsqrt {
+            factored = true;
+            break;
+        }
+
+        let mut r = residual;
+        let mut k: u32 = 0;
+        loop {
+            let r2 = r.wrapping_mul(pinv);
+
+            if r2 <= plim {
+                k += 1;
+                r = r2;
+            } else {
+                break;
+            }
+        }
+        if k > 0 {
+            residual = residual / p64.pow(k);
+            result.insert(p64, k as usize);
+        }
+        if residual == 1 {
+            factored = true;
+            break;
+        }
+    }
+
+    if factored {
+        if residual != 1 {
+            result.insert(residual, 1);
+        }
+        return result;
+    }
 
     // then try pollard's rho and SQUFOF methods util fully factored
     let mut todo = vec![residual];
@@ -201,14 +257,12 @@ where
 
 /// This function re-exports [NaiveBuffer::primes()] and collect result as a vector.
 pub fn primes(limit: u64) -> Vec<u64> {
-    // TODO (v0.1.1): create a 'into' version to prevent copy
-    NaiveBuffer::new().primes(limit).cloned().collect()
+    NaiveBuffer::new().into_primes(limit).collect()
 }
 
 /// This function re-exports [NaiveBuffer::nprimes()] and collect result as a vector.
 pub fn nprimes(count: usize) -> Vec<u64> {
-    // TODO (v0.1.1): create a 'into' version to prevent copy
-    NaiveBuffer::new().nprimes(count).cloned().collect()
+    NaiveBuffer::new().into_nprimes(count).collect()
 }
 
 /// This function re-exports [NaiveBuffer::prime_pi()]
@@ -225,7 +279,10 @@ pub fn nth_prime(n: usize) -> u64 {
 
 /// This function re-exports [NaiveBuffer::primorial()]
 pub fn primorial<T: PrimalityBase + std::iter::Product>(n: usize) -> T {
-    NaiveBuffer::new().primorial(n)
+    NaiveBuffer::new()
+        .into_nprimes(n)
+        .map(|p| T::from_u64(p).unwrap())
+        .product()
 }
 
 /// This function calculate the Möbius function of the input integer
@@ -548,9 +605,7 @@ mod tests {
     #[test]
     fn moebius_mu_test() {
         // test small examples
-        let mu20: [i8; 20] = [
-            1, -1, -1, 0, -1, 1, -1, 0, 0, 1, -1, 0, -1, 1, 1, 0, -1, 0, -1, 0,
-        ];
+        let mu20: [i8; 20] = [1, -1, -1, 0, -1, 1, -1, 0, 0, 1, -1, 0, -1, 1, 1, 0, -1, 0, -1, 0];
         for i in 0..20 {
             assert_eq!(moebius_mu(&(i + 1)), mu20[i], "moebius on {}", i);
         }
