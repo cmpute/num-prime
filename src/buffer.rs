@@ -352,6 +352,7 @@ impl NaiveBuffer {
     }
 
     /// Calculate and return the prime pi function, i.e. number of primes ≤ `limit`.
+    /// TODO (v0.2): https://stackoverflow.com/questions/19070911/feasible-implementation-of-a-prime-counting-function
     pub fn prime_pi(&mut self, limit: u64) -> usize {
         self.reserve(limit);
 

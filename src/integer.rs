@@ -80,6 +80,7 @@ impl_exactroot_prim!(u8 u16 u32 u64 u128 usize);
 
 #[cfg(feature = "num-bigint")]
 impl ExactRoots for BigUint {
+    // TODO: improve based on SqrtExact.java @ java-math-library
     fn sqrt_exact(&self) -> Option<Self> {
         if (QUAD_RESIDUAL64 >> (self % 64u8).to_u64().unwrap()) & 1 == 0 {
             return None;

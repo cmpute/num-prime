@@ -66,6 +66,15 @@ pub fn is_prime64(target: u64) -> bool {
 /// primality tests are desired, please use is_prime() or PrimeBuffer::is_prime()
 #[cfg(feature = "big-table")]
 pub fn is_prime64(target: u64) -> bool {
+    // shortcuts
+    if target < 1 {
+        return false;
+    }
+    if target & 1 == 0 {
+        return target == 2;
+    }
+
+    // first find in the prime list
     if target < 8167 {
         return SMALL_PRIMES.binary_search(&(target as u16)).is_ok();
     }
@@ -285,7 +294,7 @@ pub fn primorial<T: PrimalityBase + std::iter::Product>(n: usize) -> T {
         .product()
 }
 
-/// This function calculate the Möbius function of the input integer
+/// This function calculate the Möbius μ(n) function of the input integer
 ///
 /// If the input integer is very hard to factorize, it's better to use
 /// the [factors()] function to control how the factorization is done.
@@ -520,7 +529,6 @@ pub fn nth_prime_bounds<T: ToPrimitive + FromPrimitive>(target: &T) -> Option<(T
 // - is_smooth: checks if the smoothness bound is at least b
 // - euler_phi: Euler's totient function
 // - jordan_tot: Jordan's totient function
-// - moebius_mu: Möbius mu function
 // Others include Louiville function, Mangoldt function, Dedekind psi function, Dickman rho function, etc..
 //
 // TODO (v0.2): Implement these prime indexing functions
@@ -605,7 +613,9 @@ mod tests {
     #[test]
     fn moebius_mu_test() {
         // test small examples
-        let mu20: [i8; 20] = [1, -1, -1, 0, -1, 1, -1, 0, 0, 1, -1, 0, -1, 1, 1, 0, -1, 0, -1, 0];
+        let mu20: [i8; 20] = [
+            1, -1, -1, 0, -1, 1, -1, 0, 0, 1, -1, 0, -1, 1, 1, 0, -1, 0, -1, 0,
+        ];
         for i in 0..20 {
             assert_eq!(moebius_mu(&(i + 1)), mu20[i], "moebius on {}", i);
         }

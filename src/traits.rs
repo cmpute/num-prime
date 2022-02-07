@@ -66,7 +66,7 @@ impl PrimalityTestConfig {
 
     /// Create a configuration with the known stongest primality test
     pub fn strict() -> Self {
-        Self::bpsw()
+        Self::bpsw() // TODO: change to 2-base SPRP + VPRP
     }
 
     /// Create a configuration for Baillie-PSW test (base 2 SPRP test + SLPRP test)
@@ -158,7 +158,7 @@ pub trait ExactRoots: Roots + Pow<u32, Output = Self> + Clone {
     }
 }
 
-// TODO (v0.2): implement quick div_exact (which might be useful in various functions)
+// TODO: implement quick div_exact (which might be useful in various functions)
 // REF: GMP `mpz_divexact`
 //      FLINT `fmpz_divexact`
 //      factor.c `divexact_21`
