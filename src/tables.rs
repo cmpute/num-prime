@@ -3214,3 +3214,13 @@ pub const MOEBIUS_ODD: [u64; 4] = [
     0x1a8245028906a062,
     0x229428012aa26a00,
 ];
+
+// offset for moving to the next candidate on wheel30 (2*3*5)
+pub const WHEEL_SIZE: u8 = 30;
+pub const WHEEL_NEXT: [u8; 30] = [
+    1, 6, 5, 4, 3, 2, 1, 4, 3, 2, 1, 2, 1, 4, 3, 2, 1, 2, 1, 4, 3, 2, 1, 6, 5, 4, 3, 2, 1, 2,
+];
+pub const WHEEL_PREV: [u8; 30] = [
+    1, 2, 1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 1, 2, 1, 2, 3, 4, 1, 2, 1, 2, 3, 4, 1, 2, 3, 4, 5, 6,
+];
+// TODO: use wheel 210 or 2310 for big table

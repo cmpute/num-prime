@@ -14,11 +14,12 @@
 use crate::buffer::{NaiveBuffer, PrimeBufferExt};
 use crate::factor::{pollard_rho, squfof};
 use crate::primality::{PrimalityBase, PrimalityRefBase};
-use crate::tables::{MOEBIUS_ODD, SMALL_PRIMES};
+use crate::tables::{MOEBIUS_ODD, SMALL_PRIMES, WHEEL_NEXT, WHEEL_PREV, WHEEL_SIZE};
 #[cfg(feature = "big-table")]
 use crate::tables::{SMALL_PRIMES_INV, SMALL_PRIMES_INVLIM};
 use crate::traits::{FactorizationConfig, Primality, PrimalityTestConfig, PrimalityUtils};
 use num_integer::Roots;
+use num_modular::ModularOps;
 use num_traits::{FromPrimitive, ToPrimitive};
 use rand::random;
 use std::collections::BTreeMap;
@@ -522,19 +523,93 @@ pub fn nth_prime_bounds<T: ToPrimitive + FromPrimitive>(target: &T) -> Option<(T
     }
 }
 
+/// Test if the target is a safe prime with Sophie German's definition. It will use the
+/// strict primality test configuration.
+pub fn is_safe_prime<T: PrimalityBase>(target: &T) -> Primality
+where
+    for<'r> &'r T: PrimalityRefBase<T>,
+{
+    let buf = NaiveBuffer::new();
+    let config = Some(PrimalityTestConfig::strict());
+
+    // test (n-2)/1 first since its smaller
+    let sophie_p = buf.is_prime(&(target >> 1), config);
+    if matches!(sophie_p, Primality::No) {
+        return sophie_p;
+    }
+
+    // and then test target itself
+    let target_p = buf.is_prime(target, config);
+    target_p & sophie_p
+}
+
+/// Find the first prime number larger than `target`
+#[cfg(feature = "big-table")]
+pub fn next_prime<T: PrimalityBase>(target: &T, config: Option<PrimalityTestConfig>) -> T
+where
+    for<'r> &'r T: PrimalityRefBase<T>,
+{
+    // first search in small primes
+    if target < &T::from_u16(*SMALL_PRIMES.last().unwrap()).unwrap() {
+        let next = match SMALL_PRIMES.binary_search(&target.to_u16().unwrap()) {
+            Ok(pos) => SMALL_PRIMES[pos + 1],
+            Err(pos) => SMALL_PRIMES[pos],
+        };
+        return T::from_u16(next).unwrap();
+    }
+
+    // then moving along the wheel
+    let mut i = (target % T::from_u8(WHEEL_SIZE).unwrap()).to_u8().unwrap();
+    let mut t = target.clone();
+    loop {
+        let offset = WHEEL_NEXT[i as usize];
+        t = t + T::from_u8(offset).unwrap();
+        i = i.addm(offset, &WHEEL_SIZE);
+        if is_prime(&t, config).probably() {
+            break t;
+        }
+    }
+}
+
+/// Find the first prime number smaller than `target`
+#[cfg(feature = "big-table")]
+pub fn prev_prime<T: PrimalityBase>(target: &T, config: Option<PrimalityTestConfig>) -> T
+where
+    for<'r> &'r T: PrimalityRefBase<T>,
+{
+    // first search in small primes
+    if target < &T::from_u16(*SMALL_PRIMES.last().unwrap()).unwrap() {
+        let next = match SMALL_PRIMES.binary_search(&target.to_u16().unwrap()) {
+            Ok(pos) => SMALL_PRIMES[pos - 1],
+            Err(pos) => SMALL_PRIMES[pos - 1],
+        };
+        return T::from_u16(next).unwrap();
+    }
+
+    // then moving along the wheel
+    let mut i = (target % T::from_u8(WHEEL_SIZE).unwrap()).to_u8().unwrap();
+    let mut t = target.clone();
+    loop {
+        let offset = WHEEL_PREV[i as usize];
+        t = t - T::from_u8(offset).unwrap();
+        i = i.subm(offset, &WHEEL_SIZE);
+        if is_prime(&t, config).probably() {
+            break t;
+        }
+    }
+}
+
 // TODO: More functions
 // REF: http://www.numbertheory.org/gnubc/bc_programs.html
 // REF: https://github.com/TilmanNeumann/java-math-library
-// - is_safe_prime: is safe prime with Sophie Germain definition
 // - is_smooth: checks if the smoothness bound is at least b
 // - euler_phi: Euler's totient function
 // - jordan_tot: Jordan's totient function
 // Others include Louiville function, Mangoldt function, Dedekind psi function, Dickman rho function, etc..
 //
 // TODO (v0.2): Implement these prime indexing functions
-// - next_prime (ref `n_primes_next` in FLINT)
-// - prev_prime (similar strategy with `n_primes_next`)
-// - rand_prime
+// - rand_prime = random + next_prime
+// - rand_safe_prime = random + next_prime + is_prime(n/2-1) + is_prime(2n+1)
 
 #[cfg(test)]
 mod tests {
@@ -735,6 +810,42 @@ mod tests {
         for (exponent, nth_prime) in pow10_values.iter().enumerate() {
             let n = 10u64.pow(exponent as u32);
             check(n, *nth_prime);
+        }
+    }
+
+    #[test]
+    fn prev_next_test() {
+        let twine_primes: [(u32, u32); 8] = [ // OEIS A077800
+            (2, 3), // not exactly twine
+            (3, 5),
+            (5, 7),
+            (11, 13),
+            (17, 19),
+            (29, 31),
+            (41, 43),
+            (617, 619)
+        ];
+        for (p1, p2) in twine_primes {
+            assert_eq!(prev_prime(&p2, None), p1);
+            assert_eq!(next_prime(&p1, None), p2);
+        }
+        
+        let adj10_primes: [(u32, u32); 7] = [
+            (7, 11),
+            (97, 101),
+            (997, 1009),
+            (9973, 10007),
+            (99991, 100003),
+            (999983, 1000003),
+            (9999991, 10000019)
+        ];
+        for (i, (p1, p2)) in adj10_primes.iter().enumerate() {
+            assert_eq!(prev_prime(p2, None), *p1);
+            assert_eq!(next_prime(p1, None), *p2);
+
+            let pow = 10u32.pow((i+1) as u32);
+            assert_eq!(prev_prime(&pow, None), *p1);
+            assert_eq!(next_prime(&pow, None), *p2);
         }
     }
 }

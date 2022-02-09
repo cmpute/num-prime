@@ -28,7 +28,6 @@ pub fn bench_is_prime(c: &mut Criterion) {
     group.finish();
 }
 
-
 pub fn bench_factorization(c: &mut Criterion) {
     const N: usize = 1_000_000;
     const STEP: usize = 501;

@@ -1,3 +1,5 @@
+use std::ops::BitAnd;
+
 use num_integer::{Integer, Roots};
 use num_traits::Pow;
 
@@ -22,6 +24,7 @@ pub enum Primality {
     No,
     /// The number passes several probabilistic primality check.
     /// The associated float number carries the probability of the number being a prime
+    /// (conditioned on that it's already a probable prime)
     Probable(f32),
 }
 
@@ -35,6 +38,24 @@ impl Primality {
         }
     }
 }
+
+impl BitAnd<Primality> for Primality {
+    type Output = Primality;
+
+    fn bitand(self, rhs: Primality) -> Primality {
+        match self {
+            Primality::No => Primality::No,
+            Primality::Yes => rhs,
+            Primality::Probable(p) => match rhs {
+                Primality::No => Primality::No,
+                Primality::Yes => Primality::Probable(p),
+                Primality::Probable(p2) => Primality::Probable(1. - (1. - p) * (1. - p2)),
+            },
+        }
+    }
+}
+
+// TODO (v0.1.2) Implement BitOr for Primality
 
 /// Represents a configuration for a primality test
 #[derive(Debug, Clone, Copy)]
@@ -64,7 +85,7 @@ impl PrimalityTestConfig {
         }
     }
 
-    /// Create a configuration with the known stongest primality test
+    /// Create a configuration with the known stongest deterministic primality test
     pub fn strict() -> Self {
         Self::bpsw() // TODO: change to 2-base SPRP + VPRP
     }

@@ -19,8 +19,8 @@ use crate::traits::{
 };
 use bitvec::bitvec;
 use num_integer::Roots;
-use rand::{random, seq::IteratorRandom};
-use std::{collections::BTreeMap, convert::TryInto};
+use rand::random;
+use std::collections::BTreeMap;
 
 /// Extension functions that can utilize pre-generated primes
 pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
@@ -58,15 +58,18 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
         let mut witness_list: Vec<u64> = Vec::new();
         if config.sprp_trials > 0 {
             witness_list.extend(self.iter().take(config.sprp_trials));
-            probability *= 1. - 0.25f32.powi(config.sprp_trials.try_into().unwrap());
+            probability *= 1. - 0.25f32.powi(config.sprp_trials as i32);
         }
         if config.sprp_random_trials > 0 {
-            let mut rng = rand::thread_rng();
-            witness_list.extend(
-                self.iter()
-                    .choose_multiple(&mut rng, config.sprp_random_trials),
-            );
-            probability *= 1. - 0.25f32.powi(config.sprp_random_trials.try_into().unwrap());
+            for _ in 0..config.sprp_random_trials {
+                // we have ensured target is larger than 2^64
+                let mut w: u64 = rand::random();
+                while witness_list.iter().find(|&x| x == &w).is_some() {
+                    w = rand::random();
+                }
+                witness_list.push(w);
+            }
+            probability *= 1. - 0.25f32.powi(config.sprp_random_trials as i32);
         }
         if !witness_list
             .iter()
@@ -290,7 +293,7 @@ impl<'a> PrimeBuffer<'a> for NaiveBuffer {
             }
         }
 
-        // sort the sieve
+        // collect the sieve
         self.list
             .extend(sieve.iter_zeros().map(|x| (x as u64) * 2 + current));
         self.current = odd_limit;
