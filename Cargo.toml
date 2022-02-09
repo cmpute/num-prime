@@ -26,11 +26,12 @@ rand = "0.8.4"
 [dependencies.num-bigint]
 optional = true
 version = "0.4.3"
-default-features = false
+features = ["rand"]
 
 [features]
-default = ['big-table']
+default = ['big-table', 'big-int']
 big-table = []
+big-int = ['num-bigint', 'num-modular/num-bigint']
 
 [dev-dependencies]
 criterion = "0.3"

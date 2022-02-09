@@ -19,6 +19,8 @@ use crate::tables::{MOEBIUS_ODD, SMALL_PRIMES, WHEEL_NEXT, WHEEL_PREV, WHEEL_SIZ
 use crate::tables::{SMALL_PRIMES_INV, SMALL_PRIMES_INVLIM};
 use crate::traits::{FactorizationConfig, Primality, PrimalityTestConfig, PrimalityUtils};
 use crate::RandPrime;
+#[cfg(feature = "num-bigint")]
+use num_bigint::{BigUint, RandBigInt};
 use num_integer::Roots;
 use num_modular::ModularOps;
 use num_traits::CheckedAdd;
@@ -534,7 +536,7 @@ where
     let buf = NaiveBuffer::new();
     let config = Some(PrimalityTestConfig::strict());
 
-    // test (n-2)/1 first since its smaller
+    // test (n-1)/2 first since its smaller
     let sophie_p = buf.is_prime(&(target >> 1), config);
     if matches!(sophie_p, Primality::No) {
         return sophie_p;
@@ -640,14 +642,18 @@ macro_rules! impl_randprime_prim {
                 // deterministic primality test will be used for integers under u64
                 let p = self.gen_prime(bit_size, None);
 
+                // test (p-1)/2
                 if is_prime64((p >> 1) as u64) {
                     return p;
                 }
-                let p2 = p << 1 + 1;
-                if is_prime64(p2 as u64) {
-                    return p2;
+                // test 2p+1
+                if let Some(p2) = p.checked_mul(2).and_then(|v| v.checked_add(1)) {
+                    if is_prime64(p2 as u64) {
+                        return p2;
+                    }
                 }
 
+                // try again if failed
                 self.gen_safe_prime(bit_size)
             }
         }
@@ -655,7 +661,71 @@ macro_rules! impl_randprime_prim {
 }
 impl_randprime_prim!(u8 u16 u32 u64);
 
-// TODO (v0.1.2): Implement randprime for u128 and biguint
+impl<R: Rng> RandPrime<u128> for R {
+    #[inline]
+    fn gen_prime(&mut self, bit_size: usize, config: Option<PrimalityTestConfig>) -> u128 {
+        if bit_size > (u128::BITS as usize) {
+            panic!("The given bit size limit exceeded the capacity of the integer type!")
+        }
+        let t: u128 = self.gen();
+        let t = t >> (u128::BITS - bit_size as u32);
+        if is_prime(&t, config).probably() {
+            t
+        } else {
+            match next_prime(&t, config) {
+                Some(p) => p,
+                None => self.gen_prime(bit_size, config),
+            }
+        }
+    }
+
+    #[inline]
+    fn gen_safe_prime(&mut self, bit_size: usize) -> u128 {
+        let p = self.gen_prime(bit_size, None);
+        let config = Some(PrimalityTestConfig::strict());
+        if is_prime(&(p >> 1), config).probably() {
+            return p;
+        }
+        if let Some(p2) = p.checked_mul(2).and_then(|v| v.checked_add(1)) {
+            if is_prime(&p2, config).probably() {
+                return p2;
+            }
+        }
+
+        self.gen_safe_prime(bit_size)
+    }
+}
+
+#[cfg(feature = "big-int")]
+impl<R: Rng> RandPrime<BigUint> for R {
+    #[inline]
+    fn gen_prime(&mut self, bit_size: usize, config: Option<PrimalityTestConfig>) -> BigUint {
+        let t = self.gen_biguint(bit_size as u64);
+        if is_prime(&t, config).probably() {
+            t
+        } else {
+            match next_prime(&t, config) {
+                Some(p) => p,
+                None => self.gen_prime(bit_size, config),
+            }
+        }
+    }
+
+    #[inline]
+    fn gen_safe_prime(&mut self, bit_size: usize) -> BigUint {
+        let p = self.gen_prime(bit_size, None);
+        let config = Some(PrimalityTestConfig::strict());
+        if is_prime(&(&p >> 1u8), config).probably() {
+            return p;
+        }
+        let p2 = (p << 1u8) + 1u8;
+        if is_prime(&p2, config).probably() {
+            return p2;
+        }
+
+        self.gen_safe_prime(bit_size)
+    }
+}
 
 // TODO: More functions
 // REF: http://www.numbertheory.org/gnubc/bc_programs.html
@@ -736,6 +806,25 @@ mod tests {
                 prod *= p.pow(exp as u32);
             }
             assert_eq!(x, prod, "factorization check failed! ({} != {})", x, prod);
+        }
+    }
+
+    #[test]
+    fn is_safe_prime_test() {
+        // OEIS A005385
+        let safe_primes = [
+            5, 7, 11, 23, 47, 59, 83, 107, 167, 179, 227, 263, 347, 359, 383, 467, 479, 503, 563,
+            587, 719, 839, 863, 887, 983, 1019, 1187, 1283, 1307, 1319, 1367, 1439, 1487, 1523,
+            1619, 1823, 1907,
+        ];
+        for p in SMALL_PRIMES {
+            if p > 1500 {
+                break;
+            }
+            assert_eq!(
+                is_safe_prime(&p).probably(),
+                safe_primes.iter().find(|&v| &p == v).is_some()
+            );
         }
     }
 
@@ -911,27 +1000,31 @@ mod tests {
         let mut rng = rand::thread_rng();
 
         // test random prime generation for each size
-        for _ in 0..4 {
-            let p: u8 = rng.gen_prime(8, None);
-            assert!(is_prime64(p as u64));
-            let p: u16 = rng.gen_prime(16, None);
-            assert!(is_prime64(p as u64));
-            let p: u32 = rng.gen_prime(32, None);
-            assert!(is_prime64(p as u64));
-            let p: u64 = rng.gen_prime(64, None);
-            assert!(is_prime64(p));
-        }
+        let p: u8 = rng.gen_prime(8, None);
+        assert!(is_prime64(p as u64));
+        let p: u16 = rng.gen_prime(16, None);
+        assert!(is_prime64(p as u64));
+        let p: u32 = rng.gen_prime(32, None);
+        assert!(is_prime64(p as u64));
+        let p: u64 = rng.gen_prime(64, None);
+        assert!(is_prime64(p));
+        let p: u128 = rng.gen_prime(128, None);
+        assert!(is_prime(&p, None).probably());
 
-        // test random safe prime generation for each size
-        for _ in 0..4 {
-            let p: u8 = rng.gen_safe_prime(8);
-            assert!(is_safe_prime(&p).probably());
-            let p: u16 = rng.gen_safe_prime(16);
-            assert!(is_safe_prime(&p).probably());
-            let p: u32 = rng.gen_safe_prime(32);
-            assert!(is_safe_prime(&p).probably());
-            let p: u64 = rng.gen_safe_prime(64);
-            assert!(is_safe_prime(&p).probably());
+        // test random safe prime generation
+        let p: u8 = rng.gen_safe_prime(8);
+        assert!(is_safe_prime(&p).probably());
+        let p: u32 = rng.gen_safe_prime(32);
+        assert!(is_safe_prime(&p).probably());
+        let p: u128 = rng.gen_safe_prime(128);
+        assert!(is_safe_prime(&p).probably());
+
+        #[cfg(feature = "big-int")]
+        {
+            let p: BigUint = rng.gen_prime(512, None);
+            assert!(is_prime(&p, None).probably());
+            let p: BigUint = rng.gen_safe_prime(192);
+            assert!(is_prime(&p, None).probably());
         }
 
         // test bit size limit
