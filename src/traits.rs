@@ -1,4 +1,4 @@
-use std::ops::BitAnd;
+use std::ops::{BitAnd, BitOr};
 
 use num_integer::{Integer, Roots};
 use num_traits::Pow;
@@ -42,20 +42,36 @@ impl Primality {
 impl BitAnd<Primality> for Primality {
     type Output = Primality;
 
-    fn bitand(self, rhs: Primality) -> Primality {
+    /// Combine two primality result by ensuring both numbers are prime
+    fn bitand(self, rhs: Primality) -> Self::Output {
         match self {
             Primality::No => Primality::No,
             Primality::Yes => rhs,
             Primality::Probable(p) => match rhs {
                 Primality::No => Primality::No,
                 Primality::Yes => Primality::Probable(p),
-                Primality::Probable(p2) => Primality::Probable(1. - (1. - p) * (1. - p2)),
+                Primality::Probable(p2) => Primality::Probable(p * p2),
             },
         }
     }
 }
 
-// TODO (v0.1.2) Implement BitOr for Primality
+impl BitOr<Primality> for Primality {
+    type Output = Primality;
+
+    /// Combine two primality result by ensuring either numbers is prime
+    fn bitor(self, rhs: Primality) -> Self::Output {
+        match self {
+            Primality::No => rhs,
+            Primality::Yes => Primality::Yes,
+            Primality::Probable(p) => match rhs {
+                Primality::No => Primality::Probable(p),
+                Primality::Yes => Primality::Yes,
+                Primality::Probable(p2) => Primality::Probable(1. - (1. - p) * (1. - p2)),
+            },
+        }
+    }
+}
 
 /// Represents a configuration for a primality test
 #[derive(Debug, Clone, Copy)]

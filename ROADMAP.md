@@ -1,5 +1,4 @@
 # Roadmap for v0.2
-- Prime bounds
 - Implement SIQS
 - Add benchmarks for factorization & primality test (ref: SageMath benchmark tests)
 - Support no_std

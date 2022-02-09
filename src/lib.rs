@@ -13,6 +13,7 @@
 //!   - [A naive implementation of the sieve of Eratosthenes][buffer::NaiveBuffer]
 //!   - [Unified API to support other prime generation backends][PrimeBuffer]
 //!   - [Generate random (safe) primes][traits::RandPrime]
+//!   - Find [previous prime][nt_funcs::prev_prime] / [next prime][nt_funcs::next_prime]
 //! - [Integer factorization][nt_funcs::factors]
 //!   - [Trial division][factor::trial_division]
 //!   - [Pollard's rho algorithm][factor::pollard_rho]
@@ -51,7 +52,7 @@
 //! but you can also use other backends (such as `primal`) as long as it implements [PrimeBuffer].
 //!
 //! # Features
-//! - `num-bigint`: Enable this feature to support `num-bigint::BigUint` as integer inputs.
+//! - `big-int`: Enable this feature to support `num-bigint::BigUint` as integer inputs.
 //! - `big-table`: Enable this feature to allow compiling large precomputed tables which
 //!     could improve the performance of various functions.
 //!

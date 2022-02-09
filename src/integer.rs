@@ -1,12 +1,11 @@
 //! Backend implementations for integers
 
 use crate::traits::{BitTest, ExactRoots};
-use num_integer::Integer;
 
 #[cfg(feature = "num-bigint")]
 use num_bigint::BigUint;
 #[cfg(feature = "num-bigint")]
-use num_traits::{One, ToPrimitive, Zero};
+use num_traits::ToPrimitive;
 
 macro_rules! impl_bittest_prim {
     ($($T:ty)*) => {$(
