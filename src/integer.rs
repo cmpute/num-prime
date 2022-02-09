@@ -8,7 +8,7 @@ use num_bigint::BigUint;
 #[cfg(feature = "num-bigint")]
 use num_traits::{One, ToPrimitive, Zero};
 
-macro_rules! impl_bititer_prim {
+macro_rules! impl_bittest_prim {
     ($($T:ty)*) => {$(
         impl BitTest for $T {
             #[inline]
@@ -26,7 +26,7 @@ macro_rules! impl_bititer_prim {
         }
     )*}
 }
-impl_bititer_prim!(u8 u16 u32 u64 u128 usize);
+impl_bittest_prim!(u8 u16 u32 u64 u128 usize);
 
 #[cfg(feature = "num-bigint")]
 impl BitTest for BigUint {

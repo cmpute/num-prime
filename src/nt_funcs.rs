@@ -18,10 +18,12 @@ use crate::tables::{MOEBIUS_ODD, SMALL_PRIMES, WHEEL_NEXT, WHEEL_PREV, WHEEL_SIZ
 #[cfg(feature = "big-table")]
 use crate::tables::{SMALL_PRIMES_INV, SMALL_PRIMES_INVLIM};
 use crate::traits::{FactorizationConfig, Primality, PrimalityTestConfig, PrimalityUtils};
+use crate::RandPrime;
 use num_integer::Roots;
 use num_modular::ModularOps;
+use num_traits::CheckedAdd;
 use num_traits::{FromPrimitive, ToPrimitive};
-use rand::random;
+use rand::{random, Rng};
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 
@@ -435,7 +437,7 @@ pub fn prime_pi_bounds<T: ToPrimitive + FromPrimitive>(target: &T) -> (T, T) {
 }
 
 /// Returns the estimated inclusive bounds (low, high) of the n-th prime. If the result
-/// is larger than maximum of T, None will be returned.
+/// is larger than maximum of `T`, [None] will be returned.
 ///
 /// # Reference:
 /// - \[1] Dusart, Pierre. "Estimates of Some Functions Over Primes without R.H."
@@ -543,19 +545,25 @@ where
     target_p & sophie_p
 }
 
-/// Find the first prime number larger than `target`
+/// Find the first prime number larger than `target`. If the result causes an overflow,
+/// then [None] will be returned
 #[cfg(feature = "big-table")]
-pub fn next_prime<T: PrimalityBase>(target: &T, config: Option<PrimalityTestConfig>) -> T
+pub fn next_prime<T: PrimalityBase + CheckedAdd>(
+    target: &T,
+    config: Option<PrimalityTestConfig>,
+) -> Option<T>
 where
     for<'r> &'r T: PrimalityRefBase<T>,
 {
     // first search in small primes
-    if target < &T::from_u16(*SMALL_PRIMES.last().unwrap()).unwrap() {
+    if target <= &T::from_u8(255).unwrap() // shortcut for u8
+        || target < &T::from_u16(*SMALL_PRIMES.last().unwrap()).unwrap()
+    {
         let next = match SMALL_PRIMES.binary_search(&target.to_u16().unwrap()) {
             Ok(pos) => SMALL_PRIMES[pos + 1],
             Err(pos) => SMALL_PRIMES[pos],
         };
-        return T::from_u16(next).unwrap();
+        return T::from_u16(next);
     }
 
     // then moving along the wheel
@@ -563,27 +571,34 @@ where
     let mut t = target.clone();
     loop {
         let offset = WHEEL_NEXT[i as usize];
-        t = t + T::from_u8(offset).unwrap();
+        t = t.checked_add(&T::from_u8(offset).unwrap())?;
         i = i.addm(offset, &WHEEL_SIZE);
         if is_prime(&t, config).probably() {
-            break t;
+            break Some(t);
         }
     }
 }
 
-/// Find the first prime number smaller than `target`
+/// Find the first prime number smaller than `target`. If target is less than 3, then [None]
+/// will be returned.
 #[cfg(feature = "big-table")]
-pub fn prev_prime<T: PrimalityBase>(target: &T, config: Option<PrimalityTestConfig>) -> T
+pub fn prev_prime<T: PrimalityBase>(target: &T, config: Option<PrimalityTestConfig>) -> Option<T>
 where
     for<'r> &'r T: PrimalityRefBase<T>,
 {
+    if target <= &(T::one() + T::one()) {
+        return None;
+    }
+
     // first search in small primes
-    if target < &T::from_u16(*SMALL_PRIMES.last().unwrap()).unwrap() {
+    if target <= &T::from_u8(255).unwrap() // shortcut for u8
+        || target < &T::from_u16(*SMALL_PRIMES.last().unwrap()).unwrap()
+    {
         let next = match SMALL_PRIMES.binary_search(&target.to_u16().unwrap()) {
             Ok(pos) => SMALL_PRIMES[pos - 1],
             Err(pos) => SMALL_PRIMES[pos - 1],
         };
-        return T::from_u16(next).unwrap();
+        return Some(T::from_u16(next).unwrap());
     }
 
     // then moving along the wheel
@@ -594,10 +609,53 @@ where
         t = t - T::from_u8(offset).unwrap();
         i = i.subm(offset, &WHEEL_SIZE);
         if is_prime(&t, config).probably() {
-            break t;
+            break Some(t);
         }
     }
 }
+
+macro_rules! impl_randprime_prim {
+    ($($T:ty)*) => {$(
+        impl<R: Rng> RandPrime<$T> for R {
+            #[inline]
+            fn gen_prime(&mut self, bit_size: usize, config: Option<PrimalityTestConfig>) -> $T {
+                if bit_size > (<$T>::BITS as usize) {
+                    panic!("The given bit size limit exceeded the capacity of the integer type!")
+                }
+                let t: $T = self.gen();
+                let t = t >> (<$T>::BITS - bit_size as u32);
+                if is_prime64(t as u64) {
+                    t
+                } else {
+                    // deterministic primality test will be used for integers under u64
+                    match next_prime(&t, None) {
+                        Some(p) => p,
+                        None => self.gen_prime(bit_size, config),
+                    }
+                }
+            }
+
+            #[inline]
+            fn gen_safe_prime(&mut self, bit_size: usize) -> $T {
+                // deterministic primality test will be used for integers under u64
+                let p = self.gen_prime(bit_size, None);
+
+                if is_prime64((p >> 1) as u64) {
+                    return p;
+                }
+                let p2 = p << 1 + 1;
+                if is_prime64(p2 as u64) {
+                    return p2;
+                }
+
+                self.gen_safe_prime(bit_size)
+            }
+        }
+    )*}
+}
+impl_randprime_prim!(u8 u16 u32 u64);
+
+// TODO (v0.1.2): Implement randprime for u128 and biguint
 
 // TODO: More functions
 // REF: http://www.numbertheory.org/gnubc/bc_programs.html
@@ -606,10 +664,6 @@ where
 // - euler_phi: Euler's totient function
 // - jordan_tot: Jordan's totient function
 // Others include Louiville function, Mangoldt function, Dedekind psi function, Dickman rho function, etc..
-//
-// TODO (v0.2): Implement these prime indexing functions
-// - rand_prime = random + next_prime
-// - rand_safe_prime = random + next_prime + is_prime(n/2-1) + is_prime(2n+1)
 
 #[cfg(test)]
 mod tests {
@@ -815,7 +869,10 @@ mod tests {
 
     #[test]
     fn prev_next_test() {
-        let twine_primes: [(u32, u32); 8] = [ // OEIS A077800
+        assert_eq!(prev_prime(&2u32, None), None);
+
+        // OEIS A077800
+        let twine_primes: [(u32, u32); 8] = [
             (2, 3), // not exactly twine
             (3, 5),
             (5, 7),
@@ -823,13 +880,13 @@ mod tests {
             (17, 19),
             (29, 31),
             (41, 43),
-            (617, 619)
+            (617, 619),
         ];
         for (p1, p2) in twine_primes {
-            assert_eq!(prev_prime(&p2, None), p1);
-            assert_eq!(next_prime(&p1, None), p2);
+            assert_eq!(prev_prime(&p2, None).unwrap(), p1);
+            assert_eq!(next_prime(&p1, None).unwrap(), p2);
         }
-        
+
         let adj10_primes: [(u32, u32); 7] = [
             (7, 11),
             (97, 101),
@@ -837,15 +894,50 @@ mod tests {
             (9973, 10007),
             (99991, 100003),
             (999983, 1000003),
-            (9999991, 10000019)
+            (9999991, 10000019),
         ];
         for (i, (p1, p2)) in adj10_primes.iter().enumerate() {
-            assert_eq!(prev_prime(p2, None), *p1);
-            assert_eq!(next_prime(p1, None), *p2);
+            assert_eq!(prev_prime(p2, None).unwrap(), *p1);
+            assert_eq!(next_prime(p1, None).unwrap(), *p2);
 
-            let pow = 10u32.pow((i+1) as u32);
-            assert_eq!(prev_prime(&pow, None), *p1);
-            assert_eq!(next_prime(&pow, None), *p2);
+            let pow = 10u32.pow((i + 1) as u32);
+            assert_eq!(prev_prime(&pow, None).unwrap(), *p1);
+            assert_eq!(next_prime(&pow, None).unwrap(), *p2);
         }
+    }
+
+    #[test]
+    fn rand_prime_test() {
+        let mut rng = rand::thread_rng();
+
+        // test random prime generation for each size
+        for _ in 0..4 {
+            let p: u8 = rng.gen_prime(8, None);
+            assert!(is_prime64(p as u64));
+            let p: u16 = rng.gen_prime(16, None);
+            assert!(is_prime64(p as u64));
+            let p: u32 = rng.gen_prime(32, None);
+            assert!(is_prime64(p as u64));
+            let p: u64 = rng.gen_prime(64, None);
+            assert!(is_prime64(p));
+        }
+
+        // test random safe prime generation for each size
+        for _ in 0..4 {
+            let p: u8 = rng.gen_safe_prime(8);
+            assert!(is_safe_prime(&p).probably());
+            let p: u16 = rng.gen_safe_prime(16);
+            assert!(is_safe_prime(&p).probably());
+            let p: u32 = rng.gen_safe_prime(32);
+            assert!(is_safe_prime(&p).probably());
+            let p: u64 = rng.gen_safe_prime(64);
+            assert!(is_safe_prime(&p).probably());
+        }
+
+        // test bit size limit
+        let p: u16 = rng.gen_prime(12, None);
+        assert!(p < (1 << 12));
+        let p: u32 = rng.gen_prime(24, None);
+        assert!(p < (1 << 24));
     }
 }

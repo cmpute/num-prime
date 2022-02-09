@@ -242,3 +242,13 @@ pub trait PrimalityUtils: Integer + Clone {
     // TODO: implement is_vprp (Lucas-V probable prime test)
     // https://arxiv.org/pdf/2006.14425.pdf
 }
+
+/// Supports random generation of primes
+pub trait RandPrime<T> {
+    /// Generate a random prime within the given bit size limit
+    fn gen_prime(&mut self, bit_size: usize, config: Option<PrimalityTestConfig>) -> T;
+
+    /// Generate a random (Sophie German) safe prime within the given bit size limit. The generated prime
+    /// is guaranteed to pass the [is_safe_prime][crate::nt_funcs::is_safe_prime] test
+    fn gen_safe_prime(&mut self, bit_size: usize) -> T;
+}

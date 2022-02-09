@@ -3,14 +3,16 @@
 //! This crate provides utilities for prime related functionalities and some basic number theoretic functions:
 //! - Primality testing
 //!   - [Primality check][nt_funcs::is_prime]
+//!   - [Deterministic primality check of `u64` integers][nt_funcs::is_prime64] (using a very fast hashing algorithm)
 //!   - [Fermat probable prime test][PrimalityUtils::is_prp]
 //!   - [Miller-rabin probable prime test][PrimalityUtils::is_sprp]
 //!   - ([strong][PrimalityUtils::is_slprp]/[extra strong][PrimalityUtils::is_eslprp]) [Lucas probable prime test][PrimalityUtils::is_lprp]
 //!   - [Baillie-PSW test][PrimalityTestConfig::bpsw]
-//!   - [Deterministic test of `u64` integers][nt_funcs::is_prime64] (using a very fast hashing algorithm)
+//!   - [Sophie Germain safe prime test][nt_funcs::is_safe_prime]
 //! - Primes generation and indexing
 //!   - [A naive implementation of the sieve of Eratosthenes][buffer::NaiveBuffer]
 //!   - [Unified API to support other prime generation backends][PrimeBuffer]
+//!   - [Generate random (safe) primes][traits::RandPrime]
 //! - [Integer factorization][nt_funcs::factors]
 //!   - [Trial division][factor::trial_division]
 //!   - [Pollard's rho algorithm][factor::pollard_rho]
