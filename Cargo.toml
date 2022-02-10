@@ -9,8 +9,7 @@ categories = ["cryptography", "science", "algorithms"]
 documentation = "https://docs.rs/num-prime"
 license = "Apache-2.0"
 description = """
-`num-prime` is based on `num` and extends it with plenty of prime related utilities.
-It supports primality test, factorization and various number theoretic functions with arbitrary precision.
+Generic and fast primality test, factorization and various number theoretic functions with arbitrary precision based on `num`.
 """
 readme = "README.md"
 
@@ -22,6 +21,7 @@ num-traits = "0.2.14"
 num-modular = "0.0.2"
 bitvec = "0.22.3"
 rand = "0.8.4"
+lru = "0.7.2"
 
 [dependencies.num-bigint]
 optional = true

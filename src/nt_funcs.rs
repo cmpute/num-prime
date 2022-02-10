@@ -280,13 +280,13 @@ pub fn nprimes(count: usize) -> Vec<u64> {
 }
 
 /// This function re-exports [NaiveBuffer::prime_pi()]
-pub fn prime_pi(limit: u64) -> usize {
+pub fn prime_pi(limit: u64) -> u64 {
     // TODO (v0.2): Implement stand alone prime_pi with Meissel-Lehmer method
     NaiveBuffer::new().prime_pi(limit)
 }
 
 /// This function re-exports [NaiveBuffer::nth_prime()]
-pub fn nth_prime(n: usize) -> u64 {
+pub fn nth_prime(n: u64) -> u64 {
     // TODO (v0.2): Implement stand alone nth_prime with prime_pi and next_prime/prev_prime
     NaiveBuffer::new().nth_prime(n)
 }
@@ -811,7 +811,7 @@ mod tests {
 
     #[test]
     fn is_safe_prime_test() {
-        // OEIS A005385
+        // OEIS:A005385
         let safe_primes = [
             5, 7, 11, 23, 47, 59, 83, 107, 167, 179, 227, 263, 347, 359, 383, 467, 479, 503, 563,
             587, 719, 839, 863, 887, 983, 1019, 1187, 1283, 1307, 1319, 1367, 1439, 1487, 1523,
@@ -846,14 +846,14 @@ mod tests {
         let sphenic3: [u8; 20] = [
             30, 42, 66, 70, 78, 102, 105, 110, 114, 130, 138, 154, 165, 170, 174, 182, 186, 190,
             195, 222,
-        ]; // OEIS A007304
+        ]; // OEIS:A007304
         for i in 0..20 {
             assert_eq!(moebius_mu(&sphenic3[i]), -1i8, "moebius on {}", sphenic3[i]);
         }
         let sphenic5: [u16; 23] = [
             2310, 2730, 3570, 3990, 4290, 4830, 5610, 6006, 6090, 6270, 6510, 6630, 7410, 7590,
             7770, 7854, 8610, 8778, 8970, 9030, 9282, 9570, 9690,
-        ]; // OEIS A046387
+        ]; // OEIS:A046387
         for i in 0..20 {
             assert_eq!(moebius_mu(&sphenic5[i]), -1i8, "moebius on {}", sphenic5[i]);
         }
@@ -884,7 +884,7 @@ mod tests {
             last = p;
         }
 
-        // test with some known cases with input as 10^n, OEIS A006880
+        // test with some known cases with input as 10^n, OEIS:A006880
         let pow10_values = [
             0,
             4,
@@ -931,7 +931,7 @@ mod tests {
             check(i as u64 + 1, p as u64);
         }
 
-        // test with some known cases with input as 10^n, OEIS A006988
+        // test with some known cases with input as 10^n, OEIS:A006988
         let pow10_values = [
             2,
             29,
@@ -960,7 +960,7 @@ mod tests {
     fn prev_next_test() {
         assert_eq!(prev_prime(&2u32, None), None);
 
-        // OEIS A077800
+        // OEIS:A077800
         let twine_primes: [(u32, u32); 8] = [
             (2, 3), // not exactly twine
             (3, 5),

@@ -21,6 +21,7 @@ use bitvec::bitvec;
 use num_integer::Roots;
 use rand::random;
 use std::collections::BTreeMap;
+use lru::LruCache;
 
 /// Extension functions that can utilize pre-generated primes
 pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
@@ -247,9 +248,9 @@ impl<'a> PrimeBuffer<'a> for NaiveBuffer {
     }
 
     fn clear(&mut self) {
-        self.list.truncate(54); // reserve small primes below 255
+        self.list.truncate(16);
         self.list.shrink_to_fit();
-        self.current = 255;
+        self.current = 55; // 16-th prime is 53
     }
 
     fn iter(&'a self) -> Self::PrimeIter {
@@ -261,15 +262,15 @@ impl<'a> PrimeBuffer<'a> for NaiveBuffer {
     }
 
     fn reserve(&mut self, limit: u64) {
-        let odd_limit = limit | 1; // make sure limit is odd
+        let sieve_limit = limit | 1 + 2; // make sure sieving limit is odd and larger than limit
         let current = self.current; // prevent borrowing self
         debug_assert!(current % 2 == 1);
-        if odd_limit <= current {
+        if sieve_limit <= current {
             return;
         }
 
         // create sieve and filter with existing primes
-        let mut sieve = bitvec![0; ((odd_limit - current) / 2) as usize];
+        let mut sieve = bitvec![0; ((sieve_limit - current) / 2) as usize];
         for p in self.list.iter().skip(1) {
             // skip pre-filtered 2
             let start = if p * p < current {
@@ -277,7 +278,7 @@ impl<'a> PrimeBuffer<'a> for NaiveBuffer {
             } else {
                 p * p
             };
-            for multi in (start..odd_limit).step_by(2 * (*p as usize)) {
+            for multi in (start..sieve_limit).step_by(2 * (*p as usize)) {
                 if multi >= current {
                     sieve.set(((multi - current) / 2) as usize, true);
                 }
@@ -285,8 +286,8 @@ impl<'a> PrimeBuffer<'a> for NaiveBuffer {
         }
 
         // sieve with new primes
-        for p in (current..Roots::sqrt(&odd_limit) + 1).step_by(2) {
-            for multi in (p * p..odd_limit).step_by(2 * (p as usize)) {
+        for p in (current..Roots::sqrt(&sieve_limit) + 1).step_by(2) {
+            for multi in (p * p..sieve_limit).step_by(2 * (p as usize)) {
                 if multi >= current {
                     sieve.set(((multi - current) / 2) as usize, true);
                 }
@@ -296,7 +297,7 @@ impl<'a> PrimeBuffer<'a> for NaiveBuffer {
         // collect the sieve
         self.list
             .extend(sieve.iter_zeros().map(|x| (x as u64) * 2 + current));
-        self.current = odd_limit;
+        self.current = sieve_limit;
     }
 }
 
@@ -349,20 +350,69 @@ impl NaiveBuffer {
         return self.list.into_iter();
     }
 
-    /// Calculate and return the nth prime
-    pub fn nth_prime(&mut self, n: usize) -> u64 {
-        *self.nprimes(n).last().unwrap()
+    /// Calculate and return the nth prime. Note that n counts from 1
+    /// 
+    /// Theoretically the result can be larger than 2^64, but it will takes forever to
+    /// calculate that so we just return `u64` instead of `Option<u64>` here.
+    pub fn nth_prime(&mut self, n: u64) -> u64 {
+        *self.nprimes(n as usize).last().unwrap()
+    }
+
+    /// Legendre's phi function, used as a helper function for prime_pi
+    pub fn prime_phi(&mut self, x: u64, a: usize, cache: &mut LruCache<(u64, usize), u64>) -> u64 {
+        if a == 1 {
+            return (x + 1) / 2;
+        }
+        if let Some(v) = cache.get(&(x, a)) {
+            return *v
+        }
+        let t1 = self.prime_phi(x, a-1, cache);
+        let pa = self.nth_prime(a as u64);
+        let t2 = self.prime_phi(x / pa, a-1, cache);
+        let t = t1 - t2;
+        cache.put((x, a), t);
+        t
     }
 
     /// Calculate and return the prime pi function, i.e. number of primes ≤ `limit`.
-    /// TODO (v0.2): https://stackoverflow.com/questions/19070911/feasible-implementation-of-a-prime-counting-function
-    pub fn prime_pi(&mut self, limit: u64) -> usize {
-        self.reserve(limit);
+    /// 
+    /// Meissel-Lehmer method will be used if the input `limit` is large enough.
+    pub fn prime_pi(&mut self, limit: u64) -> u64 {
+        // Directly sieve if the limit is small
+        const SIEVE_THRESHOLD: u64 = 38873; // 4096th prime
+        if &limit <= self.list.last().unwrap() || limit <= SIEVE_THRESHOLD {
+            self.reserve(limit);
 
-        // Count from the end of the list. Binary search is not used here since usually
-        // this function is called without reserve() in advance.
-        let fcount = self.list.iter().rev().take_while(|&p| p > &limit).count();
-        self.list.len() - fcount
+            return match self.list.binary_search(&limit) {
+                Ok(pos) => (pos + 1) as u64,
+                Err(pos) => pos as u64,
+            };
+        }
+
+        // Then use Meissel-Lehmer method.
+        let b = limit.sqrt();
+        let a = b.sqrt();
+        let c = limit.cbrt();
+        self.reserve(b);
+
+        let a = self.prime_pi(a);
+        let b = self.prime_pi(b);
+        let c = self.prime_pi(c);
+
+        let mut phi_cache = LruCache::new(a as usize);
+        let mut sum = self.prime_phi(limit, a as usize, &mut phi_cache) + (b+a-2) * (b-a+1) / 2;
+        for i in a+1..b+1 {
+            let w = limit / self.nth_prime(i);
+            sum -= self.prime_pi(w);
+            if i <= c {
+                let l = self.prime_pi(w.sqrt());
+                for j in i..(l+1) {
+                    let pj = self.nth_prime(j);
+                    sum -= self.prime_pi(w / pj) - j + 1;
+                }
+            }
+        }
+        return sum
     }
 }
 
@@ -375,31 +425,49 @@ mod tests {
     use num_bigint::BigUint;
     use rand::random;
 
-    const PRIME50: [u64; 15] = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47];
-    const PRIME100: [u64; 25] = [
-        2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89,
-        97,
-    ];
-
     #[test]
     fn prime_generation_test() {
+        const PRIME50: [u64; 15] = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47];
+        const PRIME300: [u64; 62] = [
+            2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97,
+            101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193,
+            197, 199, 211, 223, 227, 229, 233, 239, 241, 251, 257, 263, 269, 271, 277, 281, 283, 293
+        ];
+
         let mut pb = NaiveBuffer::new();
         assert_eq!(pb.primes(50).cloned().collect::<Vec<_>>(), PRIME50);
-        assert_eq!(pb.primes(100).cloned().collect::<Vec<_>>(), PRIME100);
+        assert_eq!(pb.primes(300).cloned().collect::<Vec<_>>(), PRIME300);
 
         // test when limit itself is a prime
         pb.clear();
-        assert_eq!(pb.primes(97).cloned().collect::<Vec<_>>(), PRIME100);
+        assert_eq!(pb.primes(293).cloned().collect::<Vec<_>>(), PRIME300);
 
         pb.clear();
         assert_eq!(pb.nth_prime(10000), 104729);
         assert_eq!(pb.nth_prime(20000), 224737);
         assert_eq!(pb.nth_prime(10000), 104729); // use existing primes
+    }
 
-        pb.clear();
+    
+    #[test]
+    fn prime_pi_test() {
+        let mut pb = NaiveBuffer::new();
+        assert_eq!(pb.prime_pi(8161), 1024); // 8161 is the 1024th prime
+        assert_eq!(pb.prime_pi(10000), 1229);
+        assert_eq!(pb.prime_pi(20000), 2262);
+        assert_eq!(pb.prime_pi(38873), 4096);
+
+        pb.clear(); // sieving from scratch
+        assert_eq!(pb.prime_pi(8161), 1024);
         assert_eq!(pb.prime_pi(10000), 1229);
         assert_eq!(pb.prime_pi(20000), 2262);
         assert_eq!(pb.prime_pi(10000), 1229); // use existing primes
+
+        // Meissel–Lehmer algorithm, test on OEIS:A006880
+        assert_eq!(pb.prime_pi(10u64.pow(5)), 9592);
+        assert_eq!(pb.prime_pi(10u64.pow(6)), 78498);
+        assert_eq!(pb.prime_pi(10u64.pow(7)), 664579);
+        assert_eq!(pb.prime_pi(10u64.pow(8)), 5761455);
     }
 
     #[test]

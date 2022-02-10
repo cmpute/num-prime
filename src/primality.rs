@@ -367,7 +367,7 @@ mod tests {
 
     #[test]
     fn sprp_test() {
-        // strong pseudoprimes of base 2 (OEIS A001262) under 10000
+        // strong pseudoprimes of base 2 (OEIS:A001262) under 10000
         let spsp: [u16; 5] = [2047, 3277, 4033, 4681, 8321];
         for psp in spsp {
             assert!(psp.is_sprp(2));
@@ -376,7 +376,7 @@ mod tests {
 
     #[test]
     fn lucas_mod_test() {
-        // OEIS A006190
+        // OEIS:A006190
         let p3qm1: [u64; 26] = [
             0,
             1,
@@ -478,7 +478,7 @@ mod tests {
             }
         }
 
-        // lucas pseudoprimes (OEIS A217120) under 10000
+        // lucas pseudoprimes (OEIS:A217120) under 10000
         let lpsp: [u16; 9] = [323, 377, 1159, 1829, 3827, 5459, 5777, 9071, 9179];
         for psp in lpsp {
             assert!(
@@ -498,7 +498,7 @@ mod tests {
             assert!(!n.is_lprp(None, None), "lucas prp test on {}", n);
         }
 
-        // strong lucas pseudoprimes (OEIS A217255) under 10000
+        // strong lucas pseudoprimes (OEIS:A217255) under 10000
         let slpsp: [u16; 2] = [5459, 5777];
         for psp in slpsp {
             assert!(
@@ -518,7 +518,7 @@ mod tests {
             assert!(!n.is_slprp(None, None), "strong lucas prp test on {}", n);
         }
 
-        // extra strong lucas pseudoprimes (OEIS A217719) under 10000
+        // extra strong lucas pseudoprimes (OEIS:A217719) under 10000
         let eslpsp: [u16; 3] = [989, 3239, 5777];
         for psp in eslpsp {
             assert!(

@@ -215,10 +215,10 @@ pub trait PrimeBuffer<'a> {
     /// Directly return an iterator of existing primes
     fn iter(&'a self) -> Self::PrimeIter;
 
-    /// Generate primes until the upper bound is equal or larger than limit
+    /// Generate primes until the largest prime in the buffer is equal or larger than limit
     fn reserve(&mut self, limit: u64);
 
-    /// Get the upper bound of primes in the list
+    /// Get the largest primes in the list
     fn bound(&self) -> u64;
 
     /// Test if the number is in the buffer. If a number is not in the buffer,
