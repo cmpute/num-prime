@@ -18,10 +18,10 @@ use crate::traits::{
     FactorizationConfig, Primality, PrimalityTestConfig, PrimalityUtils, PrimeBuffer,
 };
 use bitvec::bitvec;
+use lru::LruCache;
 use num_integer::Roots;
 use rand::random;
 use std::collections::BTreeMap;
-use lru::LruCache;
 
 /// Extension functions that can utilize pre-generated primes
 pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
@@ -351,7 +351,7 @@ impl NaiveBuffer {
     }
 
     /// Calculate and return the nth prime. Note that n counts from 1
-    /// 
+    ///
     /// Theoretically the result can be larger than 2^64, but it will takes forever to
     /// calculate that so we just return `u64` instead of `Option<u64>` here.
     pub fn nth_prime(&mut self, n: u64) -> u64 {
@@ -364,18 +364,18 @@ impl NaiveBuffer {
             return (x + 1) / 2;
         }
         if let Some(v) = cache.get(&(x, a)) {
-            return *v
+            return *v;
         }
-        let t1 = self.prime_phi(x, a-1, cache);
+        let t1 = self.prime_phi(x, a - 1, cache);
         let pa = self.nth_prime(a as u64);
-        let t2 = self.prime_phi(x / pa, a-1, cache);
+        let t2 = self.prime_phi(x / pa, a - 1, cache);
         let t = t1 - t2;
         cache.put((x, a), t);
         t
     }
 
     /// Calculate and return the prime pi function, i.e. number of primes ≤ `limit`.
-    /// 
+    ///
     /// Meissel-Lehmer method will be used if the input `limit` is large enough.
     pub fn prime_pi(&mut self, limit: u64) -> u64 {
         // Directly sieve if the limit is small
@@ -400,19 +400,20 @@ impl NaiveBuffer {
         let c = self.prime_pi(c);
 
         let mut phi_cache = LruCache::new(a as usize);
-        let mut sum = self.prime_phi(limit, a as usize, &mut phi_cache) + (b+a-2) * (b-a+1) / 2;
-        for i in a+1..b+1 {
+        let mut sum =
+            self.prime_phi(limit, a as usize, &mut phi_cache) + (b + a - 2) * (b - a + 1) / 2;
+        for i in a + 1..b + 1 {
             let w = limit / self.nth_prime(i);
             sum -= self.prime_pi(w);
             if i <= c {
                 let l = self.prime_pi(w.sqrt());
-                for j in i..(l+1) {
+                for j in i..(l + 1) {
                     let pj = self.nth_prime(j);
                     sum -= self.prime_pi(w / pj) - j + 1;
                 }
             }
         }
-        return sum
+        return sum;
     }
 }
 
@@ -429,9 +430,10 @@ mod tests {
     fn prime_generation_test() {
         const PRIME50: [u64; 15] = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47];
         const PRIME300: [u64; 62] = [
-            2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97,
-            101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193,
-            197, 199, 211, 223, 227, 229, 233, 239, 241, 251, 257, 263, 269, 271, 277, 281, 283, 293
+            2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83,
+            89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179,
+            181, 191, 193, 197, 199, 211, 223, 227, 229, 233, 239, 241, 251, 257, 263, 269, 271,
+            277, 281, 283, 293,
         ];
 
         let mut pb = NaiveBuffer::new();
@@ -441,14 +443,21 @@ mod tests {
         // test when limit itself is a prime
         pb.clear();
         assert_eq!(pb.primes(293).cloned().collect::<Vec<_>>(), PRIME300);
+    }
 
-        pb.clear();
+    #[test]
+    fn nth_prime_test() {
+        let mut pb = NaiveBuffer::new();
         assert_eq!(pb.nth_prime(10000), 104729);
         assert_eq!(pb.nth_prime(20000), 224737);
         assert_eq!(pb.nth_prime(10000), 104729); // use existing primes
+
+        let (lo, hi) = nth_prime_bounds(&10000).unwrap();
+        println!("p10000: lo = {}, hi = {}", lo, hi);
+        let (lo, hi) = nth_prime_bounds(&20000).unwrap();
+        println!("p20000: lo = {}, hi = {}", lo, hi);
     }
 
-    
     #[test]
     fn prime_pi_test() {
         let mut pb = NaiveBuffer::new();

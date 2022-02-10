@@ -16,15 +16,16 @@ use crate::factor::{pollard_rho, squfof};
 use crate::primality::{PrimalityBase, PrimalityRefBase};
 use crate::tables::{MOEBIUS_ODD, SMALL_PRIMES, WHEEL_NEXT, WHEEL_PREV, WHEEL_SIZE};
 #[cfg(feature = "big-table")]
-use crate::tables::{SMALL_PRIMES_INV, SMALL_PRIMES_INVLIM};
+use crate::tables::{SMALL_PRIMES_INV, SMALL_PRIMES_INVLIM, ZETA_LOG_TABLE};
 use crate::traits::{FactorizationConfig, Primality, PrimalityTestConfig, PrimalityUtils};
 use crate::RandPrime;
 #[cfg(feature = "num-bigint")]
 use num_bigint::{BigUint, RandBigInt};
 use num_integer::Roots;
 use num_modular::ModularOps;
-use num_traits::CheckedAdd;
-use num_traits::{FromPrimitive, ToPrimitive};
+use num_traits::{CheckedAdd, FromPrimitive, ToPrimitive};
+#[cfg(not(feature = "big-table"))]
+use num_traits::{NumOps};
 use rand::{random, Rng};
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
@@ -549,6 +550,38 @@ where
 
 /// Find the first prime number larger than `target`. If the result causes an overflow,
 /// then [None] will be returned
+#[cfg(not(feature = "big-table"))]
+pub fn next_prime<T: PrimalityBase + CheckedAdd>(
+    target: &T,
+    config: Option<PrimalityTestConfig>,
+) -> Option<T>
+where
+    for<'r> &'r T: PrimalityRefBase<T>,
+{
+    // first search in small primes
+    if let Some(x) = target.to_u8() {
+        let next = match SMALL_PRIMES.binary_search(&target.to_u8().unwrap()) {
+            Ok(pos) => SMALL_PRIMES[pos + 1],
+            Err(pos) => SMALL_PRIMES[pos],
+        };
+        return T::from_u8(next);
+    }
+
+    // then moving along the wheel
+    let mut i = (target % T::from_u8(WHEEL_SIZE).unwrap()).to_u8().unwrap();
+    let mut t = target.clone();
+    loop {
+        let offset = WHEEL_NEXT[i as usize];
+        t = t.checked_add(&T::from_u8(offset).unwrap())?;
+        i = i.addm(offset, &WHEEL_SIZE);
+        if is_prime(&t, config).probably() {
+            break Some(t);
+        }
+    }
+}
+
+/// Find the first prime number larger than `target`. If the result causes an overflow,
+/// then [None] will be returned
 #[cfg(feature = "big-table")]
 pub fn next_prime<T: PrimalityBase + CheckedAdd>(
     target: &T,
@@ -569,12 +602,47 @@ where
     }
 
     // then moving along the wheel
-    let mut i = (target % T::from_u8(WHEEL_SIZE).unwrap()).to_u8().unwrap();
+    let mut i = (target % T::from_u16(WHEEL_SIZE).unwrap())
+        .to_u16()
+        .unwrap();
     let mut t = target.clone();
     loop {
         let offset = WHEEL_NEXT[i as usize];
         t = t.checked_add(&T::from_u8(offset).unwrap())?;
-        i = i.addm(offset, &WHEEL_SIZE);
+        i = i.addm(offset as u16, &WHEEL_SIZE);
+        if is_prime(&t, config).probably() {
+            break Some(t);
+        }
+    }
+}
+
+/// Find the first prime number smaller than `target`. If target is less than 3, then [None]
+/// will be returned.
+#[cfg(not(feature = "big-table"))]
+pub fn prev_prime<T: PrimalityBase>(target: &T, config: Option<PrimalityTestConfig>) -> Option<T>
+where
+    for<'r> &'r T: PrimalityRefBase<T>,
+{
+    if target <= &(T::one() + T::one()) {
+        return None;
+    }
+
+    // first search in small primes
+    if let Some(x) = target.to_u8() {
+        let next = match SMALL_PRIMES.binary_search(&x) {
+            Ok(pos) => SMALL_PRIMES[pos - 1],
+            Err(pos) => SMALL_PRIMES[pos - 1],
+        };
+        return Some(T::from_u8(next).unwrap());
+    }
+
+    // then moving along the wheel
+    let mut i = (target % T::from_u8(WHEEL_SIZE).unwrap()).to_u8().unwrap();
+    let mut t = target.clone();
+    loop {
+        let offset = WHEEL_PREV[i as usize];
+        t = t - T::from_u8(offset).unwrap();
+        i = i.subm(offset, &WHEEL_SIZE);
         if is_prime(&t, config).probably() {
             break Some(t);
         }
@@ -604,12 +672,14 @@ where
     }
 
     // then moving along the wheel
-    let mut i = (target % T::from_u8(WHEEL_SIZE).unwrap()).to_u8().unwrap();
+    let mut i = (target % T::from_u16(WHEEL_SIZE).unwrap())
+        .to_u16()
+        .unwrap();
     let mut t = target.clone();
     loop {
         let offset = WHEEL_PREV[i as usize];
         t = t - T::from_u8(offset).unwrap();
-        i = i.subm(offset, &WHEEL_SIZE);
+        i = i.subm(offset as u16, &WHEEL_SIZE);
         if is_prime(&t, config).probably() {
             break Some(t);
         }
@@ -727,6 +797,48 @@ impl<R: Rng> RandPrime<BigUint> for R {
     }
 }
 
+/// Estimate the value of prime π() function by averaging the estimated bounds.
+#[cfg(not(feature = "big-table"))]
+pub fn prime_pi_est<T: NumOps + ToPrimitive + FromPrimitive>(target: &T) -> T {
+    let (lo, hi) = prime_pi_bounds(target);
+    (lo + hi) / T::from_u8(2).unwrap()
+}
+
+/// Estimate the value of prime π() function by Riemann's R function.
+///
+/// Reference: https://primes.utm.edu/howmany.html#better
+#[cfg(feature = "big-table")]
+pub fn prime_pi_est<T: ToPrimitive + FromPrimitive>(target: &T) -> T {
+    // shortcut
+    if let Some(x) = target.to_u16() {
+        if x <= (*SMALL_PRIMES.last().unwrap()) as u16 {
+            let (lo, hi) = prime_pi_bounds(&x);
+            debug_assert_eq!(lo, hi);
+            return T::from_u16(lo).unwrap();
+        }
+    }
+
+    // Gram expansion with logarithm arithmetics
+    let lnln = target.to_f64().unwrap().ln().ln();
+    let mut total = 0f64;
+    let mut lnp = 0f64; // k*ln(ln(x))
+    let mut lnfac = 0f64; // ln(k!)
+
+    for k in 1usize..100 {
+        lnp += lnln;
+        let lnk = (k as f64).ln();
+        lnfac += lnk;
+        let lnzeta = if k > 64 { 0f64 } else { ZETA_LOG_TABLE[k - 1] };
+        let t = lnp - lnk - lnfac - lnzeta;
+        if t < -4. {
+            // stop if the increment is too small
+            break;
+        }
+        total += t.exp();
+    }
+    T::from_f64(total + 1f64).unwrap()
+}
+
 // TODO: More functions
 // REF: http://www.numbertheory.org/gnubc/bc_programs.html
 // REF: https://github.com/TilmanNeumann/java-math-library
@@ -813,11 +925,12 @@ mod tests {
     fn is_safe_prime_test() {
         // OEIS:A005385
         let safe_primes = [
-            5, 7, 11, 23, 47, 59, 83, 107, 167, 179, 227, 263, 347, 359, 383, 467, 479, 503, 563,
-            587, 719, 839, 863, 887, 983, 1019, 1187, 1283, 1307, 1319, 1367, 1439, 1487, 1523,
-            1619, 1823, 1907,
+            5u16, 7, 11, 23, 47, 59, 83, 107, 167, 179, 227, 263, 347, 359, 383, 467, 479, 503,
+            563, 587, 719, 839, 863, 887, 983, 1019, 1187, 1283, 1307, 1319, 1367, 1439, 1487,
+            1523, 1619, 1823, 1907,
         ];
         for p in SMALL_PRIMES {
+            let p = p as u16;
             if p > 1500 {
                 break;
             }
@@ -863,6 +976,7 @@ mod tests {
     fn prime_pi_bounds_test() {
         fn check(n: u64, pi: u64) {
             let (lo, hi) = prime_pi_bounds(&n);
+            let est = prime_pi_est(&n);
             assert!(
                 lo <= pi && pi <= hi,
                 "fail to satisfy {} <= pi({}) = {} <= {}",
@@ -870,14 +984,14 @@ mod tests {
                 n,
                 pi,
                 hi
-            )
+            );
+            assert!(lo <= est && est <= hi);
         }
 
         // test with sieved primes
         let mut pb = NaiveBuffer::new();
         let mut last = 0;
         for (i, p) in pb.primes(100000).cloned().enumerate() {
-            println!("{}, {}", i, p);
             for j in last..p {
                 check(j, i as u64);
             }
