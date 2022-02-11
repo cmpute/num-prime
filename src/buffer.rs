@@ -11,7 +11,7 @@
 //!
 
 use crate::factor::{pollard_rho, trial_division};
-use crate::nt_funcs::{factors64, is_prime64, nth_prime_bounds};
+use crate::nt_funcs::{factors64, is_prime64, nth_prime_bounds, nth_prime_est, prev_prime, next_prime};
 use crate::primality::{PrimalityBase, PrimalityRefBase};
 use crate::tables::{SMALL_PRIMES, SMALL_PRIMES_NEXT};
 use crate::traits::{
@@ -355,10 +355,32 @@ impl NaiveBuffer {
     /// Theoretically the result can be larger than 2^64, but it will takes forever to
     /// calculate that so we just return `u64` instead of `Option<u64>` here.
     pub fn nth_prime(&mut self, n: u64) -> u64 {
-        *self.nprimes(n as usize).last().unwrap()
+        if n < self.list.len() as u64 {
+            return self.list[n as usize - 1];
+        }
+
+        // Directly sieve if the limit is small
+        const THRESHOLD_NTH_PRIME_SIEVE: u64 = 4096;
+        if n <= THRESHOLD_NTH_PRIME_SIEVE {
+            return *self.nprimes(n as usize).last().unwrap();
+        }
+
+        // Check primes starting from estimation
+        let mut x = prev_prime(&nth_prime_est(&n).unwrap(), None).unwrap();
+        let mut pi = self.prime_pi(x);
+
+        while pi > n {
+            x = prev_prime(&x, None).unwrap();
+            pi -= 1;
+        }
+        while pi < n {
+            x = next_prime(&x, None).unwrap();
+            pi += 1;
+        }
+        x
     }
 
-    /// Legendre's phi function, used as a helper function for prime_pi
+    /// Legendre's phi function, used as a helper function for [Self::prime_pi]
     pub fn prime_phi(&mut self, x: u64, a: usize, cache: &mut LruCache<(u64, usize), u64>) -> u64 {
         if a == 1 {
             return (x + 1) / 2;
@@ -379,8 +401,8 @@ impl NaiveBuffer {
     /// Meissel-Lehmer method will be used if the input `limit` is large enough.
     pub fn prime_pi(&mut self, limit: u64) -> u64 {
         // Directly sieve if the limit is small
-        const SIEVE_THRESHOLD: u64 = 38873; // 4096th prime
-        if &limit <= self.list.last().unwrap() || limit <= SIEVE_THRESHOLD {
+        const THRESHOLD_PRIME_PI_SIEVE: u64 = 38873; // 4096th prime
+        if &limit <= self.list.last().unwrap() || limit <= THRESHOLD_PRIME_PI_SIEVE {
             self.reserve(limit);
 
             return match self.list.binary_search(&limit) {
@@ -407,9 +429,10 @@ impl NaiveBuffer {
             sum -= self.prime_pi(w);
             if i <= c {
                 let l = self.prime_pi(w.sqrt());
+                sum += (l*(l-1) - i*(i-3)) / 2 - 1;
                 for j in i..(l + 1) {
                     let pj = self.nth_prime(j);
-                    sum -= self.prime_pi(w / pj) - j + 1;
+                    sum -= self.prime_pi(w / pj);
                 }
             }
         }
@@ -452,10 +475,11 @@ mod tests {
         assert_eq!(pb.nth_prime(20000), 224737);
         assert_eq!(pb.nth_prime(10000), 104729); // use existing primes
 
-        let (lo, hi) = nth_prime_bounds(&10000).unwrap();
-        println!("p10000: lo = {}, hi = {}", lo, hi);
-        let (lo, hi) = nth_prime_bounds(&20000).unwrap();
-        println!("p20000: lo = {}, hi = {}", lo, hi);
+        // Riemann zeta based, test on OEIS:A006988
+        assert_eq!(pb.nth_prime(10u64.pow(4)), 104729);
+        assert_eq!(pb.nth_prime(10u64.pow(5)), 1299709);
+        assert_eq!(pb.nth_prime(10u64.pow(6)), 15485863);
+        assert_eq!(pb.nth_prime(10u64.pow(7)), 179424673);
     }
 
     #[test]

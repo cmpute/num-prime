@@ -23,9 +23,7 @@ use crate::RandPrime;
 use num_bigint::{BigUint, RandBigInt};
 use num_integer::Roots;
 use num_modular::ModularOps;
-use num_traits::{CheckedAdd, FromPrimitive, ToPrimitive};
-#[cfg(not(feature = "big-table"))]
-use num_traits::{NumOps};
+use num_traits::{CheckedAdd, FromPrimitive, ToPrimitive, RefNum, Num};
 use rand::{random, Rng};
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
@@ -282,13 +280,11 @@ pub fn nprimes(count: usize) -> Vec<u64> {
 
 /// This function re-exports [NaiveBuffer::prime_pi()]
 pub fn prime_pi(limit: u64) -> u64 {
-    // TODO (v0.2): Implement stand alone prime_pi with Meissel-Lehmer method
     NaiveBuffer::new().prime_pi(limit)
 }
 
 /// This function re-exports [NaiveBuffer::nth_prime()]
 pub fn nth_prime(n: u64) -> u64 {
-    // TODO (v0.2): Implement stand alone nth_prime with prime_pi and next_prime/prev_prime
     NaiveBuffer::new().nth_prime(n)
 }
 
@@ -799,14 +795,15 @@ impl<R: Rng> RandPrime<BigUint> for R {
 
 /// Estimate the value of prime π() function by averaging the estimated bounds.
 #[cfg(not(feature = "big-table"))]
-pub fn prime_pi_est<T: NumOps + ToPrimitive + FromPrimitive>(target: &T) -> T {
+pub fn prime_pi_est<T: Num + ToPrimitive + FromPrimitive>(target: &T) -> T {
     let (lo, hi) = prime_pi_bounds(target);
     (lo + hi) / T::from_u8(2).unwrap()
 }
 
-/// Estimate the value of prime π() function by Riemann's R function.
+/// Estimate the value of prime π() function by Riemann's R function. The estimation
+/// error is roughly of scale O(sqrt(x)log(x)).
 ///
-/// Reference: https://primes.utm.edu/howmany.html#better
+/// Reference: <https://primes.utm.edu/howmany.html#better>
 #[cfg(feature = "big-table")]
 pub fn prime_pi_est<T: ToPrimitive + FromPrimitive>(target: &T) -> T {
     // shortcut
@@ -837,6 +834,25 @@ pub fn prime_pi_est<T: ToPrimitive + FromPrimitive>(target: &T) -> T {
         total += t.exp();
     }
     T::from_f64(total + 1f64).unwrap()
+}
+
+/// Estimate the value of nth prime by bisecting on [prime_pi_est]
+pub fn nth_prime_est<T: ToPrimitive + FromPrimitive + Num + PartialOrd>(target: &T) -> Option<T>
+where
+    for<'r> &'r T: RefNum<T>, {
+    let (mut lo, mut hi) = nth_prime_bounds(target)?;
+    if lo == hi {
+        return Some(lo);
+    }
+
+    while lo != &hi - T::from_u8(1).unwrap() {
+        let x = (&lo + &hi) / T::from_u8(2).unwrap();
+        let mid = prime_pi_est(&x);
+        if &mid < target  { lo = x }
+        else if &mid > target { hi = x }
+        else { return Some(x) }
+    }
+    return Some(lo)
 }
 
 // TODO: More functions
@@ -1037,6 +1053,8 @@ mod tests {
                 p,
                 hi
             );
+            let est = super::nth_prime_est(&n).unwrap();
+            assert!(lo <= est && est <= hi);
         }
 
         // test with sieved primes

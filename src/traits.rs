@@ -149,9 +149,10 @@ impl FactorizationConfig {
     /// Create a defalt primality testing configuration. This config will factorize
     /// most integers within decent time
     pub fn default() -> Self {
+        const THRESHOLD_DEFAULT_TD: u64 = 1 << 14;
         Self {
             prime_test_config: PrimalityTestConfig::default(),
-            td_limit: Some(1 << 14),
+            td_limit: Some(THRESHOLD_DEFAULT_TD),
             rho_trials: 4,
             brent_trials: 0,
             pm1_trials: 0,
