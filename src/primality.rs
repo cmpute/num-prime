@@ -1,4 +1,5 @@
 use crate::traits::{BitTest, ExactRoots, PrimalityUtils};
+use either::Either;
 use num_integer::{Integer, Roots};
 use num_modular::ModularOps;
 use num_traits::{FromPrimitive, NumRef, RefNum, ToPrimitive};
@@ -133,10 +134,13 @@ where
         base.powm(&tm1, self).is_one()
     }
 
-    // TODO (v0.2): make is_sprp return Either<bool, T>, to let the test return a composite if possible
-    fn is_sprp(&self, base: T) -> bool {
+    fn is_sprp(&self, base: Self) -> bool {
+        self.test_sprp(base).either(|v| v, |_| false)
+    }
+
+    fn test_sprp(&self, base: T) -> Either<bool, T> {
         if self < &Self::one() {
-            return false;
+            return Either::Left(false);
         }
 
         // find 2^shift*u + 1 = n
@@ -146,17 +150,21 @@ where
 
         let mut x = base.powm(&u, self);
         if x == T::one() || x == tm1 {
-            return true;
+            return Either::Left(true);
         }
 
         for _ in 0..shift {
-            x = (&x).mulm(&x, self);
-            if x == tm1 {
-                return true;
+            let y = (&x).mulm(&x, self);
+            if y.is_one() {
+                return Either::Right(self.gcd(&(x - T::one())));
             }
+            if y == tm1 {
+                return Either::Left(true);
+            }
+            x = y;
         }
 
-        x == T::one()
+        Either::Left(x == T::one())
     }
 
     fn is_lprp(&self, p: Option<usize>, q: Option<isize>) -> bool {
@@ -372,6 +380,9 @@ mod tests {
         for psp in spsp {
             assert!(psp.is_sprp(2));
         }
+
+        // test cofactor return
+        assert!(matches!(341u16.test_sprp(2), Either::Right(31)));
     }
 
     #[test]

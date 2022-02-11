@@ -1,5 +1,6 @@
 use std::ops::{BitAnd, BitOr};
 
+use either::Either;
 use num_integer::{Integer, Roots};
 use num_traits::Pow;
 
@@ -238,8 +239,12 @@ pub trait PrimalityUtils: Integer + Clone {
     /// Test if the integer is a (Fermat) probable prime
     fn is_prp(&self, base: Self) -> bool;
 
-    /// Test if the integer is a strong probable prime (based on miller-rabin test)
+    /// Test if the integer is a strong probable prime (based on Miller-Rabin test).
     fn is_sprp(&self, base: Self) -> bool;
+
+    /// Do a Miller-Rabin test. The return value is a integer if it finds a factor of
+    /// the integer, otherwise it reports the test result.
+    fn test_sprp(&self, base: Self) -> Either<bool, Self>;
 
     /// Test if the integer is a Lucas probable prime
     /// If either of p, q is not specified, then we will use Selfridge's Method A to choose p, q

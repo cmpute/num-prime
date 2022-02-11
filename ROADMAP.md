@@ -6,7 +6,7 @@
 
 # Roadmap for v1
 - Support `rug` and `ibig` as backend
-- Stablize API
+- Stablize API, determine minimal verison for each dependency
 - Euler totient
 - Implement a wrapper supporting fast modular arithmetics. (Maybe implement it as `Eiter<Integer, ModularInteger>`)
 - [?] Support rug & primal or primesieve-sys as backend

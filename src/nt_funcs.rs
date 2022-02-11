@@ -23,7 +23,7 @@ use crate::RandPrime;
 use num_bigint::{BigUint, RandBigInt};
 use num_integer::Roots;
 use num_modular::ModularOps;
-use num_traits::{CheckedAdd, FromPrimitive, ToPrimitive, RefNum, Num};
+use num_traits::{CheckedAdd, FromPrimitive, Num, RefNum, ToPrimitive};
 use rand::{random, Rng};
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
@@ -839,7 +839,8 @@ pub fn prime_pi_est<T: ToPrimitive + FromPrimitive>(target: &T) -> T {
 /// Estimate the value of nth prime by bisecting on [prime_pi_est]
 pub fn nth_prime_est<T: ToPrimitive + FromPrimitive + Num + PartialOrd>(target: &T) -> Option<T>
 where
-    for<'r> &'r T: RefNum<T>, {
+    for<'r> &'r T: RefNum<T>,
+{
     let (mut lo, mut hi) = nth_prime_bounds(target)?;
     if lo == hi {
         return Some(lo);
@@ -848,11 +849,15 @@ where
     while lo != &hi - T::from_u8(1).unwrap() {
         let x = (&lo + &hi) / T::from_u8(2).unwrap();
         let mid = prime_pi_est(&x);
-        if &mid < target  { lo = x }
-        else if &mid > target { hi = x }
-        else { return Some(x) }
+        if &mid < target {
+            lo = x
+        } else if &mid > target {
+            hi = x
+        } else {
+            return Some(x);
+        }
     }
-    return Some(lo)
+    return Some(lo);
 }
 
 // TODO: More functions

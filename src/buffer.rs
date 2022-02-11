@@ -11,7 +11,9 @@
 //!
 
 use crate::factor::{pollard_rho, trial_division};
-use crate::nt_funcs::{factors64, is_prime64, nth_prime_bounds, nth_prime_est, prev_prime, next_prime};
+use crate::nt_funcs::{
+    factors64, is_prime64, next_prime, nth_prime_bounds, nth_prime_est, prev_prime,
+};
 use crate::primality::{PrimalityBase, PrimalityRefBase};
 use crate::tables::{SMALL_PRIMES, SMALL_PRIMES_NEXT};
 use crate::traits::{
@@ -429,7 +431,7 @@ impl NaiveBuffer {
             sum -= self.prime_pi(w);
             if i <= c {
                 let l = self.prime_pi(w.sqrt());
-                sum += (l*(l-1) - i*(i-3)) / 2 - 1;
+                sum += (l * (l - 1) - i * (i - 3)) / 2 - 1;
                 for j in i..(l + 1) {
                     let pj = self.nth_prime(j);
                     sum -= self.prime_pi(w / pj);
