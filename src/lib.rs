@@ -51,9 +51,9 @@
 //! For prime generation, there's a builtin implementation (see [buffer] module),
 //! but you can also use other backends (such as `primal`) as long as it implements [PrimeBuffer].
 //!
-//! # Features
-//! - `big-int`: Enable this feature to support `num-bigint::BigUint` as integer inputs.
-//! - `big-table`: Enable this feature to allow compiling large precomputed tables which
+//! # Optional Features
+//! - `big-int` (default): Enable this feature to support `num-bigint::BigUint` as integer inputs.
+//! - `big-table` (default): Enable this feature to allow compiling large precomputed tables which
 //!     could improve the performance of various functions.
 //!
 

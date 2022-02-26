@@ -196,7 +196,7 @@ where
             0 => self.clone(),
             -1 => self + Self::one(),
             1 => self - Self::one(),
-            _ => panic!(""),
+            _ => unreachable!(),
         };
         let (u, _) = LucasUtils::lucasm(p, q, self.clone(), delta);
         u.is_zero()
@@ -231,7 +231,7 @@ where
             0 => self.clone(),
             -1 => self + Self::one(),
             1 => self - Self::one(),
-            _ => panic!(""),
+            _ => unreachable!(),
         };
 
         let shift = delta.trailing_zeros();
@@ -299,7 +299,7 @@ where
             0 => self.clone(),
             -1 => self + Self::one(),
             1 => self - Self::one(),
-            _ => panic!(""),
+            _ => unreachable!(),
         };
 
         let shift = delta.trailing_zeros();

@@ -75,8 +75,8 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
             probability *= 1. - 0.25f32.powi(config.sprp_random_trials as i32);
         }
         if !witness_list
-            .iter()
-            .all(|&x| target.is_sprp(T::from_u64(x).unwrap()))
+            .into_iter()
+            .all(|x| target.is_sprp(T::from_u64(x).unwrap()))
         {
             return Primality::No;
         }
@@ -114,8 +114,8 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
         // shortcut if the target is in u64 range
         if let Some(x) = target.to_u64() {
             return Ok(factors64(x)
-                .iter()
-                .map(|(&k, &v)| (T::from_u64(k).unwrap(), v))
+                .into_iter()
+                .map(|(k, v)| (T::from_u64(k).unwrap(), v))
                 .collect());
         }
         let config = config.unwrap_or(FactorizationConfig::default());
@@ -313,6 +313,10 @@ impl NaiveBuffer {
     }
 
     /// Returns all primes ≤ `limit`. The primes are sorted.
+    // TODO: let primes return &[u64] instead of iterator, and create a separate iterator
+    //       for endless prime iter. This can be a method in this trait, or standalone function,
+    //       or implement as IntoIter. We can try to implement PrimeBuffer on primal first and see
+    //       if it's reasonable to unifiy
     pub fn primes(&mut self, limit: u64) -> std::iter::Take<<Self as PrimeBuffer>::PrimeIter> {
         self.reserve(limit);
         let position = match self.list.binary_search(&limit) {

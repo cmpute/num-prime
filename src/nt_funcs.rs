@@ -303,7 +303,7 @@ pub fn primorial<T: PrimalityBase + std::iter::Product>(n: usize) -> T {
 ///
 /// # Panics
 /// if the factorization failed on target.
-pub fn moebius_mu<T: PrimalityBase>(target: &T) -> i8
+pub fn moebius_mu<T: PrimalityBase>(target: &T) -> i8 // TODO (v0.3): rename as moebius
 where
     for<'r> &'r T: PrimalityRefBase<T>,
 {
@@ -556,7 +556,7 @@ where
 {
     // first search in small primes
     if let Some(x) = target.to_u8() {
-        let next = match SMALL_PRIMES.binary_search(&target.to_u8().unwrap()) {
+        let next = match SMALL_PRIMES.binary_search(&x) {
             Ok(pos) => SMALL_PRIMES[pos + 1],
             Err(pos) => SMALL_PRIMES[pos],
         };

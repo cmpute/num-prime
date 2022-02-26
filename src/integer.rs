@@ -3,9 +3,9 @@
 use crate::traits::{BitTest, ExactRoots};
 
 #[cfg(feature = "num-bigint")]
-use num_bigint::BigUint;
+use num_bigint::{BigInt, BigUint, ToBigInt};
 #[cfg(feature = "num-bigint")]
-use num_traits::ToPrimitive;
+use num_traits::{ToPrimitive};
 
 macro_rules! impl_bittest_prim {
     ($($T:ty)*) => {$(
@@ -54,10 +54,12 @@ macro_rules! impl_exactroot_prim {
     ($($T:ty)*) => {$(
         impl ExactRoots for $T {
             fn sqrt_exact(&self) -> Option<Self> {
+                if self < &0 { return None; }
+
                 // eliminate most non-squares by checking legendre symbols.
                 // See H. Cohen's "Course in Computational Algebraic Number Theory",
                 // algorithm 1.7.3, page 40.
-                if (QUAD_RESIDUAL64 >> (self & 63)) & 1 == 0 {
+                if (QUAD_RESIDUAL64 >> (self % 64)) & 1 == 0 {
                     return None;
                 }
                 if (QUAD_RESIDUAL63 >> (self % 63)) & 1 == 0 {
@@ -75,7 +77,7 @@ macro_rules! impl_exactroot_prim {
         }
     )*};
 }
-impl_exactroot_prim!(u8 u16 u32 u64 u128 usize);
+impl_exactroot_prim!(u8 u16 u32 u64 u128 usize i8 i16 i32 i64 i128 isize);
 
 #[cfg(feature = "num-bigint")]
 impl ExactRoots for BigUint {
@@ -97,6 +99,13 @@ impl ExactRoots for BigUint {
     }
 }
 
+#[cfg(feature = "num-bigint")]
+impl ExactRoots for BigInt {
+    fn sqrt_exact(&self) -> Option<Self> {
+        self.to_biguint().and_then(|u| u.sqrt_exact()).and_then(|u| u.to_bigint())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -109,6 +118,10 @@ mod tests {
         assert!(matches!(ExactRoots::sqrt_exact(&4u8), Some(2)));
         assert!(matches!(ExactRoots::sqrt_exact(&9u8), Some(3)));
         assert!(matches!(ExactRoots::sqrt_exact(&18u8), None));
+        assert!(matches!(ExactRoots::sqrt_exact(&3i8), None));
+        assert!(matches!(ExactRoots::sqrt_exact(&4i8), Some(2)));
+        assert!(matches!(ExactRoots::sqrt_exact(&9i8), Some(3)));
+        assert!(matches!(ExactRoots::sqrt_exact(&18i8), None));
 
         // test fast implementations of sqrt against nth_root
         for _ in 0..100 {
