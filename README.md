@@ -23,4 +23,4 @@ This crate provides utilities for prime number related functionalities:
   - Nth prime and its bounds
   - Moebius function
 
-It's based on the `num` creates and most functions are decently optimized.
+It's based on the `num` creates and most functions are decently optimized with pre-computed tables.
