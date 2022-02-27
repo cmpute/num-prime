@@ -142,7 +142,7 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
                 let mut todo = vec![res];
                 while let Some(target) = todo.pop() {
                     if self
-                        .is_prime(&target, Some(config.prime_test_config))
+                        .is_prime(&target, Some(config.primality_config))
                         .probably()
                     {
                         *result.entry(target).or_insert(0) += 1;

@@ -22,7 +22,7 @@
 //! - Number theoretic functions
 //!   - [Prime Pi function][nt_funcs::prime_pi] and its [bounds](nt_funcs::prime_pi_bounds)
 //!   - [Nth Prime][nt_funcs::nth_prime] and its [bounds](nt_funcs::nth_prime_bounds)
-//!   - [Moebius function][nt_funcs::moebius_mu]
+//!   - [Moebius function][nt_funcs::moebius]
 //!
 //! # Usage
 //! Most number theoretic functions can be found in [nt_funcs] module, while some

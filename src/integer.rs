@@ -1,11 +1,12 @@
 //! Backend implementations for integers
 
 use crate::traits::{BitTest, ExactRoots};
+use crate::tables::{QUAD_MODULI, QUAD_RESIDUAL, CUBIC_MODULI, CUBIC_RESIDUAL};
 
 #[cfg(feature = "num-bigint")]
 use num_bigint::{BigInt, BigUint, ToBigInt};
 #[cfg(feature = "num-bigint")]
-use num_traits::{ToPrimitive};
+use num_traits::{ToPrimitive, Signed, Zero, One};
 
 macro_rules! impl_bittest_prim {
     ($($T:ty)*) => {$(
@@ -44,34 +45,16 @@ impl BitTest for BigUint {
     }
 }
 
-// QUAD_RESIDUAL[N] has a bit i set iff i is a quadratic residue mod N.
-const QUAD_RESIDUAL64: u64 = 0x0202021202030213;
-const QUAD_RESIDUAL63: u64 = 0x0402483012450293;
-const QUAD_RESIDUAL65: u64 = 0x218a019866014613;
-const QUAD_RESIDUAL11: u64 = 0x23b;
-
 macro_rules! impl_exactroot_prim {
     ($($T:ty)*) => {$(
         impl ExactRoots for $T {
             fn sqrt_exact(&self) -> Option<Self> {
                 if self < &0 { return None; }
+                let shift = self.trailing_zeros();
 
-                // eliminate most non-squares by checking legendre symbols.
-                // See H. Cohen's "Course in Computational Algebraic Number Theory",
-                // algorithm 1.7.3, page 40.
-                if (QUAD_RESIDUAL64 >> (self % 64)) & 1 == 0 {
-                    return None;
-                }
-                if (QUAD_RESIDUAL63 >> (self % 63)) & 1 == 0 {
-                    return None;
-                }
-                if (QUAD_RESIDUAL65 >> ((self % 65) & 63)) & 1 == 0 {
-                    // Both 0 and 64 are squares mod 65
-                    return None;
-                }
-                if (QUAD_RESIDUAL11 >> (self % 11)) & 1 == 0 {
-                    return None;
-                }
+                // the general form of any square number is (2^(2m))(8N+1)
+                if shift & 1 == 1 { return None; }
+                if (self >> shift) & 7 != 1 { return None; }
                 self.nth_root_exact(2)
             }
         }
@@ -81,21 +64,60 @@ impl_exactroot_prim!(u8 u16 u32 u64 u128 usize i8 i16 i32 i64 i128 isize);
 
 #[cfg(feature = "num-bigint")]
 impl ExactRoots for BigUint {
-    // TODO: improve based on SqrtExact.java @ java-math-library
     fn sqrt_exact(&self) -> Option<Self> {
-        if (QUAD_RESIDUAL64 >> (self % 64u8).to_u64().unwrap()) & 1 == 0 {
-            return None;
+        // shortcuts
+        if self.is_zero() { return Some(BigUint::zero()); }
+        if let Some(v) = self.to_u64() { return v.sqrt_exact().map(BigUint::from); }
+
+        // check mod 2
+        let shift = self.trailing_zeros().unwrap();
+        if shift & 1 == 1 { return None; }
+        if !((self >> shift) & BigUint::from(7u8)).is_one() { return None; }
+
+        // check other moduli
+        #[cfg(not(feature = "big-table"))]
+        for (m, res) in QUAD_MODULI.iter().zip(QUAD_RESIDUAL) {
+            // need to &63 since we have 65 in QUAD_MODULI
+            if (res >> ((self % m).to_u8().unwrap() & 63)) & 1 == 0 {
+                return None
+            }
         }
-        if (QUAD_RESIDUAL63 >> (self % 63u8).to_u64().unwrap()) & 1 == 0 {
-            return None;
+        #[cfg(feature = "big-table")]
+        for (m, res) in QUAD_MODULI.iter().zip(QUAD_RESIDUAL) {
+            let rem = (self % m).to_u16().unwrap();
+            if (res[(rem / 64) as usize] >> (rem % 64)) & 1 == 0 {
+                return None
+            }
         }
-        if (QUAD_RESIDUAL65 >> ((self % 65u8) % 64u8).to_u64().unwrap()) & 1 == 0 {
-            return None;
-        }
-        if (QUAD_RESIDUAL11 >> (self % 11u8).to_u64().unwrap()) & 1 == 0 {
-            return None;
-        }
+
         self.nth_root_exact(2)
+    }
+
+    fn cbrt_exact(&self) -> Option<Self> {
+        // shortcuts
+        if self.is_zero() { return Some(BigUint::zero()); }
+        if let Some(v) = self.to_u64() { return v.cbrt_exact().map(BigUint::from); }
+
+        // check mod 2
+        let shift = self.trailing_zeros().unwrap();
+        if shift % 3 != 0 { return None; }
+
+        // check other moduli
+        #[cfg(not(feature = "big-table"))]
+        for (m, res) in CUBIC_MODULI.iter().zip(CUBIC_RESIDUAL) {
+            if (res >> (self % m).to_u8().unwrap()) & 1 == 0 {
+                return None
+            }
+        }
+        #[cfg(feature = "big-table")]
+        for (m, res) in CUBIC_MODULI.iter().zip(CUBIC_RESIDUAL) {
+            let rem = (self % m).to_u16().unwrap();
+            if (res[(rem / 64) as usize] >> (rem % 64)) & 1 == 0 {
+                return None
+            }
+        }
+
+        self.nth_root_exact(3)
     }
 }
 
@@ -103,6 +125,9 @@ impl ExactRoots for BigUint {
 impl ExactRoots for BigInt {
     fn sqrt_exact(&self) -> Option<Self> {
         self.to_biguint().and_then(|u| u.sqrt_exact()).and_then(|u| u.to_bigint())
+    }
+    fn cbrt_exact(&self) -> Option<Self> {
+        self.magnitude().cbrt_exact().and_then(|u| u.to_bigint()).map(|v| if self.is_negative() { -v } else { v })
     }
 }
 
@@ -130,11 +155,24 @@ mod tests {
                 ExactRoots::sqrt_exact(&x),
                 ExactRoots::nth_root_exact(&x, 2)
             );
+            assert_eq!(
+                ExactRoots::cbrt_exact(&x),
+                ExactRoots::nth_root_exact(&x, 3)
+            );
+            let x = rand::random::<i32>();
+            assert_eq!(
+                ExactRoots::cbrt_exact(&x),
+                ExactRoots::nth_root_exact(&x, 3)
+            );
         }
+        // test perfect powers
         for _ in 0..100 {
             let x = rand::random::<u32>() as u64;
             assert!(matches!(ExactRoots::sqrt_exact(&(x * x)), Some(v) if v == x));
+            let x = rand::random::<i16>() as i64;
+            assert!(matches!(ExactRoots::cbrt_exact(&(x * x * x)), Some(v) if v == x));
         }
+        // test non-perfect powers
         for _ in 0..100 {
             let x = rand::random::<u32>() as u64;
             let y = rand::random::<u32>() as u64;
@@ -142,6 +180,45 @@ mod tests {
                 continue;
             }
             assert!(ExactRoots::sqrt_exact(&(x * y)).is_none());
+        }
+
+        #[cfg(feature = "num-bigint")]
+        {
+            use num_bigint::RandBigInt;
+            let mut rng = rand::thread_rng();
+            // test fast implementations of sqrt against nth_root
+            for _ in 0..10 {
+                let x = rng.gen_biguint(150);
+                assert_eq!(
+                    ExactRoots::sqrt_exact(&x),
+                    ExactRoots::nth_root_exact(&x, 2)
+                );
+                assert_eq!(
+                    ExactRoots::cbrt_exact(&x),
+                    ExactRoots::nth_root_exact(&x, 3)
+                );
+                let x = rng.gen_bigint(150);
+                assert_eq!(
+                    ExactRoots::cbrt_exact(&x),
+                    ExactRoots::nth_root_exact(&x, 3)
+                );
+            }
+            // test perfect powers
+            for _ in 0..10 {
+                let x = rng.gen_biguint(150);
+                assert!(matches!(ExactRoots::sqrt_exact(&(&x * &x)), Some(v) if v == x));
+                let x = rng.gen_biguint(150);
+                assert!(matches!(ExactRoots::cbrt_exact(&(&x * &x * &x)), Some(v) if v == x), "failed at {}", x);
+            }
+            // test non-perfect powers
+            for _ in 0..10 {
+                let x = rng.gen_biguint(150);
+                let y = rng.gen_biguint(150);
+                if x == y {
+                    continue;
+                }
+                assert!(ExactRoots::sqrt_exact(&(x * y)).is_none());
+            }
         }
     }
 }

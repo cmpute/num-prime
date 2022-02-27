@@ -303,7 +303,7 @@ pub fn primorial<T: PrimalityBase + std::iter::Product>(n: usize) -> T {
 ///
 /// # Panics
 /// if the factorization failed on target.
-pub fn moebius_mu<T: PrimalityBase>(target: &T) -> i8 // TODO (v0.3): rename as moebius
+pub fn moebius<T: PrimalityBase>(target: &T) -> i8
 where
     for<'r> &'r T: PrimalityRefBase<T>,
 {
@@ -314,7 +314,7 @@ where
         if (target % four).is_zero() {
             return 0;
         } else {
-            return -moebius_mu(&(target / &two));
+            return -moebius(&(target / &two));
         }
     }
 
@@ -362,7 +362,7 @@ pub fn is_square_free<T: PrimalityBase>(target: &T) -> bool
 where
     for<'r> &'r T: PrimalityRefBase<T>,
 {
-    moebius_mu(target) != 0
+    moebius(target) != 0
 }
 
 /// Returns the estimated bounds (low, high) of prime π function, such that
@@ -917,6 +917,10 @@ mod tests {
     #[test]
     fn factors64_test() {
         // some known cases
+        let fac4095 = BTreeMap::from_iter([(3, 2), (5, 1), (7, 1), (13, 1)]);
+        let fac = factors64(4095);
+        assert_eq!(fac, fac4095);
+
         let fac123456789 = BTreeMap::from_iter([(3, 2), (3803, 1), (3607, 1)]);
         let fac = factors64(123456789);
         assert_eq!(fac, fac123456789);
@@ -963,18 +967,18 @@ mod tests {
     }
 
     #[test]
-    fn moebius_mu_test() {
+    fn moebius_test() {
         // test small examples
         let mu20: [i8; 20] = [
             1, -1, -1, 0, -1, 1, -1, 0, 0, 1, -1, 0, -1, 1, 1, 0, -1, 0, -1, 0,
         ];
         for i in 0..20 {
-            assert_eq!(moebius_mu(&(i + 1)), mu20[i], "moebius on {}", i);
+            assert_eq!(moebius(&(i + 1)), mu20[i], "moebius on {}", i);
         }
 
         // some square numbers
-        assert_eq!(moebius_mu(&1024u32), 0);
-        assert_eq!(moebius_mu(&(8081u32 * 8081)), 0);
+        assert_eq!(moebius(&1024u32), 0);
+        assert_eq!(moebius(&(8081u32 * 8081)), 0);
 
         // sphenic numbers
         let sphenic3: [u8; 20] = [
@@ -982,14 +986,14 @@ mod tests {
             195, 222,
         ]; // OEIS:A007304
         for i in 0..20 {
-            assert_eq!(moebius_mu(&sphenic3[i]), -1i8, "moebius on {}", sphenic3[i]);
+            assert_eq!(moebius(&sphenic3[i]), -1i8, "moebius on {}", sphenic3[i]);
         }
         let sphenic5: [u16; 23] = [
             2310, 2730, 3570, 3990, 4290, 4830, 5610, 6006, 6090, 6270, 6510, 6630, 7410, 7590,
             7770, 7854, 8610, 8778, 8970, 9030, 9282, 9570, 9690,
         ]; // OEIS:A046387
         for i in 0..20 {
-            assert_eq!(moebius_mu(&sphenic5[i]), -1i8, "moebius on {}", sphenic5[i]);
+            assert_eq!(moebius(&sphenic5[i]), -1i8, "moebius on {}", sphenic5[i]);
         }
     }
 

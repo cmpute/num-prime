@@ -1,3 +1,4 @@
+//////////////////// Known small primes ////////////////////
 // The prime table here is used for prime buffer initialization, and also used
 // for trivial division in integer factorization and moebius mu function
 
@@ -85,6 +86,8 @@ pub const SMALL_PRIMES: [u16; 1024] = [
 /// Next prime of the last one in SMALL_PRIMES
 #[cfg(feature = "big-table")]
 pub const SMALL_PRIMES_NEXT: u64 = 8167;
+
+//////////////////// Pre-computed inversions for primes ////////////////////
 
 /// Precomputed modular inverse for fast divisibility check
 ///
@@ -2147,7 +2150,7 @@ pub const SMALL_PRIMES_INVLIM: [u64; 1024] = [
     0x000807c7894d029a,
 ];
 
-// tables for Miller-rabin bases of 32/64-bit integers using Bradley's hashing
+//////////////////// Tables for Miller-rabin bases of 32/64-bit integers using Bradley's hashing ////////////////////
 /*
  * Copyright 2019 Bradley Berg   < (My last name) @ techneon.com >
  *
@@ -3207,6 +3210,8 @@ pub const MILLER_RABIN_BASE64: [u32; 16384] = [
     1982, 66, 3347, 9508, 439, 145, 5697, 1026, 1569,
 ];
 
+//////////////////// Lookup tables for number theoretic functions
+
 // table for riemann zeta function. ZETA_LOG_TABLE[i] = ln(ζ(i-2))
 #[cfg(feature = "big-table")]
 pub const ZETA_LOG_TABLE: [f64; 64] = [
@@ -3283,6 +3288,8 @@ pub const MOEBIUS_ODD: [u64; 4] = [
     0x1a8245028906a062,
     0x229428012aa26a00,
 ];
+
+//////////////////// Prime gaps for prime indexing ////////////////////
 
 /* Code to generate wheel offsets:
 ```python
@@ -3478,4 +3485,80 @@ pub const WHEEL_PREV: [u8; 2310] = [
     5, 6, 1, 2, 1, 2, 3, 4, 1, 2, 3, 4, 5, 6, 1, 2, 1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6, 1, 2, 3, 4,
     1, 2, 1, 2, 3, 4, 1, 2, 3, 4, 5, 6, 1, 2, 1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 1, 2, 1, 2, 3, 4, 1, 2,
     3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+];
+
+//////////////////// Modulo tables for fast perfect power check ////////////////////
+/* Code to generate residuals:
+```python
+import math
+import numpy as np
+
+N = 8 # number of modulus to be selected
+LIM = 1024 # limit of modulus
+fn = lambda x: x*x # power function
+
+# first select N modulus under LIM (assuming factor 2 is already considered)
+frequency = [(len(np.unique([fn(i)%L for i in range(L)]))/L, L)
+             for L in range(1, LIM, 2)]
+selections = []
+select_freq = 1
+for (f, n) in sorted(frequency):
+    for s in selections:
+        if math.gcd(n, s) != 1:
+            break
+    else:
+        selections.append(n)
+        select_freq *= f
+    if len(selections) >= N:
+        break
+
+print("Moduli:", selections)
+print("Possibility", select_freq)
+
+# Then generate bit masks for the numbers
+for s in selections:
+    bits = [0] * (s // 64 + 1)
+    for i in range(s):
+        ii = fn(i) % s
+        bits[ii//64] |= 1 << (ii%64)
+    print("Masks for", s, ":", ['0x%016x' % b for b in bits])
+```
+*/
+
+#[cfg(not(feature = "big-table"))]
+pub const QUAD_MODULI: [u8; 4] = [63, 65, 61, 59]; // note that 0 and 64 are both square mod 65
+#[cfg(not(feature = "big-table"))]
+pub const QUAD_RESIDUAL: [u64; 4] = [0x0402483012450293, 0x218a019866014613, 0x1713e6940a59f23b, 0x022b62183e7b92bb];
+
+#[cfg(not(feature = "big-table"))]
+pub const CUBIC_MODULI: [u8; 4] = [63, 61, 43, 37];
+#[cfg(not(feature = "big-table"))]
+pub const CUBIC_RESIDUAL: [u64; 4] = [0x4080001818000103, 0x1434026619900b0b, 0x0000068908610917, 0x00000010ac804d43];
+
+#[cfg(feature = "big-table")]
+pub const QUAD_MODULI: [u16; 8] = [819, 935, 989, 899, 1007, 1021, 1019, 1013];
+#[cfg(feature = "big-table")]
+pub const QUAD_RESIDUAL: [[u64; 16]; 8] = [
+    [0x0002081002410213, 0xc200001009028001, 0x0000120000014024, 0x008048020208a050, 0x1800048200244029, 0x0420120180020014, 0x2600000080490408, 0x9100041060200800, 0x0904004800120100, 0x2402000400082201, 0x402100920c000040, 0x0820804002004880, 0x0000002403012000, 0, 0, 0],
+    [0x1882001406018213, 0x0288c11002420065, 0x820846400c010180, 0x4841142230000010, 0x8004000e01100101, 0x00c0421801280810, 0x1304202104018060, 0xe400823014001088, 0x04228001100a4000, 0x00c23144008c0401, 0x0100011083204400, 0x100024108e001802, 0x2200c00208452040, 0x00310020080c0204, 0x0000000000140210, 0],
+    [0x0c52821883812253, 0x9220403190824001, 0x1e0026b004455c20, 0xa040d1c209a58032, 0x298a68420480a049, 0x1003026612000074, 0x6b8048c400192281, 0x300102d8021420a0, 0x85211508223e0404, 0x220a810845800181, 0xcc50291070510060, 0x840513520a408200, 0xd0a6422048d38098, 0x00083c2112b00305, 0x990d8401510220b4, 0x0000000001400682],
+    [0xc80a205a121102b3, 0x2201a89060874089, 0x4890e22001211412, 0x9120328e08001414, 0xcd400a825a001c43, 0x6330022830e08151, 0x169c90483ca12044, 0x0416201002620801, 0x4081490e008b8218, 0xc422404328122401, 0x711e881088340820, 0x094632241a034000, 0x020129c80021cb00, 0x204038620200e624, 0, 0],
+    [0xc2429c5013030ad3, 0x0a890459a0062015, 0x18019308c361404c, 0x51002032052042b8, 0x00b2604604098505, 0x3614a6400cc04390, 0x022c03848101900d, 0x0220505212087021, 0x45804800ab0611a6, 0x110a08110156680b, 0x10a72415020038c8, 0xc06114642ac00401, 0x0180003498171808, 0x4c20010128908622, 0x0c58060200714052, 0x0000002500040682],
+    [0x718bb6522e93da3b, 0x6a5e15181aebcef9, 0x5cb903b8072b20b4, 0xebb96e0b5e64f6b7, 0xf54a7312517f386d, 0x4c8fba9e7f589015, 0xe68bc3c5a26998c0, 0x0930ba16c101df98, 0xc67ee020da174324, 0x80c6659168f0f459, 0xea0246bf9e577c4c, 0xed873fa2923394ab, 0xbb5bc99eb41da775, 0x8b4135380770274e, 0xa7dcf5d6062a1e95, 0x1716f25d129b7463],
+    [0x138b3c12ae9bda3b, 0xf65a353afaa7de71, 0x08311be00eab42d6, 0xa069e43b58ced0b3, 0xd589933aedfb2ceb, 0xfdbdfa54563a03dd, 0xe63f0f092c7538d8, 0x3b77e1b60b6ff8b2, 0x8b2e0092f9278112, 0x0e4e351cb6f0f039, 0x4443fa395d5a0424, 0xa28cb2048a3366e5, 0xf32f48ce523d869f, 0x094bd2a8ff82773e, 0x771841aa0a353a59, 0x023a4268ab7c32e3],
+    [0x557a191c03a9ee53, 0xcee6c01b76bed685, 0x62e33aa92c63b5c4, 0x2d830be3875ffeba, 0x59a7c9d2ba4e854f, 0x49f183525a139bb6, 0x1762cc0a2801b21b, 0x73843dd8ff3029f2, 0xba13e5033fc6ef08, 0xe4b6136005140cd1, 0x669b76721692b063, 0x6d3ca85c9752e4f9, 0xd1975ffeb871f430, 0xdcc8eb718d255731, 0xaaa85adf5bb600d9, 0x00129de5700e2617],
+];
+
+#[cfg(feature = "big-table")]
+pub const CUBIC_MODULI: [u16; 8] = [819, 817, 925, 961, 1021, 1009, 997, 991];
+#[cfg(feature = "big-table")]
+pub const CUBIC_RESIDUAL: [[u64; 16]; 8] = [
+    [0x0000000008000103, 0x204000080c000001, 0x4020000200000000, 0x1000000001000000, 0x0008000080000010, 0x06000000c0800000, 0x0600000000000000, 0x0000000010300000, 0x0080800000100001, 0x4020000008000000, 0x2040000000040000, 0x0008000003010000, 0x0004080001000000, 0,                  0,                  0                 ],
+    [0x0000208008000903, 0x2202084041900803, 0x00801c1000821020, 0x4080100003000000, 0x010282202004040c, 0x0800010000c0000c, 0x0040640800004098, 0x0200c0000c000200, 0x0408c08080101105, 0x0400000003000020, 0x01101021040020e0, 0x0003004026080841, 0x0001024000400410, 0,                  0,                  0                 ],
+    [0x80098870ac804943, 0x26a180b201140e15, 0x850ac804d4384640, 0x2b001310e1590092, 0x800d43014402280c, 0x250a149009a870ac, 0x1856002621c2b201, 0x19001a860a880454, 0x024a1429201350e1, 0xa030ac004d438564, 0xc23200350c051008, 0xc804d428524026a1, 0x134061590098870a, 0x438464006a1c0a20, 0x0000000010a4804d, 0                 ],
+    [0xb440c08b68818117, 0x6d103022da206045, 0x5b440c08b6881811, 0x16d103022da20604, 0x45b440c08b688181, 0x116d103022da2060, 0x045b440c08b68818, 0x8116d103022da206, 0x6045b440c08b6881, 0x18116d103022da20, 0x06045b440c08b688, 0x818116d103022da2, 0x206045b440c08b68, 0x8818116d103022da, 0xa206045b440c08b6, 0x0000000000000001],
+    [0x815304911d2573df, 0x602b11250832c381, 0xa8400704788f4809, 0xb4082c4d09210411, 0x9540c075104a8243, 0xc4e01080a2bd8818, 0x226b040380122321, 0xed1208408cd21071, 0x238212cc4084122d, 0xe131120070083591, 0x46046f51404201c8, 0x709054822b80c0aa, 0x620821242c8d040b, 0xa404bc4788380085, 0x6070d30429223501, 0x1ef3a92e224832a0],
+    [0x7a049c880998630b, 0x60b3438000062731, 0x87da2e012960281a, 0x40cc00a04918b811, 0x1920480419089410, 0x15e806b391a91404, 0x803292a20091761c, 0x484b0505c1a2b3cc, 0x3004cf35160e8283, 0x5ea0e1ba24011525, 0x126080a256273580, 0xcc0820a442608048, 0x6f86207462481400, 0x341960501a5201d1, 0x817a33918000070b, 0x00014318664044e4],
+    [0x50452131cb15977f, 0x3182b013240b0d09, 0x0e1000c7085100e1, 0x2789402665020ba7, 0x80c0190908a05403, 0x02d401a22088fa95, 0x1c9180248065e415, 0x84bf486910022614, 0x00624e0a19100225, 0x600ad02a09e98049, 0x2600c06a57c44111, 0x00a479300a814424, 0xc0021c3974102999, 0x03506321c0228438, 0x212882a42c340932, 0x0000001fba6a34e3],
+    [0x300cd4682d12430b, 0x704fc6a280c6e183, 0x009000c122c0a750, 0x684c67a807a32039, 0x486185ba21680264, 0x059194950edba400, 0x440030c0c94d1004, 0x80a425018280082e, 0x030c002274100141, 0xa92989a02008b293, 0x5da186120025db70, 0x15e6321626401684, 0x830009009c04c5e0, 0x4563f20e0ae50344, 0x162b300cc1876301, 0x0000000050c248b4],
 ];

@@ -127,7 +127,7 @@ impl PrimalityTestConfig {
 #[derive(Debug, Clone, Copy)]
 pub struct FactorizationConfig {
     /// Config for testing if a factor is prime
-    pub prime_test_config: PrimalityTestConfig,
+    pub primality_config: PrimalityTestConfig,
 
     /// Prime limit of trial division, you also need to reserve the primes in the buffer
     /// if all primes under the limit are to be tested. `None` means using all available primes.
@@ -152,7 +152,7 @@ impl FactorizationConfig {
     pub fn default() -> Self {
         const THRESHOLD_DEFAULT_TD: u64 = 1 << 14;
         Self {
-            prime_test_config: PrimalityTestConfig::default(),
+            primality_config: PrimalityTestConfig::default(),
             td_limit: Some(THRESHOLD_DEFAULT_TD),
             rho_trials: 4,
             brent_trials: 0,
@@ -164,7 +164,7 @@ impl FactorizationConfig {
     /// Same as the default configuration but with strict primality check
     pub fn strict() -> Self {
         let mut config = Self::default();
-        config.prime_test_config = PrimalityTestConfig::strict();
+        config.primality_config = PrimalityTestConfig::strict();
         config
     }
 }
