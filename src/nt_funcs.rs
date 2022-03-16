@@ -67,7 +67,7 @@ pub fn is_prime64(target: u64) -> bool {
 
 /// Very fast primality test on a u64 integer is a prime number. It's based on
 /// deterministic Miller-rabin tests with hashing. if target is larger than 2^64 or more controlled
-/// primality tests are desired, please use is_prime() or PrimeBuffer::is_prime()
+/// primality tests are desired, please use [is_prime()]
 #[cfg(feature = "big-table")]
 pub fn is_prime64(target: u64) -> bool {
     // shortcuts
@@ -87,7 +87,7 @@ pub fn is_prime64(target: u64) -> bool {
     const MAGIC: u32 = 0xAD625B89;
     if let Ok(u) = u32::try_from(target) {
         let base = u.wrapping_mul(MAGIC) >> 24;
-        return u.is_sprp(MILLER_RABIN_BASE32[base as usize]);
+        return u.is_sprp(MILLER_RABIN_BASE32[base as usize] as u32);
     }
 
     // 49bit test
@@ -110,7 +110,7 @@ pub fn is_prime64(target: u64) -> bool {
 }
 
 /// Fast integer factorization on a u64 target. It's based on pollard's rho method and SQUFOF.
-/// if target is larger than 2^64 or more controlled primality tests are desired, please use [is_prime()].
+/// if target is larger than 2^64 or more controlled primality tests are desired, please use [factors()].
 ///
 /// The factorization can be quite faster under 2^64 because: 1) faster and deterministic primality check,
 /// 2) efficient montgomery multiplication implementation of u64
@@ -249,7 +249,7 @@ pub fn factors64(target: u64) -> BTreeMap<u64, usize> {
     result
 }
 
-/// This function re-exports [crate::buffer::PrimeBufferExt::is_prime()] with a default buffer distance
+/// This function re-exports [PrimeBufferExt::is_prime()][crate::buffer::PrimeBufferExt::is_prime()] with a default buffer distance
 pub fn is_prime<T: PrimalityBase>(target: &T, config: Option<PrimalityTestConfig>) -> Primality
 where
     for<'r> &'r T: PrimalityRefBase<T>,
@@ -257,7 +257,7 @@ where
     NaiveBuffer::new().is_prime(target, config)
 }
 
-/// This function re-exports [crate::buffer::PrimeBufferExt::factors()] with a default buffer instance
+/// This function re-exports [PrimeBufferExt::factors()][crate::buffer::PrimeBufferExt::factors()] with a default buffer instance
 pub fn factors<T: PrimalityBase>(
     target: T,
     config: Option<FactorizationConfig>,
@@ -296,10 +296,12 @@ pub fn primorial<T: PrimalityBase + std::iter::Product>(n: usize) -> T {
         .product()
 }
 
-/// This function calculate the Möbius μ(n) function of the input integer
+/// This function calculate the Möbius `μ(n)` function of the input integer `n`
 ///
+/// This function behaves like `moebius_factored(factors(target, None).unwrap())`.
 /// If the input integer is very hard to factorize, it's better to use
-/// the [factors()] function to control how the factorization is done.
+/// the [factors()] function to control how the factorization is done, and then call
+/// [moebius_factored()].
 ///
 /// # Panics
 /// if the factorization failed on target.
@@ -338,19 +340,26 @@ where
     }
 
     // then try complete factorization
-    let config = Some(FactorizationConfig::strict());
-    match factors(target.clone(), config) {
+    match factors(target.clone(), None) {
         Ok(result) => {
-            for exp in result.values() {
-                if exp > &1 {
-                    return 0;
-                }
-            }
-            return if result.len() % 2 == 0 { 1 } else { -1 };
+            return moebius_factored(&result);
         }
         Err(_) => {
             panic!("Failed to factor the integer!");
         }
+    }
+}
+
+/// This function calculate the Möbius `μ(n)` function given the factorization
+/// result of `n`
+pub fn moebius_factored<T>(factors: &BTreeMap<T, usize>) -> i8
+{
+    if factors.values().any(|exp| exp > &1) {
+        0
+    } else if factors.len() % 2 == 0 {
+        1
+    } else {
+        -1
     }
 }
 
@@ -524,8 +533,8 @@ pub fn nth_prime_bounds<T: ToPrimitive + FromPrimitive>(target: &T) -> Option<(T
     }
 }
 
-/// Test if the target is a safe prime with Sophie German's definition. It will use the
-/// strict primality test configuration.
+/// Test if the target is a safe prime with [Sophie German's definition](https://en.wikipedia.org/wiki/Safe_and_Sophie_Germain_primes). It will use the
+/// [strict primality test configuration][FactorizationConfig::strict()].
 pub fn is_safe_prime<T: PrimalityBase>(target: &T) -> Primality
 where
     for<'r> &'r T: PrimalityRefBase<T>,

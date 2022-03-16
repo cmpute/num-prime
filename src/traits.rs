@@ -31,7 +31,7 @@ pub enum Primality {
 
 impl Primality {
     /// Check whether the resule indicates that the number is
-    /// (very) probably a prime. Return false only on Primaliy::No
+    /// (very) probably a prime. Return false only on [Primality::No]
     pub fn probably(self) -> bool {
         match self {
             Primality::No => false,

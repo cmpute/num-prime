@@ -19,8 +19,8 @@ This crate provides utilities for prime number related functionalities:
   - Shanks's square forms factorization (SQUFOF)
   - Fast factorization of `u64` integers
 - Number theoretic functions
-  - Prime Pi function (number of primes under limit) and its bounds
-  - Nth prime and its bounds
+  - Prime Pi function (number of primes under limit), its estimation and its bounds
+  - Nth prime, its estimation and its bounds
   - Moebius function
 
 It's based on the `num` creates and most functions are decently optimized with pre-computed tables.
