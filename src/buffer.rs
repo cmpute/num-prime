@@ -12,7 +12,7 @@
 
 use crate::factor::{pollard_rho, trial_division};
 use crate::nt_funcs::{
-    factors64, is_prime64, next_prime, nth_prime_bounds, nth_prime_est, prev_prime,
+    factorize64, is_prime64, next_prime, nth_prime_bounds, nth_prime_est, prev_prime, factors,
 };
 use crate::primality::{PrimalityBase, PrimalityRefBase};
 use crate::tables::{SMALL_PRIMES, SMALL_PRIMES_NEXT};
@@ -27,8 +27,14 @@ use std::collections::BTreeMap;
 
 /// Extension functions that can utilize pre-generated primes
 pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
-    /// Test if an integer is a prime. The `config` will take effect only if the target is larger
-    /// than 2^64, otherwise [is_prime64] will be used.
+    /// Test if an integer is a prime.
+    /// 
+    /// For targets smaller than 2^64, the deterministic [is_prime64] will be used, otherwise
+    /// the primality test algorithms can be specified by the `config` argument.
+    /// 
+    /// The primality test can be either deterministic or probabilistic for large integers depending on the `config`.
+    /// The return value is represented by the enum [Primality], which tells whether the primality test is deterministic
+    /// or probabilistic.
     fn is_prime<T: PrimalityBase>(
         &self,
         target: &T,
@@ -98,11 +104,15 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
         Primality::Probable(probability)
     }
 
-    /// Factorize an integer. The `config` will take effect only if the target is larger
-    /// than 2^64, otherwise [factors64] will be used.
+    /// Factorize an integer.
+    /// 
+    /// For targets smaller than 2^64, the efficient [factorize64] will be used, otherwise
+    /// the primality test and factorization algorithms can be specified by the `config` argument.
     ///
-    /// The factorization result will be returned as a map from primes to exponents. If the
-    /// factorization failed, then a list of found factors will be returned.
+    /// The factorization result will be returned as a map from prime factors to their exponents. If the
+    /// factorization failed, then a list of found factors (not necessarily primes) will be returned. A prime
+    /// factor will repeat if its exponent is larget than one, and it's ensured that the product of the list of
+    /// factors is equal to the original target.
     fn factors<T: PrimalityBase>(
         &self,
         target: T,
@@ -113,7 +123,7 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
     {
         // shortcut if the target is in u64 range
         if let Some(x) = target.to_u64() {
-            return Ok(factors64(x)
+            return Ok(factorize64(x)
                 .into_iter()
                 .map(|(k, v)| (T::from_u64(k).unwrap(), v))
                 .collect());
@@ -166,6 +176,22 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
                 .into_iter()
                 .flat_map(|(f, n)| std::iter::repeat(f).take(n))
                 .collect())
+        }
+    }
+
+    /// Factorize an integer until all prime factors are found.
+    /// 
+    /// This function will try to call [factors] function repeatedly until the target
+    /// is fully factorized.
+    fn factorize<T: PrimalityBase>(&self, target: T) -> BTreeMap<T, usize> 
+    where
+        for<'r> &'r T: PrimalityRefBase<T>,
+    {
+        // TODO: change to a reasonable strategy after default factorization failed
+        loop {
+            if let Ok(result) = factors(target.clone(), None) {
+                break result
+            }
         }
     }
 

@@ -114,7 +114,7 @@ pub fn is_prime64(target: u64) -> bool {
 ///
 /// The factorization can be quite faster under 2^64 because: 1) faster and deterministic primality check,
 /// 2) efficient montgomery multiplication implementation of u64
-pub fn factors64(target: u64) -> BTreeMap<u64, usize> {
+pub fn factorize64(target: u64) -> BTreeMap<u64, usize> {
     // TODO: improve factorization performance
     // REF: http://flintlib.org/doc/ulong_extras.html#factorisation
     //      https://mathoverflow.net/questions/114018/fastest-way-to-factor-integers-260
@@ -268,6 +268,16 @@ where
     NaiveBuffer::new().factors(target, config)
 }
 
+/// This function re-exports [PrimeBufferExt::factorize()][crate::buffer::PrimeBufferExt::factorize()] with a default buffer instance
+pub fn factorize<T: PrimalityBase>(
+    target: T,
+) -> BTreeMap<T, usize>
+where
+    for<'r> &'r T: PrimalityRefBase<T>,
+{
+    NaiveBuffer::new().factorize(target)
+}
+
 /// This function re-exports [NaiveBuffer::primes()] and collect result as a vector.
 pub fn primes(limit: u64) -> Vec<u64> {
     NaiveBuffer::new().into_primes(limit).collect()
@@ -298,10 +308,10 @@ pub fn primorial<T: PrimalityBase + std::iter::Product>(n: usize) -> T {
 
 /// This function calculate the Möbius `μ(n)` function of the input integer `n`
 ///
-/// This function behaves like `moebius_factored(factors(target, None).unwrap())`.
+/// This function behaves like `moebius_factorized(factors(target, None).unwrap())`.
 /// If the input integer is very hard to factorize, it's better to use
 /// the [factors()] function to control how the factorization is done, and then call
-/// [moebius_factored()].
+/// [moebius_factorized()].
 ///
 /// # Panics
 /// if the factorization failed on target.
@@ -342,7 +352,7 @@ where
     // then try complete factorization
     match factors(target.clone(), None) {
         Ok(result) => {
-            return moebius_factored(&result);
+            return moebius_factorized(&result);
         }
         Err(_) => {
             panic!("Failed to factor the integer!");
@@ -352,7 +362,7 @@ where
 
 /// This function calculate the Möbius `μ(n)` function given the factorization
 /// result of `n`
-pub fn moebius_factored<T>(factors: &BTreeMap<T, usize>) -> i8
+pub fn moebius_factorized<T>(factors: &BTreeMap<T, usize>) -> i8
 {
     if factors.values().any(|exp| exp > &1) {
         0
@@ -533,7 +543,7 @@ pub fn nth_prime_bounds<T: ToPrimitive + FromPrimitive>(target: &T) -> Option<(T
     }
 }
 
-/// Test if the target is a safe prime with [Sophie German's definition](https://en.wikipedia.org/wiki/Safe_and_Sophie_Germain_primes). It will use the
+/// Test if the target is a safe prime under [Sophie German's definition](https://en.wikipedia.org/wiki/Safe_and_Sophie_Germain_primes). It will use the
 /// [strict primality test configuration][FactorizationConfig::strict()].
 pub fn is_safe_prime<T: PrimalityBase>(target: &T) -> Primality
 where
@@ -924,24 +934,24 @@ mod tests {
     }
 
     #[test]
-    fn factors64_test() {
+    fn factorize64_test() {
         // some known cases
         let fac4095 = BTreeMap::from_iter([(3, 2), (5, 1), (7, 1), (13, 1)]);
-        let fac = factors64(4095);
+        let fac = factorize64(4095);
         assert_eq!(fac, fac4095);
 
         let fac123456789 = BTreeMap::from_iter([(3, 2), (3803, 1), (3607, 1)]);
-        let fac = factors64(123456789);
+        let fac = factorize64(123456789);
         assert_eq!(fac, fac123456789);
 
         let fac1_17 = BTreeMap::from_iter([(2071723, 1), (5363222357, 1)]);
-        let fac = factors64(11111111111111111);
+        let fac = factorize64(11111111111111111);
         assert_eq!(fac, fac1_17);
 
         // 100 random factorization tests
         for _ in 0..100 {
             let x = random();
-            let fac = factors64(x);
+            let fac = factorize64(x);
             let mut prod = 1;
             for (p, exp) in fac {
                 assert!(

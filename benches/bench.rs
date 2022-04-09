@@ -37,7 +37,7 @@ pub fn bench_factorization(c: &mut Criterion) {
         b.iter(|| {
             (1..N)
                 .step_by(STEP)
-                .filter(|&n| nt_funcs::factors64(n as u64).len() > 1)
+                .filter(|&n| nt_funcs::factorize64(n as u64).len() > 1)
                 .count()
         })
     });

@@ -1,13 +1,20 @@
-# Roadmap for v0.2
+# Roadmap for v0.3
+- Address #2 (add `factorize` API for unfallible factorization, and deprecate `factors64`)
+
+# Roadmap for v0.next
+- Implement factorization for Gaussian integers (and other quadratic integers?)
+- Implement a wrapper supporting fast modular arithmetics and use it to speed up is_prime64 and factors64
 - Implement SIQS
 - Add benchmarks for factorization & primality test (ref: SageMath benchmark tests)
-- Support no_std
-- Use NumAssign as trait bounds and see if there's prominent performance improvement
+- Euler totient
 
 # Roadmap for v1
-- Support `rug` and `ibig` as backend
+- Support modular integer in a unified API
 - Stablize API, determine minimal verison for each dependency
-- Euler totient
-- Implement a wrapper supporting fast modular arithmetics. (Maybe implement it as `Eiter<Integer, ModularInteger>`)
-- [?] Support rug & primal or primesieve-sys as backend
-- [?] Support async and multi-thread
+- Support no_std
+
+# Undetermined
+- Use NumAssign as trait bounds and see if there's prominent performance improvement
+- Support `rug` and `ibig` as backend
+- Support `rug` & `primal` or `primesieve-sys` as PrimeBuffer backend
+- Support async and multi-thread

@@ -43,7 +43,7 @@ impl Primality {
 impl BitAnd<Primality> for Primality {
     type Output = Primality;
 
-    /// Combine two primality result by ensuring both numbers are prime
+    /// Combine two primality results by ensuring both numbers are prime
     fn bitand(self, rhs: Primality) -> Self::Output {
         match self {
             Primality::No => Primality::No,
@@ -60,7 +60,7 @@ impl BitAnd<Primality> for Primality {
 impl BitOr<Primality> for Primality {
     type Output = Primality;
 
-    /// Combine two primality result by ensuring either numbers is prime
+    /// Combine two primality results by ensuring either numbers is prime
     fn bitor(self, rhs: Primality) -> Self::Output {
         match self {
             Primality::No => rhs,
@@ -76,6 +76,7 @@ impl BitOr<Primality> for Primality {
 
 /// Represents a configuration for a primality test
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct PrimalityTestConfig {
     /// Number of strong probable prime test, starting from base 2
     pub sprp_trials: usize,
@@ -125,6 +126,7 @@ impl PrimalityTestConfig {
 
 /// Represents a configuration for integer factorization
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct FactorizationConfig {
     /// Config for testing if a factor is prime
     pub primality_config: PrimalityTestConfig,
@@ -136,14 +138,13 @@ pub struct FactorizationConfig {
     /// Number of trials with Pollard's rho method
     pub rho_trials: usize,
 
-    /// Number of trials with Pollard's rho method (Brent variant)
-    brent_trials: usize,
-
     /// Number of trials with Pollard's p-1 method
     pm1_trials: usize,
 
     /// Number of trials with William's p+1 method
     pp1_trials: usize,
+
+    // TODO(v0.3): squfof param?
 }
 
 impl FactorizationConfig {
@@ -155,7 +156,6 @@ impl FactorizationConfig {
             primality_config: PrimalityTestConfig::default(),
             td_limit: Some(THRESHOLD_DEFAULT_TD),
             rho_trials: 4,
-            brent_trials: 0,
             pm1_trials: 0,
             pp1_trials: 0,
         }

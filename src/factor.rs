@@ -65,8 +65,8 @@ where
 {
     let mut a = start.clone();
     let mut b = start;
-    // marker for loop detection, i = tortoise, j = hare
-    // see https://www.cnblogs.com/812-xiao-wen/p/10544546.html
+    // using Brent's loop detection, i = tortoise, j = hare
+    // XXX: further optimization see https://www.cnblogs.com/812-xiao-wen/p/10544546.html
     let (mut i, mut j) = (1usize, 2usize);
     while i > 0 {
         i += 1;
@@ -92,7 +92,7 @@ where
 
 /// This function implements Shanks's square forms factorization (SQUFOF). It will assume that target
 /// is not a perfect square and the multiplier is square-free.
-pub fn squfof<T: Integer + NumRef + Clone + ExactRoots + std::fmt::Debug>(
+pub fn squfof<T: Integer + NumRef + Clone + ExactRoots>(
     target: &T,
     multiplier: T,
 ) -> Option<T>
@@ -170,7 +170,6 @@ where
 
 // TODO: ECM, Quadratic sieve / Prime field sieve, Fermat(https://en.wikipedia.org/wiki/Fermat%27s_factorization_method)
 // REF: https://pypi.org/project/primefac/
-fn pollard_brent() {}
 fn pollard_pp1() {}
 fn williams_pp1() {}
 

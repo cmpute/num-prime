@@ -18,7 +18,7 @@
 //!   - [Trial division][factor::trial_division]
 //!   - [Pollard's rho algorithm][factor::pollard_rho]
 //!   - [Shanks's square forms factorization (SQUFOF)][factor::squfof]
-//!   - [Fast factorization of `u64` integers][nt_funcs::factors64]
+//!   - [Fast factorization of `u64` integers][nt_funcs::factorize64]
 //! - Number theoretic functions
 //!   - [Prime Pi function][nt_funcs::prime_pi], its [estimation](nt_funcs::prime_pi_est), and its [bounds](nt_funcs::prime_pi_bounds)
 //!   - [Nth Prime][nt_funcs::nth_prime], its [estimation](nt_funcs::nth_prime_est), and its [bounds](nt_funcs::nth_prime_bounds)
@@ -54,7 +54,7 @@
 //! # Optional Features
 //! - `big-int` (default): Enable this feature to support `num-bigint::BigUint` as integer inputs.
 //! - `big-table` (default): Enable this feature to allow compiling large precomputed tables which
-//!     could improve the performance of various functions.
+//!     could improve the speed of various functions with the cost of larger memory footprint.
 //!
 
 pub mod buffer;
