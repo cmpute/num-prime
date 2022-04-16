@@ -2,7 +2,7 @@
 
 use crate::traits::ExactRoots;
 use num_integer::{Integer, Roots};
-use num_modular::ModularOps;
+use num_modular::{ModularCoreOps, ModularUnaryOps};
 use num_traits::{FromPrimitive, NumRef, RefNum};
 use std::collections::BTreeMap;
 
@@ -55,13 +55,13 @@ where
     }
 }
 
-pub fn pollard_rho<T: Integer + FromPrimitive + NumRef + Clone>(
+pub fn pollard_rho<T: Integer + FromPrimitive + NumRef + Clone + for<'r> ModularCoreOps<&'r T, &'r T, Output = T>>(
     target: &T,
     start: T,
     offset: T,
 ) -> Option<T>
 where
-    for<'r> &'r T: RefNum<T> + ModularOps<&'r T, &'r T, Output = T>,
+    for<'r> &'r T: RefNum<T> + ModularUnaryOps<&'r T, Output = T>,
 {
     let mut a = start.clone();
     let mut b = start;
@@ -70,7 +70,7 @@ where
     let (mut i, mut j) = (1usize, 2usize);
     while i > 0 {
         i += 1;
-        a = (&a).mulm(&a, &target).addm(&offset, &target);
+        a = a.sqm(&target).addm(&offset, &target);
         if a == b {
             return None;
         }

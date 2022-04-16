@@ -19,7 +19,7 @@ use crate::tables::{SMALL_PRIMES, SMALL_PRIMES_NEXT};
 use crate::traits::{
     FactorizationConfig, Primality, PrimalityTestConfig, PrimalityUtils, PrimeBuffer,
 };
-use bitvec::bitvec;
+use bitvec::{bitvec, prelude::Msb0};
 use lru::LruCache;
 use num_integer::Roots;
 use rand::random;
@@ -298,7 +298,7 @@ impl<'a> PrimeBuffer<'a> for NaiveBuffer {
         }
 
         // create sieve and filter with existing primes
-        let mut sieve = bitvec![0; ((sieve_limit - current) / 2) as usize];
+        let mut sieve = bitvec![usize, Msb0; 0; ((sieve_limit - current) / 2) as usize];
         for p in self.list.iter().skip(1) {
             // skip pre-filtered 2
             let start = if p * p < current {

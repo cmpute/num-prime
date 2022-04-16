@@ -94,6 +94,7 @@ pub struct PrimalityTestConfig {
 impl PrimalityTestConfig {
     /// Create a defalt primality testing configuration. This config will eliminate most
     /// composites with little computation
+    // TODO(v0.3): implement default as std::default::Default
     pub fn default() -> Self {
         Self {
             sprp_trials: 2,

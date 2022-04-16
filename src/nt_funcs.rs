@@ -22,7 +22,7 @@ use crate::RandPrime;
 #[cfg(feature = "num-bigint")]
 use num_bigint::{BigUint, RandBigInt};
 use num_integer::Roots;
-use num_modular::ModularOps;
+use num_modular::ModularCoreOps;
 use num_traits::{CheckedAdd, FromPrimitive, Num, RefNum, ToPrimitive};
 use rand::{random, Rng};
 use std::collections::BTreeMap;
@@ -248,6 +248,8 @@ pub fn factorize64(target: u64) -> BTreeMap<u64, usize> {
     }
     result
 }
+
+// XXX: support factorize128, as we have efficient modular arithmetic for u128
 
 /// This function re-exports [PrimeBufferExt::is_prime()][crate::buffer::PrimeBufferExt::is_prime()] with a default buffer distance
 pub fn is_prime<T: PrimalityBase>(target: &T, config: Option<PrimalityTestConfig>) -> Primality

@@ -1,7 +1,7 @@
 use crate::traits::{BitTest, ExactRoots, PrimalityUtils};
 use either::Either;
 use num_integer::{Integer, Roots};
-use num_modular::ModularOps;
+use num_modular::{ModularCoreOps, ModularUnaryOps, ModularRefOps};
 use num_traits::{FromPrimitive, NumRef, RefNum, ToPrimitive};
 
 /// Utilities for the Lucas pseudoprime test
@@ -20,10 +20,10 @@ pub trait LucasUtils {
     fn p_bruteforce(n: &Self) -> usize;
 }
 
-impl<T: Integer + FromPrimitive + ToPrimitive + NumRef + BitTest + ExactRoots + Clone> LucasUtils
+impl<T: Integer + FromPrimitive + ToPrimitive + NumRef + BitTest + ExactRoots + Clone + ModularRefOps> LucasUtils
     for T
 where
-    for<'r> &'r T: RefNum<T> + ModularOps<&'r T, &'r T, Output = T>,
+    for<'r> &'r T: RefNum<T> + ModularUnaryOps<&'r T, Output = T> + ModularCoreOps<&'r T, &'r T, Output = T>,
 {
     fn lucasm(p: usize, q: isize, m: Self, n: Self) -> (Self, Self) {
         // Reference: <https://en.wikipedia.org/wiki/Lucas_sequence>
@@ -33,42 +33,44 @@ where
         let q = if q >= 0 {
             T::from_isize(q).unwrap() % &m
         } else {
-            (&T::from_isize(-q).unwrap()).negm(&m)
+            T::from_isize(-q).unwrap().negm(&m)
         };
 
         let mut uk = T::zero(); // U(k)
         let mut uk1 = T::one(); // U(k+1)
-        let two = T::one() + T::one();
 
         for i in (0..n.bits()).rev() {
             if n.bit(i) {
                 // k' = 2k+1
                 // U(k'+1) = U(2k+2) = PU(k+1)² - 2*QU(k+1)U(k)
-                let t1 = p.mulm(&uk1, &m).mulm(&uk1, &m);
-                let t2 = two.mulm(&q, &m).mulm(&uk1, &m).mulm(&uk, &m);
+                let uk1sq = (&uk1).sqm(&m);
+                let t1 = (&p).mulm(&uk1sq, &m);
+                let t2 = (&q).mulm(&uk1, &m).mulm(&uk, &m).dblm(&m);
                 let new_uk1 = t1.subm(&t2, &m);
                 // U(k') = U(2k+1) = U(k+1)² - QU(k)²
-                let t1 = uk1.mulm(&uk1, &m);
-                let t2 = q.mulm(&uk, &m).mulm(&uk, &m);
+                let t1 = uk1sq;
+                let t2 = (&q).mulm(&uk.sqm(&m), &m);
                 let new_uk = t1.subm(&t2, &m);
                 uk1 = new_uk1;
                 uk = new_uk;
             } else {
                 // k' = 2k
                 // U(k'+1) = U(2k+1) = U(k+1)² - QU(k)²
-                let t1 = uk1.mulm(&uk1, &m);
-                let t2 = q.mulm(&uk, &m).mulm(&uk, &m);
+                let uksq = (&uk).sqm(&m);
+                let t1 = (&uk1).sqm(&m);
+                let t2 = (&uksq).mulm(&q, &m);
                 let new_uk1 = t1.subm(&t2, &m);
                 // U(k') = U(2k) = 2U(k+1)U(k) - PU(k)²
-                let t1 = two.mulm(&uk1, &m).mulm(&uk, &m);
-                let t2 = p.mulm(&uk, &m).mulm(&uk, &m);
+                let t1 = uk1.mulm(&uk, &m).dblm(&m);
+                let t2 = uksq.mulm(&p, &m);
                 let new_uk = t1.subm(&t2, &m);
                 uk1 = new_uk1;
                 uk = new_uk;
             }
         }
 
-        let vk = two.mulm(&uk1, &m).subm(&p.mulm(&uk, &m), &m);
+        // V(k) = 2U(k+1) - PU(k)
+        let vk = (&uk1).dblm(&m).subm(&p.mulm(&uk, &m), &m);
         (uk, vk)
     }
 
@@ -82,7 +84,7 @@ where
             }
 
             let sd = if neg { (&d).negm(n) } else { d.clone() };
-            let j = ModularOps::<&T, &T>::jacobi(&sd, n);
+            let j = sd.jacobi(n);
             if j == 0 && &d != n {
                 break (0, 0);
             } // modification from Baillie, see https://oeis.org/A217120/a217120_1.txt
@@ -109,7 +111,7 @@ where
             }
 
             let d = T::from_usize(p * p - 4).unwrap();
-            let j = ModularOps::<&T, &T>::jacobi(&d, n);
+            let j = d.jacobi(n);
             if j == 0 && &d != n {
                 break 0;
             }
@@ -121,10 +123,10 @@ where
     }
 }
 
-impl<T: Integer + NumRef + Clone + FromPrimitive + LucasUtils + BitTest> PrimalityUtils for T
+impl<T: Integer + NumRef + Clone + FromPrimitive + LucasUtils + BitTest + ModularRefOps> PrimalityUtils for T
 where
     for<'r> &'r T:
-        RefNum<T> + std::ops::Shr<usize, Output = T> + ModularOps<&'r T, &'r T, Output = T>,
+        RefNum<T> + std::ops::Shr<usize, Output = T> + ModularUnaryOps<&'r T, Output = T>,
 {
     fn is_prp(&self, base: Self) -> bool {
         if self < &Self::one() {
@@ -154,7 +156,7 @@ where
         }
 
         for _ in 0..shift {
-            let y = (&x).mulm(&x, self);
+            let y = (&x).sqm(self);
             if y.is_one() {
                 return Either::Right(self.gcd(&(x - T::one())));
             }
@@ -190,7 +192,7 @@ where
         let d = if d > 0 {
             Self::from_isize(d).unwrap()
         } else {
-            (&Self::from_isize(-d).unwrap()).negm(self)
+            Self::from_isize(-d).unwrap().negm(self)
         };
         let delta = match d.jacobi(self) {
             0 => self.clone(),
@@ -225,7 +227,7 @@ where
         let d = if d > 0 {
             Self::from_isize(d).unwrap()
         } else {
-            (&Self::from_isize(-d).unwrap()).negm(self)
+            Self::from_isize(-d).unwrap().negm(self)
         };
         let delta = match d.jacobi(self) {
             0 => self.clone(),
@@ -239,6 +241,7 @@ where
 
         let (ud, vd) = LucasUtils::lucasm(p, q, self.clone(), base.clone());
         if ud.is_zero() || vd.is_zero() {
+            dbg!("CASE1");
             return true;
         }
 
@@ -247,25 +250,25 @@ where
             return false;
         }
         let qk = Self::from_isize(q.abs()).unwrap().powm(&base, self);
-        let two = Self::from_u8(2).unwrap();
         // V(2k) = V(k)² - 2Q^k
         let mut vd = if q >= 0 {
-            vd.mulm(&vd, self).subm(&two.mulm(&qk, self), self)
+            vd.sqm(self).subm(&(&qk).dblm(self), self)
         } else {
-            vd.mulm(&vd, self).addm(&two.mulm(&qk, self), self)
+            vd.sqm(self).addm(&(&qk).dblm(self), self)
         };
         if vd.is_zero() {
+            dbg!("CASE2");
             return true;
         }
-        let mut qk = qk.mulm(&qk, self);
+        let mut qk = qk.sqm(self);
 
         for _ in 1..shift {
             // V(2k) = V(k)² - 2Q^k
-            vd = vd.mulm(&vd, self).subm(&two.mulm(&qk, self), self);
+            vd = vd.sqm(self).subm(&(&qk).dblm(self), self);
             if vd.is_zero() {
                 return true;
             }
-            qk = qk.mulm(&qk, self);
+            qk = qk.sqm(self);
         }
         false
     }
@@ -293,7 +296,7 @@ where
         let d = if d > 0 {
             Self::from_isize(d).unwrap()
         } else {
-            (&Self::from_isize(-d).unwrap()).negm(self)
+            Self::from_isize(-d).unwrap().negm(self)
         };
         let delta = match d.jacobi(self) {
             0 => self.clone(),
@@ -317,7 +320,7 @@ where
 
         for _ in 1..(shift - 1) {
             // V(2k) = V(k)² - 2
-            vd = vd.mulm(&vd, self).subm(&two, self);
+            vd = vd.sqm(self).subm(&two, self);
             if vd.is_zero() {
                 return true;
             }
@@ -329,10 +332,10 @@ where
 /// A dummy trait for integer type. All types that implements this and [PrimalityRefBase]
 /// will be supported by most functions in `num-primes`
 pub trait PrimalityBase:
-    Integer + Roots + NumRef + Clone + FromPrimitive + ToPrimitive + ExactRoots + BitTest
+    Integer + Roots + NumRef + Clone + FromPrimitive + ToPrimitive + ExactRoots + BitTest + ModularRefOps
 {
 }
-impl<T: Integer + Roots + NumRef + Clone + FromPrimitive + ToPrimitive + ExactRoots + BitTest>
+impl<T: Integer + Roots + NumRef + Clone + FromPrimitive + ToPrimitive + ExactRoots + BitTest + ModularRefOps>
     PrimalityBase for T
 {
 }
@@ -342,13 +345,15 @@ impl<T: Integer + Roots + NumRef + Clone + FromPrimitive + ToPrimitive + ExactRo
 pub trait PrimalityRefBase<Base>:
     RefNum<Base>
     + std::ops::Shr<usize, Output = Base>
-    + for<'r> ModularOps<&'r Base, &'r Base, Output = Base>
+    + for<'r> ModularUnaryOps<&'r Base, Output = Base>
+    + for<'r> ModularCoreOps<&'r Base, &'r Base, Output = Base>
 {
 }
 impl<T, Base> PrimalityRefBase<Base> for T where
     T: RefNum<Base>
         + std::ops::Shr<usize, Output = Base>
-        + for<'r> ModularOps<&'r Base, &'r Base, Output = Base>
+        + for<'r> ModularUnaryOps<&'r Base, Output = Base>
+        + for<'r> ModularCoreOps<&'r Base, &'r Base, Output = Base>
 {
 }
 
@@ -356,6 +361,7 @@ impl<T, Base> PrimalityRefBase<Base> for T where
 mod tests {
     use super::*;
     use rand::random;
+    use num_modular::ModularAbs;
 
     #[cfg(feature = "num-bigint")]
     use num_bigint::BigUint;
@@ -427,6 +433,36 @@ mod tests {
                 assert_eq!(uk, BigUint::from(p3qm1[n] % (m as u64)));
             }
         }
+
+        fn lucasm_naive(p: usize, q: isize, m: u16, n: u16) -> (u16, u16) {
+            if n == 0 {
+                return (0, 2)
+            }
+
+            let m = m as usize;
+            let q = q.absm(&m);
+            let (mut um1, mut u) = (0, 1); // U_{n-1}, U_{n}
+            let (mut vm1, mut v) = (2, p); // V_{n-1}, V_{n}
+
+            for _ in 1..n {
+                let new_u = p.mulm(u, &m).subm(q.mulm(um1, &m), &m);
+                um1 = u;
+                u = new_u;
+
+                let new_v = p.mulm(v, &m).subm(q.mulm(vm1, &m), &m);
+                vm1 = v;
+                v = new_v;
+            }
+            (u as u16, v as u16)
+        }
+        for _ in 0..10 {
+            let n = random::<u8>() as u16;
+            let m = random::<u16>();
+            let p = random::<u16>() as usize;
+            let q = random::<i16>() as isize;
+            assert_eq!(LucasUtils::lucasm(p, q, m, n), lucasm_naive(p, q, m, n),
+                "failed with Lucas settings: p={}, q={}, m={}, n={}", p, q, m, n);
+        }
     }
 
     #[test]
@@ -452,7 +488,7 @@ mod tests {
                     continue;
                 } // skip real primes
                 let d = (p * p + 4) as u16;
-                if n.is_odd() && ModularOps::<&u16, &u16>::jacobi(&d, &n) != -1 {
+                if n.is_odd() && d.jacobi(&n) != -1 {
                     continue;
                 }
                 assert!(
@@ -477,7 +513,7 @@ mod tests {
                     continue;
                 } // skip real primes
                 let d = (p * p + 4) as u16;
-                if n.is_odd() && ModularOps::<&u16, &u16>::jacobi(&d, &n) != -1 {
+                if n.is_odd() && d.jacobi(&n) != -1 {
                     continue;
                 }
                 assert!(
