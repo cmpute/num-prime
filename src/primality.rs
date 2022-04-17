@@ -241,7 +241,6 @@ where
 
         let (ud, vd) = LucasUtils::lucasm(p, q, self.clone(), base.clone());
         if ud.is_zero() || vd.is_zero() {
-            dbg!("CASE1");
             return true;
         }
 
@@ -257,7 +256,6 @@ where
             vd.sqm(self).addm(&(&qk).dblm(self), self)
         };
         if vd.is_zero() {
-            dbg!("CASE2");
             return true;
         }
         let mut qk = qk.sqm(self);
@@ -361,7 +359,7 @@ impl<T, Base> PrimalityRefBase<Base> for T where
 mod tests {
     use super::*;
     use rand::random;
-    use num_modular::ModularAbs;
+    use num_modular::{ModularAbs, ModularSymbols};
 
     #[cfg(feature = "num-bigint")]
     use num_bigint::BigUint;

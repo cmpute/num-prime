@@ -1,6 +1,3 @@
-# Roadmap for v0.3
-- Address #2 (add `factorize` API for unfallible factorization, and deprecate `factors64`)
-
 # Roadmap for v0.next
 - Implement factorization for Gaussian integers (and other quadratic integers?)
 - Implement a wrapper supporting fast modular arithmetics and use it to speed up is_prime64 and factors64

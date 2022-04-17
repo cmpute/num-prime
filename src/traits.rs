@@ -1,4 +1,5 @@
 use std::ops::{BitAnd, BitOr};
+use core::default::Default;
 
 use either::Either;
 use num_integer::{Integer, Roots};
@@ -91,11 +92,10 @@ pub struct PrimalityTestConfig {
     pub eslprp_test: bool,
 }
 
-impl PrimalityTestConfig {
+impl Default for PrimalityTestConfig {
     /// Create a defalt primality testing configuration. This config will eliminate most
     /// composites with little computation
-    // TODO(v0.3): implement default as std::default::Default
-    pub fn default() -> Self {
+    fn default() -> Self {
         Self {
             sprp_trials: 2,
             sprp_random_trials: 2,
@@ -103,7 +103,9 @@ impl PrimalityTestConfig {
             eslprp_test: false,
         }
     }
+}
 
+impl PrimalityTestConfig {
     /// Create a configuration with the known stongest deterministic primality test
     pub fn strict() -> Self {
         Self::bpsw() // TODO: change to 2-base SPRP + VPRP
@@ -144,14 +146,12 @@ pub struct FactorizationConfig {
 
     /// Number of trials with William's p+1 method
     pp1_trials: usize,
-
-    // TODO(v0.3): squfof param?
 }
 
-impl FactorizationConfig {
+impl Default for FactorizationConfig {
     /// Create a defalt primality testing configuration. This config will factorize
     /// most integers within decent time
-    pub fn default() -> Self {
+    fn default() -> Self {
         const THRESHOLD_DEFAULT_TD: u64 = 1 << 14;
         Self {
             primality_config: PrimalityTestConfig::default(),
@@ -161,7 +161,9 @@ impl FactorizationConfig {
             pp1_trials: 0,
         }
     }
+}
 
+impl FactorizationConfig {
     /// Same as the default configuration but with strict primality check
     pub fn strict() -> Self {
         let mut config = Self::default();
