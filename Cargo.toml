@@ -34,12 +34,10 @@ default = ['big-table', 'big-int']
 big-table = []
 big-int = ['num-bigint', 'num-modular/num-bigint']
 
-[dev-dependencies]
-criterion = "0.3"
-
-[[bench]]
-name = "bench"
-harness = false
+[workspace]
+members = [
+  "bench",
+]
 
 [package.metadata.docs.rs]
 all-features = true
