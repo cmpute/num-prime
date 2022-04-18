@@ -80,6 +80,9 @@ impl BitOr<Primality> for Primality {
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub struct PrimalityTestConfig {
+    // TODO: add option to divides small primes in the table
+    //       and this option should be enabled if the probabilistic test is used for strict config
+
     /// Number of strong probable prime test, starting from base 2
     pub sprp_trials: usize,
 
@@ -98,8 +101,8 @@ impl Default for PrimalityTestConfig {
     /// composites with little computation
     fn default() -> Self {
         Self {
-            sprp_trials: 2,
-            sprp_random_trials: 2,
+            sprp_trials: 2, // test base 2 and 3
+            sprp_random_trials: 3, // choose other 3 random bases
             slprp_test: false,
             eslprp_test: false,
         }

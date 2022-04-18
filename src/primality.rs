@@ -128,6 +128,7 @@ where
     for<'r> &'r T:
         RefNum<T> + std::ops::Shr<usize, Output = T> + ModularUnaryOps<&'r T, Output = T>,
 {
+    #[inline]
     fn is_prp(&self, base: Self) -> bool {
         if self < &Self::one() {
             return false;
@@ -136,6 +137,7 @@ where
         base.powm(&tm1, self).is_one()
     }
 
+    #[inline]
     fn is_sprp(&self, base: Self) -> bool {
         self.test_sprp(base).either(|v| v, |_| false)
     }

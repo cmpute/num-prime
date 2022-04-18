@@ -30,6 +30,13 @@ pub fn bench_is_prime(c: &mut Criterion) {
                 .count()
         })
     });
+    group.bench_function("number-theory", |b| {
+        b.iter(|| {
+            numbers()
+                .filter(|&n| NumberTheory::is_prime(&n))
+                .count()
+        })
+    });
     #[cfg(feature = "num-primes")]
     group.bench_function("num-primes", |b| {
         b.iter(|| {
@@ -52,15 +59,6 @@ pub fn bench_is_prime(c: &mut Criterion) {
                 .count()
         })
     });
-    group.bench_function("number-theory", |b| {
-        b.iter(|| {
-            numbers()
-                .filter(|&n| NumberTheory::is_prime(&n))
-                .count()
-        })
-    });
-    // TODO(v0.4.1): why is number-theory faster? difference in modular power?
-    // we can add a markdown of performance after figuring out this
 
     group.finish();
 
@@ -232,30 +230,30 @@ pub fn bench_prime_gen(c: &mut Criterion) {
     let mut group = c.benchmark_group("prime generation (256 bits)");
     group.sample_size(10).sampling_mode(SamplingMode::Flat);
 
-    let mut gen = rand::thread_rng();
+    let mut rng = rand::thread_rng();
     group.bench_function("num-prime (this crate)", |b| {
-        b.iter(|| -> num_bigint::BigUint { gen.gen_prime(256, None) })
+        b.iter(|| -> num_bigint::BigUint { rng.gen_prime(256, None) })
     });
     group.bench_function("num-primes", |b| {
         b.iter(|| Generator::new_prime(256))
     });
     group.bench_function("glass_pumpkin", |b| {
-        b.iter(|| gprime::from_rng(256, &mut gen))
+        b.iter(|| gprime::from_rng(256, &mut rng))
     });
     group.finish();
 
     let mut group = c.benchmark_group("safe prime generation (256 bits)");
     group.sample_size(10).sampling_mode(SamplingMode::Flat);
 
-    let mut gen = rand::thread_rng();
+    let mut rng = rand::thread_rng();
     group.bench_function("num-prime (this crate)", |b| {
-        b.iter(|| -> num_bigint::BigUint { gen.gen_safe_prime(256) })
+        b.iter(|| -> num_bigint::BigUint { rng.gen_safe_prime(256) })
     });
     group.bench_function("num-primes", |b| {
         b.iter(|| Generator::safe_prime(256))
     });
     group.bench_function("glass_pumpkin", |b| {
-        b.iter(|| safe_gprime::from_rng(256, &mut gen))
+        b.iter(|| safe_gprime::from_rng(256, &mut rng))
     });
     group.finish();
 }
