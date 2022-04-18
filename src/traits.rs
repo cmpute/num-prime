@@ -33,6 +33,7 @@ pub enum Primality {
 impl Primality {
     /// Check whether the resule indicates that the number is
     /// (very) probably a prime. Return false only on [Primality::No]
+    #[inline(always)]
     pub fn probably(self) -> bool {
         match self {
             Primality::No => false,
@@ -276,4 +277,6 @@ pub trait RandPrime<T> {
     /// Generate a random (Sophie German) safe prime within the given bit size limit. The generated prime
     /// is guaranteed to pass the [is_safe_prime][crate::nt_funcs::is_safe_prime] test
     fn gen_safe_prime(&mut self, bit_size: usize) -> T;
+
+    // TODO: add gen_prime_exact and gen_safe_prime_exact for generating primes with exact this bit size
 }

@@ -553,6 +553,8 @@ where
 {
     let buf = NaiveBuffer::new();
     let config = Some(PrimalityTestConfig::strict());
+    // TODO: use miller-rabin for large numbers (more than 256 bits?), as BPSW could be too slow
+    //       the NIST recommends 5 rounds for 512 and 1024 bits. For 1536 bits, the recommendation is 4 rounds.
 
     // test (n-1)/2 first since its smaller
     let sophie_p = buf.is_prime(&(target >> 1), config);
@@ -712,7 +714,7 @@ macro_rules! impl_randprime_prim {
                     panic!("The given bit size limit exceeded the capacity of the integer type!")
                 }
                 let t: $T = self.gen();
-                let t = t >> (<$T>::BITS - bit_size as u32);
+                let t = (t >> (<$T>::BITS - bit_size as u32)) | 1; // filter even numbers
                 if is_prime64(t as u64) {
                     t
                 } else {
@@ -755,7 +757,7 @@ impl<R: Rng> RandPrime<u128> for R {
             panic!("The given bit size limit exceeded the capacity of the integer type!")
         }
         let t: u128 = self.gen();
-        let t = t >> (u128::BITS - bit_size as u32);
+        let t = (t >> (u128::BITS - bit_size as u32)) | 1; // filter even numbers
         if is_prime(&t, config).probably() {
             t
         } else {
@@ -783,11 +785,11 @@ impl<R: Rng> RandPrime<u128> for R {
     }
 }
 
-#[cfg(feature = "big-int")]
+#[cfg(feature = "num-bigint")]
 impl<R: Rng> RandPrime<BigUint> for R {
     #[inline]
     fn gen_prime(&mut self, bit_size: usize, config: Option<PrimalityTestConfig>) -> BigUint {
-        let t = self.gen_biguint(bit_size as u64);
+        let t = self.gen_biguint(bit_size as u64) | BigUint::from(1u8); // filter even numbers
         if is_prime(&t, config).probably() {
             t
         } else {
@@ -964,6 +966,18 @@ mod tests {
                 prod *= p.pow(exp as u32);
             }
             assert_eq!(x, prod, "factorization check failed! ({} != {})", x, prod);
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "big-int")]
+    fn is_prime_test() {
+        #[cfg(feature = "num-bigint")]
+        {
+            use num_bigint::BigUint;
+            // https://github.com/AtropineTears/num-primes/issues/1#issuecomment-934629597
+            let p = BigUint::parse_bytes(b"169511182982703321453314585423962898651587669459838234386506572286328885534468792292646838949809616446341407457141008401355628947670484184607678853094537849610289912805960069455687743151708433319901176932959509872662610091644590437761688516626993416011399330087939042347256922771590903190536793274742859624657", 10).unwrap();
+            assert!(is_prime(&p, None).probably());
         }
     }
 
@@ -1181,12 +1195,12 @@ mod tests {
         let p: u128 = rng.gen_safe_prime(128);
         assert!(is_safe_prime(&p).probably());
 
-        #[cfg(feature = "big-int")]
+        #[cfg(feature = "num-bigint")]
         {
             let p: BigUint = rng.gen_prime(512, None);
             assert!(is_prime(&p, None).probably());
             let p: BigUint = rng.gen_safe_prime(192);
-            assert!(is_prime(&p, None).probably());
+            assert!(is_safe_prime(&p).probably());
         }
 
         // test bit size limit
