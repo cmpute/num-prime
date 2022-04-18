@@ -12,7 +12,7 @@
 
 use crate::factor::{pollard_rho, trial_division};
 use crate::nt_funcs::{
-    factorize64, is_prime64, next_prime, nth_prime_bounds, nth_prime_est, prev_prime, factors,
+    factorize64, factors, is_prime64, next_prime, nth_prime_bounds, nth_prime_est, prev_prime,
 };
 use crate::primality::{PrimalityBase, PrimalityRefBase};
 use crate::tables::{SMALL_PRIMES, SMALL_PRIMES_NEXT};
@@ -28,10 +28,10 @@ use std::collections::BTreeMap;
 /// Extension functions that can utilize pre-generated primes
 pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
     /// Test if an integer is a prime.
-    /// 
+    ///
     /// For targets smaller than 2^64, the deterministic [is_prime64] will be used, otherwise
     /// the primality test algorithms can be specified by the `config` argument.
-    /// 
+    ///
     /// The primality test can be either deterministic or probabilistic for large integers depending on the `config`.
     /// The return value is represented by the enum [Primality], which tells whether the primality test is deterministic
     /// or probabilistic.
@@ -105,7 +105,7 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
     }
 
     /// Factorize an integer.
-    /// 
+    ///
     /// For targets smaller than 2^64, the efficient [factorize64] will be used, otherwise
     /// the primality test and factorization algorithms can be specified by the `config` argument.
     ///
@@ -180,17 +180,17 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
     }
 
     /// Factorize an integer until all prime factors are found.
-    /// 
+    ///
     /// This function will try to call [factors] function repeatedly until the target
     /// is fully factorized.
-    fn factorize<T: PrimalityBase>(&self, target: T) -> BTreeMap<T, usize> 
+    fn factorize<T: PrimalityBase>(&self, target: T) -> BTreeMap<T, usize>
     where
         for<'r> &'r T: PrimalityRefBase<T>,
     {
         // TODO: change to a reasonable strategy after default factorization failed
         loop {
             if let Ok(result) = factors(target.clone(), None) {
-                break result
+                break result;
             }
         }
     }

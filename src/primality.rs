@@ -1,7 +1,7 @@
 use crate::traits::{BitTest, ExactRoots, PrimalityUtils};
 use either::Either;
 use num_integer::{Integer, Roots};
-use num_modular::{ModularCoreOps, ModularUnaryOps, ModularRefOps};
+use num_modular::{ModularCoreOps, ModularRefOps, ModularUnaryOps};
 use num_traits::{FromPrimitive, NumRef, RefNum, ToPrimitive};
 
 /// Utilities for the Lucas pseudoprime test
@@ -20,10 +20,18 @@ pub trait LucasUtils {
     fn p_bruteforce(n: &Self) -> usize;
 }
 
-impl<T: Integer + FromPrimitive + ToPrimitive + NumRef + BitTest + ExactRoots + Clone + ModularRefOps> LucasUtils
-    for T
+impl<T> LucasUtils for T
 where
-    for<'r> &'r T: RefNum<T> + ModularUnaryOps<&'r T, Output = T> + ModularCoreOps<&'r T, &'r T, Output = T>,
+    T: Integer
+        + FromPrimitive
+        + ToPrimitive
+        + NumRef
+        + BitTest
+        + ExactRoots
+        + Clone
+        + ModularRefOps,
+    for<'r> &'r T:
+        RefNum<T> + ModularUnaryOps<&'r T, Output = T> + ModularCoreOps<&'r T, &'r T, Output = T>,
 {
     fn lucasm(p: usize, q: isize, m: Self, n: Self) -> (Self, Self) {
         // Reference: <https://en.wikipedia.org/wiki/Lucas_sequence>
@@ -123,7 +131,8 @@ where
     }
 }
 
-impl<T: Integer + NumRef + Clone + FromPrimitive + LucasUtils + BitTest + ModularRefOps> PrimalityUtils for T
+impl<T: Integer + NumRef + Clone + FromPrimitive + LucasUtils + BitTest + ModularRefOps>
+    PrimalityUtils for T
 where
     for<'r> &'r T:
         RefNum<T> + std::ops::Shr<usize, Output = T> + ModularUnaryOps<&'r T, Output = T>,
@@ -332,11 +341,28 @@ where
 /// A dummy trait for integer type. All types that implements this and [PrimalityRefBase]
 /// will be supported by most functions in `num-primes`
 pub trait PrimalityBase:
-    Integer + Roots + NumRef + Clone + FromPrimitive + ToPrimitive + ExactRoots + BitTest + ModularRefOps
+    Integer
+    + Roots
+    + NumRef
+    + Clone
+    + FromPrimitive
+    + ToPrimitive
+    + ExactRoots
+    + BitTest
+    + ModularRefOps
 {
 }
-impl<T: Integer + Roots + NumRef + Clone + FromPrimitive + ToPrimitive + ExactRoots + BitTest + ModularRefOps>
-    PrimalityBase for T
+impl<
+        T: Integer
+            + Roots
+            + NumRef
+            + Clone
+            + FromPrimitive
+            + ToPrimitive
+            + ExactRoots
+            + BitTest
+            + ModularRefOps,
+    > PrimalityBase for T
 {
 }
 
@@ -360,8 +386,8 @@ impl<T, Base> PrimalityRefBase<Base> for T where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::random;
     use num_modular::{ModularAbs, ModularSymbols};
+    use rand::random;
 
     #[cfg(feature = "num-bigint")]
     use num_bigint::BigUint;
@@ -436,7 +462,7 @@ mod tests {
 
         fn lucasm_naive(p: usize, q: isize, m: u16, n: u16) -> (u16, u16) {
             if n == 0 {
-                return (0, 2)
+                return (0, 2);
             }
 
             let m = m as usize;
@@ -460,8 +486,15 @@ mod tests {
             let m = random::<u16>();
             let p = random::<u16>() as usize;
             let q = random::<i16>() as isize;
-            assert_eq!(LucasUtils::lucasm(p, q, m, n), lucasm_naive(p, q, m, n),
-                "failed with Lucas settings: p={}, q={}, m={}, n={}", p, q, m, n);
+            assert_eq!(
+                LucasUtils::lucasm(p, q, m, n),
+                lucasm_naive(p, q, m, n),
+                "failed with Lucas settings: p={}, q={}, m={}, n={}",
+                p,
+                q,
+                m,
+                n
+            );
         }
     }
 

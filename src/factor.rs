@@ -7,7 +7,7 @@ use num_traits::{FromPrimitive, NumRef, RefNum};
 use std::collections::BTreeMap;
 
 /// Find factors by trial division, returns a tuple of the found factors and the residual.
-/// 
+///
 /// The target is guaranteed fully factored only if bound * bound > target, where bound = max(primes).
 /// The parameter limit additionally sets the maximum of primes to be tried.
 /// The residual will be Ok(1) or Ok(p) if fully factored.
@@ -58,7 +58,14 @@ where
 }
 
 /// Find factors using Pollard's rho algorithm with Brent's loop detection algorithm
-pub fn pollard_rho<T: Integer + FromPrimitive + NumRef + Clone + for<'r> ModularCoreOps<&'r T, &'r T, Output = T> + for<'r> ModularUnaryOps<&'r T, Output = T>>(
+pub fn pollard_rho<
+    T: Integer
+        + FromPrimitive
+        + NumRef
+        + Clone
+        + for<'r> ModularCoreOps<&'r T, &'r T, Output = T>
+        + for<'r> ModularUnaryOps<&'r T, Output = T>,
+>(
     target: &T,
     start: T,
     offset: T,
@@ -95,10 +102,7 @@ where
 
 /// This function implements Shanks's square forms factorization (SQUFOF). It will assume that target
 /// is not a perfect square and the multiplier is square-free.
-pub fn squfof<T: Integer + NumRef + Clone + ExactRoots>(
-    target: &T,
-    multiplier: T,
-) -> Option<T>
+pub fn squfof<T: Integer + NumRef + Clone + ExactRoots>(target: &T, multiplier: T) -> Option<T>
 where
     for<'r> &'r T: RefNum<T>,
 {

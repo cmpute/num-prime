@@ -1,12 +1,12 @@
 //! Backend implementations for integers
 
+use crate::tables::{CUBIC_MODULI, CUBIC_RESIDUAL, QUAD_MODULI, QUAD_RESIDUAL};
 use crate::traits::{BitTest, ExactRoots};
-use crate::tables::{QUAD_MODULI, QUAD_RESIDUAL, CUBIC_MODULI, CUBIC_RESIDUAL};
 
 #[cfg(feature = "num-bigint")]
 use num_bigint::{BigInt, BigUint, ToBigInt};
 #[cfg(feature = "num-bigint")]
-use num_traits::{ToPrimitive, Signed, Zero, One};
+use num_traits::{One, Signed, ToPrimitive, Zero};
 
 macro_rules! impl_bittest_prim {
     ($($T:ty)*) => {$(
@@ -66,27 +66,35 @@ impl_exactroot_prim!(u8 u16 u32 u64 u128 usize i8 i16 i32 i64 i128 isize);
 impl ExactRoots for BigUint {
     fn sqrt_exact(&self) -> Option<Self> {
         // shortcuts
-        if self.is_zero() { return Some(BigUint::zero()); }
-        if let Some(v) = self.to_u64() { return v.sqrt_exact().map(BigUint::from); }
+        if self.is_zero() {
+            return Some(BigUint::zero());
+        }
+        if let Some(v) = self.to_u64() {
+            return v.sqrt_exact().map(BigUint::from);
+        }
 
         // check mod 2
         let shift = self.trailing_zeros().unwrap();
-        if shift & 1 == 1 { return None; }
-        if !((self >> shift) & BigUint::from(7u8)).is_one() { return None; }
+        if shift & 1 == 1 {
+            return None;
+        }
+        if !((self >> shift) & BigUint::from(7u8)).is_one() {
+            return None;
+        }
 
         // check other moduli
         #[cfg(not(feature = "big-table"))]
         for (m, res) in QUAD_MODULI.iter().zip(QUAD_RESIDUAL) {
             // need to &63 since we have 65 in QUAD_MODULI
             if (res >> ((self % m).to_u8().unwrap() & 63)) & 1 == 0 {
-                return None
+                return None;
             }
         }
         #[cfg(feature = "big-table")]
         for (m, res) in QUAD_MODULI.iter().zip(QUAD_RESIDUAL) {
             let rem = (self % m).to_u16().unwrap();
             if (res[(rem / 64) as usize] >> (rem % 64)) & 1 == 0 {
-                return None
+                return None;
             }
         }
 
@@ -95,25 +103,31 @@ impl ExactRoots for BigUint {
 
     fn cbrt_exact(&self) -> Option<Self> {
         // shortcuts
-        if self.is_zero() { return Some(BigUint::zero()); }
-        if let Some(v) = self.to_u64() { return v.cbrt_exact().map(BigUint::from); }
+        if self.is_zero() {
+            return Some(BigUint::zero());
+        }
+        if let Some(v) = self.to_u64() {
+            return v.cbrt_exact().map(BigUint::from);
+        }
 
         // check mod 2
         let shift = self.trailing_zeros().unwrap();
-        if shift % 3 != 0 { return None; }
+        if shift % 3 != 0 {
+            return None;
+        }
 
         // check other moduli
         #[cfg(not(feature = "big-table"))]
         for (m, res) in CUBIC_MODULI.iter().zip(CUBIC_RESIDUAL) {
             if (res >> (self % m).to_u8().unwrap()) & 1 == 0 {
-                return None
+                return None;
             }
         }
         #[cfg(feature = "big-table")]
         for (m, res) in CUBIC_MODULI.iter().zip(CUBIC_RESIDUAL) {
             let rem = (self % m).to_u16().unwrap();
             if (res[(rem / 64) as usize] >> (rem % 64)) & 1 == 0 {
-                return None
+                return None;
             }
         }
 
@@ -124,10 +138,15 @@ impl ExactRoots for BigUint {
 #[cfg(feature = "num-bigint")]
 impl ExactRoots for BigInt {
     fn sqrt_exact(&self) -> Option<Self> {
-        self.to_biguint().and_then(|u| u.sqrt_exact()).and_then(|u| u.to_bigint())
+        self.to_biguint()
+            .and_then(|u| u.sqrt_exact())
+            .and_then(|u| u.to_bigint())
     }
     fn cbrt_exact(&self) -> Option<Self> {
-        self.magnitude().cbrt_exact().and_then(|u| u.to_bigint()).map(|v| if self.is_negative() { -v } else { v })
+        self.magnitude()
+            .cbrt_exact()
+            .and_then(|u| u.to_bigint())
+            .map(|v| if self.is_negative() { -v } else { v })
     }
 }
 

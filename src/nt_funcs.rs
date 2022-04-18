@@ -271,9 +271,7 @@ where
 }
 
 /// This function re-exports [PrimeBufferExt::factorize()][crate::buffer::PrimeBufferExt::factorize()] with a default buffer instance
-pub fn factorize<T: PrimalityBase>(
-    target: T,
-) -> BTreeMap<T, usize>
+pub fn factorize<T: PrimalityBase>(target: T) -> BTreeMap<T, usize>
 where
     for<'r> &'r T: PrimalityRefBase<T>,
 {
@@ -364,8 +362,7 @@ where
 
 /// This function calculate the Möbius `μ(n)` function given the factorization
 /// result of `n`
-pub fn moebius_factorized<T>(factors: &BTreeMap<T, usize>) -> i8
-{
+pub fn moebius_factorized<T>(factors: &BTreeMap<T, usize>) -> i8 {
     if factors.values().any(|exp| exp > &1) {
         0
     } else if factors.len() % 2 == 0 {
