@@ -72,4 +72,5 @@ pub mod detail {
     //! Some traits that can be used to extend `num-prime` with new backends.
     pub use super::primality::{LucasUtils, PrimalityBase, PrimalityRefBase};
     pub use super::tables::SMALL_PRIMES;
+    pub use super::mint::Mint;
 }
