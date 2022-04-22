@@ -148,7 +148,6 @@ where
 
     #[inline]
     fn is_sprp(&self, base: Self) -> bool {
-        // TODO(v0.3.1): test performance without either dispatch
         self.test_sprp(base).either(|v| v, |_| false)
     }
 
