@@ -1,11 +1,13 @@
 //! Wrapper of integer to makes it efficient in modular arithmetics but still have the same
 //! API of normal integers.
 
-use core::ops::*;
+use core::{ops::*, panic};
 use either::*;
-use num_traits::{Num, Zero, One};
-use num_integer::Integer;
+use num_traits::{Num, Zero, One, FromPrimitive, ToPrimitive, Pow};
+use num_integer::{Integer, Roots};
 use num_modular::{ModularInteger, Montgomery, MontgomeryInt};
+
+use crate::{ExactRoots, BitTest};
 
 // TODO (v0.3.x): Implement PrimalityBase for Mint
 
@@ -154,7 +156,6 @@ macro_rules! forward_binops_right {
             T::Inv: Clone,
         {
             type Output = Self;
-
             #[inline]
             fn $method(self, rhs: Self) -> Self::Output {
                 Self(match (self.0, rhs.0) {
@@ -163,6 +164,67 @@ macro_rules! forward_binops_right {
                     (Right(v1), Left(v2)) => {
                         let v2 = v1.convert(v2);
                         Right(v1.$method(v2))
+                    }
+                    (Right(v1), Right(v2)) => Right(v1.$method(v2)),
+                })
+            }
+        }
+
+        impl<T: Integer + Montgomery + Clone + for<'r> $imp<&'r T, Output = T>> $imp<&Self> for Mint<T>
+        where
+            T::Double: From<T>,
+            T::Inv: Clone,
+        {
+            type Output = Mint<T>;
+            #[inline]
+            fn $method(self, rhs: &Self) -> Self::Output {
+                Mint(match (self.0, &rhs.0) {
+                    (Left(v1), Left(v2)) => Left(v1.$method(v2)),
+                    (Left(v1), Right(v2)) => Right(v2.convert(v1).$method(v2)),
+                    (Right(v1), Left(v2)) => {
+                        let v2 = v1.convert(v2.clone());
+                        Right(v1.$method(v2))
+                    }
+                    (Right(v1), Right(v2)) => Right(v1.$method(v2)),
+                })
+            }
+        }
+
+        impl<T: Integer + Montgomery + Clone> $imp<Mint<T>> for &Mint<T>
+        where
+            T::Double: From<T>,
+            T::Inv: Clone,
+        {
+            type Output = Mint<T>;
+            // FIXME: additional clone here due to https://github.com/rust-lang/rust/issues/39959
+            // (same for ref & ref operation below, and those for Div and Rem)
+            #[inline]
+            fn $method(self, rhs: Mint<T>) -> Self::Output {
+                Mint(match (&self.0, rhs.0) {
+                    (Left(v1), Left(v2)) => Left(v1.clone().$method(v2)),
+                    (Left(v1), Right(v2)) => Right(v2.convert(v1.clone()).$method(v2)),
+                    (Right(v1), Left(v2)) => {
+                        let v2 = v1.convert(v2);
+                        Right(v1.clone().$method(v2))
+                    }
+                    (Right(v1), Right(v2)) => Right(v1.$method(v2)),
+                })
+            }
+        }
+        impl<T: Integer + Montgomery + Clone + for<'r> $imp<&'r T, Output = T>> $imp<Self> for &Mint<T>
+        where
+            T::Double: From<T>,
+            T::Inv: Clone,
+        {
+            type Output = Mint<T>;
+            #[inline]
+            fn $method(self, rhs: Self) -> Self::Output {
+                Mint(match (&self.0, &rhs.0) {
+                    (Left(v1), Left(v2)) => Left(v1.clone().$method(v2)),
+                    (Left(v1), Right(v2)) => Right(v2.convert(v1.clone()).$method(v2)),
+                    (Right(v1), Left(v2)) => {
+                        let v2 = v1.convert(v2.clone());
+                        Right(v1.clone().$method(v2))
                     }
                     (Right(v1), Right(v2)) => Right(v1.$method(v2)),
                 })
@@ -188,6 +250,51 @@ where
         Self(Left(v1.div(v2)))
     }
 }
+impl<T: Integer + Montgomery + Clone + for<'r> Div<&'r T, Output=T>> Div<&Self> for Mint<T>
+where
+    T::Double: From<T>,
+    T::Inv: Clone,
+{
+    type Output = Self;
+
+    #[inline]
+    fn div(self, rhs: &Self) -> Self::Output {
+        match(self.0, &rhs.0) {
+            (Left(v1), Left(v2)) => Self(Left(v1.div(v2))),
+            (_, _) => panic!("not supported"),
+        }
+    }
+}
+impl<T: Integer + Montgomery + Clone> Div<Mint<T>> for &Mint<T>
+where
+    T::Double: From<T>,
+    T::Inv: Clone,
+{
+    type Output = Mint<T>;
+
+    #[inline]
+    fn div(self, rhs: Mint<T>) -> Self::Output {
+        match(&self.0, rhs.0) {
+            (Left(v1), Left(v2)) => Mint(Left(v1.clone().div(v2))),
+            (_, _) => panic!("not supported"),
+        }
+    }
+}
+impl<T: Integer + Montgomery + Clone + for<'r> Div<&'r T, Output=T>> Div<Self> for &Mint<T>
+where
+    T::Double: From<T>,
+    T::Inv: Clone,
+{
+    type Output = Mint<T>;
+
+    #[inline]
+    fn div(self, rhs: Self) -> Self::Output {
+        match(&self.0, &rhs.0) {
+            (Left(v1), Left(v2)) => Mint(Left(v1.clone().div(v2))),
+            (_, _) => panic!("not supported"),
+        }
+    }
+}
 
 impl<T: Integer + Montgomery + Clone> Rem for Mint<T>
 where
@@ -198,8 +305,71 @@ where
 
     #[inline]
     fn rem(self, rhs: Self) -> Self::Output {
-        let (v1, v2) = left_only(self, rhs);
-        Self(Right(MontgomeryInt::new(v1, v2)))
+        match(self.0, rhs.0) {
+            (Left(v1), Left(v2)) => Self(Right(MontgomeryInt::new(v1, v2))),
+            (Right(v1), Left(v2)) => {
+                debug_assert!(v1.modulus() == &v2);
+                Self(Right(v1))
+            }
+            (_, _) => panic!("not supported"),
+        }
+    }
+}
+impl<T: Integer + Montgomery + Clone + for<'r> Rem<&'r T, Output=T>> Rem<&Self> for Mint<T>
+where
+    T::Double: From<T>,
+    T::Inv: Clone,
+{
+    type Output = Self;
+
+    #[inline]
+    fn rem(self, rhs: &Self) -> Self::Output {
+        match(self.0, &rhs.0) {
+            (Left(v1), Left(v2)) => Self(Right(MontgomeryInt::new(v1, v2.clone()))),
+            (Right(v1), Left(v2)) => {
+                debug_assert!(v1.modulus() == v2);
+                Self(Right(v1))
+            }
+            (_, _) => panic!("not supported"),
+        }
+    }
+}
+impl<T: Integer + Montgomery + Clone> Rem<Mint<T>> for &Mint<T>
+where
+    T::Double: From<T>,
+    T::Inv: Clone,
+{
+    type Output = Mint<T>;
+
+    #[inline]
+    fn rem(self, rhs: Mint<T>) -> Self::Output {
+        match(&self.0, rhs.0) {
+            (Left(v1), Left(v2)) => Mint(Right(MontgomeryInt::new(v1.clone(), v2))),
+            (Right(v1), Left(v2)) => {
+                debug_assert!(v1.modulus() == &v2);
+                Mint(Right(v1.clone()))
+            }
+            (_, _) => panic!("not supported"),
+        }
+    }
+}
+impl<T: Integer + Montgomery + Clone + for<'r> Rem<&'r T, Output=T>> Rem<Self> for &Mint<T>
+where
+    T::Double: From<T>,
+    T::Inv: Clone,
+{
+    type Output = Mint<T>;
+
+    #[inline]
+    fn rem(self, rhs: Self) -> Self::Output {
+        match(&self.0, &rhs.0) {
+            (Left(v1), Left(v2)) => Mint(Right(MontgomeryInt::new(v1.clone(), v2.clone()))),
+            (Right(v1), Left(v2)) => {
+                debug_assert!(v1.modulus() == v2);
+                Mint(Right(v1.clone()))
+            }
+            (_, _) => panic!("not supported"),
+        }
     }
 }
 
@@ -216,7 +386,7 @@ where
     fn is_zero(&self) -> bool {
         match &self.0 {
             Left(v) => v.is_zero(),
-            Right(m) => m.residue().is_zero() // TODO(v0.3.1): Add is_zero for MontgomeryInt
+            Right(m) => m.is_zero()
         }
     }
 }
@@ -265,5 +435,148 @@ where
         let (v1, v2) = left_ref_only(self, other);
         let (q, r) = v1.div_rem(v2);
         (Self(Left(q)), Self(Left(r)))
+    }
+}
+
+impl<T: Integer + Montgomery + Clone + Roots> Roots for Mint<T>
+where
+    T::Double: From<T>,
+    T::Inv: Clone, {
+    fn nth_root(&self, n: u32) -> Self {
+        match &self.0 {
+            Left(v) => Self(Left(v.nth_root(n))),
+            Right(_) => panic!("not supported")
+        }
+    }
+}
+
+impl<T: Integer + Montgomery + Clone + FromPrimitive> FromPrimitive for Mint<T>
+where
+    T::Double: From<T>,
+    T::Inv: Clone, {
+        fn from_f64(n: f64) -> Option<Self> {
+            T::from_f64(n).map(|v| Self(Left(v)))
+        }
+        fn from_i64(n: i64) -> Option<Self> {
+            T::from_i64(n).map(|v| Self(Left(v)))
+        }
+        fn from_u64(n: u64) -> Option<Self> {
+            T::from_u64(n).map(|v| Self(Left(v)))
+        }
+}
+
+impl<T: Integer + Montgomery + Clone + ToPrimitive> ToPrimitive for Mint<T>
+where
+    T::Double: From<T>,
+    T::Inv: Clone, {
+        fn to_f64(&self) -> Option<f64> {
+            match &self.0 {
+                Left(v) => v.to_f64(),
+                Right(m) => m.residue().to_f64()
+            }
+        }
+        fn to_i64(&self) -> Option<i64> {
+            match &self.0 {
+                Left(v) => v.to_i64(),
+                Right(m) => m.residue().to_i64()
+            }
+        }
+        fn to_u64(&self) -> Option<u64> {
+            match &self.0 {
+                Left(v) => v.to_u64(),
+                Right(m) => m.residue().to_u64()
+            }
+        }
+}
+
+impl<T: Integer + Montgomery + Clone + Pow<u32, Output = T>> Pow<u32> for Mint<T>
+where
+    T::Double: From<T>,
+    T::Inv: Clone, {
+        type Output = Self;
+        fn pow(self, rhs: u32) -> Self::Output {
+            match self.0 {
+                Left(v) => Self(Left(v.pow(rhs))),
+                Right(_) => panic!("not supported")
+            }
+        }
+}
+
+impl<T: Integer + Montgomery + Clone + ExactRoots> ExactRoots for Mint<T>
+where
+    T::Double: From<T>,
+    T::Inv: Clone, {
+        fn nth_root_exact(&self, n: u32) -> Option<Self> {
+            match &self.0 {
+                Left(v) => v.nth_root_exact(n).map(|v| Self(Left(v))),
+                Right(_) => panic!("not supported")
+            }
+        }
+}
+
+impl<T: Integer + Montgomery + Clone + BitTest> BitTest for Mint<T> 
+where
+    T::Double: From<T>,
+    T::Inv: Clone, {
+   fn bit(&self, position: usize) -> bool {
+        match &self.0 {
+            Left(v) => v.bit(position),
+            Right(_) => panic!("not supported")
+        }
+   } 
+   fn bits(&self) -> usize {
+        match &self.0 {
+            Left(v) => v.bits(),
+            Right(_) => panic!("not supported")
+        }
+   }
+   fn trailing_zeros(&self) -> usize {
+        match &self.0 {
+            Left(v) => v.trailing_zeros(),
+            Right(_) => panic!("not supported")
+        }
+   }
+}
+
+impl<T: Integer + Montgomery + Clone + Shr<u32, Output = T>> Shr<u32> for Mint<T>
+where
+    T::Double: From<T>,
+    T::Inv: Clone, {
+    type Output = Self;
+    fn shr(self, rhs: u32) -> Self::Output {
+        match self.0 {
+            Left(v) => Self(Left(v >> rhs)),
+            Right(_) => panic!("not supported")
+        }
+    }
+}
+impl<T: Integer + Montgomery + Clone + Shr<u32, Output = T>> Shr<u32> for &Mint<T>
+where
+    T::Double: From<T>,
+    T::Inv: Clone, {
+    type Output = Mint<T>;
+    fn shr(self, rhs: u32) -> Self::Output {
+        match &self.0 {
+            Left(v) => Mint(Left(v.clone() >> rhs)),
+            Right(_) => panic!("not supported")
+        }
+    }
+}
+
+
+
+// TODO: implement ModularRefOps
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basics() {
+        let a: Mint<u32> = 12.into();
+        let b: Mint<u32> = 8.into();
+        assert_eq!(a + b, 20.into());
+        
+        dbg!(crate::nt_funcs::is_prime(&a, None));
     }
 }

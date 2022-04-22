@@ -69,7 +69,11 @@ mod traits;
 
 pub use traits::*;
 pub mod detail {
-    //! Some traits that can be used to extend `num-prime` with new backends.
+    //! Implementation details for this crate.
+    //! 
+    //! The structs and traits in this module are exposed
+    //! for public use, but they are not designed for such usage. User-friendly is not a goal here.
+    //! Some traits in this module can be used to extend `num-prime` with new backends.
     pub use super::primality::{LucasUtils, PrimalityBase, PrimalityRefBase};
     pub use super::tables::SMALL_PRIMES;
     pub use super::mint::Mint;
