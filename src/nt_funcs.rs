@@ -12,9 +12,10 @@
 //!
 
 use crate::buffer::{NaiveBuffer, PrimeBufferExt};
+use crate::mint::Mint;
 use crate::factor::{pollard_rho, squfof};
 use crate::primality::{PrimalityBase, PrimalityRefBase};
-use crate::tables::{MOEBIUS_ODD, SMALL_PRIMES, WHEEL_NEXT, WHEEL_PREV, WHEEL_SIZE};
+use crate::tables::{MOEBIUS_ODD, SMALL_PRIMES, SMALL_PRIMES_NEXT, WHEEL_NEXT, WHEEL_PREV, WHEEL_SIZE};
 #[cfg(feature = "big-table")]
 use crate::tables::{SMALL_PRIMES_INV, SMALL_PRIMES_INVLIM, ZETA_LOG_TABLE};
 use crate::traits::{FactorizationConfig, Primality, PrimalityTestConfig, PrimalityUtils};
@@ -22,7 +23,7 @@ use crate::RandPrime;
 #[cfg(feature = "num-bigint")]
 use num_bigint::{BigUint, RandBigInt};
 use num_integer::Roots;
-use num_modular::ModularCoreOps;
+use num_modular::{ModularCoreOps, MontgomeryInt, ModularInteger};
 use num_traits::{CheckedAdd, FromPrimitive, Num, RefNum, ToPrimitive};
 use rand::{random, Rng};
 use std::collections::BTreeMap;
@@ -37,32 +38,40 @@ use crate::tables::{MILLER_RABIN_BASE32, MILLER_RABIN_BASE64};
 #[cfg(not(feature = "big-table"))]
 pub fn is_prime64(target: u64) -> bool {
     // shortcuts
-    if target < 1 {
+    if target < 2 {
         return false;
     }
     if target & 1 == 0 {
         return target == 2;
-    }
-
-    // first find in the prime list
+    } 
     if let Ok(u) = u8::try_from(target) {
+        // find in the prime list if the target is small enough
         return SMALL_PRIMES.binary_search(&u).is_ok();
+    } else {
+        // check remainder against the wheel table
+        let pos = (target % WHEEL_SIZE as u64) as usize;
+        if pos == 0 || WHEEL_NEXT[pos] < WHEEL_NEXT[pos-1] {
+            return false;
+        }
     }
 
     // Then do a deterministic Miller-rabin test
     // The collection of witnesses are from http://miller-rabin.appspot.com/
     if let Ok(u) = u16::try_from(target) {
         // 2, 3 for u16 range
-        return u.is_sprp(2) && u.is_sprp(3);
+        let u = Mint::from(u);
+        return u.is_sprp(Mint::from(2)) && u.is_sprp(Mint::from(3));
     }
     if let Ok(u) = u32::try_from(target) {
         // 2, 7, 61 for u32 range
-        return u.is_sprp(2) && u.is_sprp(7) && u.is_sprp(61);
+        let u = Mint::from(u);
+        return u.is_sprp(Mint::from(2)) && u.is_sprp(Mint::from(7)) && u.is_sprp(Mint::from(61));
     }
 
     // 2, 325, 9375, 28178, 450775, 9780504, 1795265022 for u64 range
     const WITNESS64: [u64; 7] = [2, 325, 9375, 28178, 450775, 9780504, 1795265022];
-    WITNESS64.iter().all(|&x| target.is_sprp(x))
+    let u = Mint::from(target);
+    WITNESS64.iter().all(|&x| u.is_sprp(Mint::from(x)))
 }
 
 /// Very fast primality test on a u64 integer is a prime number. It's based on
@@ -71,32 +80,40 @@ pub fn is_prime64(target: u64) -> bool {
 #[cfg(feature = "big-table")]
 pub fn is_prime64(target: u64) -> bool {
     // shortcuts
-    if target < 1 {
+    if target < 2 {
         return false;
     }
     if target & 1 == 0 {
         return target == 2;
     }
-
-    // first find in the prime list
-    if target < 8167 {
+    if target < SMALL_PRIMES_NEXT {
+        // find in the prime list if the target is small enough
         return SMALL_PRIMES.binary_search(&(target as u16)).is_ok();
+    } else {
+        // check remainder against the wheel table
+        let pos = (target % WHEEL_SIZE as u64) as usize;
+        if pos == 0 || WHEEL_NEXT[pos] < WHEEL_NEXT[pos-1] {
+            return false;
+        }
     }
 
     // 32bit test
     const MAGIC: u32 = 0xAD625B89;
     if let Ok(u) = u32::try_from(target) {
         let base = u.wrapping_mul(MAGIC) >> 24;
-        return u.is_sprp(MILLER_RABIN_BASE32[base as usize] as u32);
+        let u = Mint::from(u);
+        return u.is_sprp(Mint::from(MILLER_RABIN_BASE32[base as usize] as u32));
     }
 
     // 49bit test
-    if !target.is_sprp(2) {
+    let mt = Mint::from(target);
+    if !mt.is_sprp(2.into()) {
         return false;
     }
     let u = target as u32; // truncate
+
     let base = u.wrapping_mul(MAGIC) >> 18;
-    if !target.is_sprp(MILLER_RABIN_BASE64[base as usize] as u64) {
+    if !mt.is_sprp(Mint::from(MILLER_RABIN_BASE64[base as usize] as u64)) {
         return false;
     }
     if target < (1u64 << 49) {
@@ -106,7 +123,7 @@ pub fn is_prime64(target: u64) -> bool {
     // 64bit test
     const SECOND_BASES: [u64; 8] = [15, 135, 13, 60, 15, 117, 65, 29];
     let base = base >> 13;
-    target.is_sprp(SECOND_BASES[base as usize])
+    mt.is_sprp(Mint::from(SECOND_BASES[base as usize]))
 }
 
 /// Fast integer factorization on a u64 target. It's based on pollard's rho method and SQUFOF.
@@ -222,6 +239,8 @@ pub fn factorize64(target: u64) -> BTreeMap<u64, usize> {
         3 * 5 * 7 * 11,
     ];
     while let Some(target) = todo.pop() {
+        // TODO: add a separate method (is_prime64_mint?) which skips the trial division part, as it's
+        // already performed by division above
         if is_prime64(target) {
             *result.entry(target).or_insert(0) += 1;
         } else {
@@ -229,15 +248,15 @@ pub fn factorize64(target: u64) -> BTreeMap<u64, usize> {
             let divisor = loop {
                 // try SQUFOF after 4 failed pollard rho trials
                 if i % 5 == 0 && (i / 5) < SQUFOF_MULTIPLIERS.len() {
-                    // TODO: check if the residual is a sqaure number before SQUFOF
+                    // TODO: check if the residual is a sqaure number before SQUFOF (and also pollard_rho?)
                     if let Some(p) = squfof(&target, SQUFOF_MULTIPLIERS[i / 5] as u64) {
                         break p;
                     }
                 } else {
-                    let start = random::<u64>() % target;
-                    let offset = random::<u64>() % target;
-                    if let Some(p) = pollard_rho(&target, start, offset) {
-                        break p;
+                    let start = MontgomeryInt::new(random::<u64>(), target);
+                    let offset = start.convert(random::<u64>());
+                    if let Some(p) = pollard_rho(&Mint::from(target), start.into(), offset.into()) {
+                        break p.value();
                     }
                 }
                 i += 1;
@@ -249,7 +268,7 @@ pub fn factorize64(target: u64) -> BTreeMap<u64, usize> {
     result
 }
 
-// XXX: support factorize128, as we have efficient modular arithmetic for u128
+// TODO: support factorize128, as we have efficient modular arithmetic for u128
 
 /// This function re-exports [PrimeBufferExt::is_prime()][crate::buffer::PrimeBufferExt::is_prime()] with a default buffer distance
 pub fn is_prime<T: PrimalityBase>(target: &T, config: Option<PrimalityTestConfig>) -> Primality

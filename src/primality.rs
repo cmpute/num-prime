@@ -148,6 +148,7 @@ where
 
     #[inline]
     fn is_sprp(&self, base: Self) -> bool {
+        // TODO(v0.3.1): test performance without either dispatch
         self.test_sprp(base).either(|v| v, |_| false)
     }
 
@@ -161,23 +162,27 @@ where
         let shift = tm1.trailing_zeros();
         let u = &tm1 >> shift;
 
+        // prevent reduction if the input is in montgomery form
+        let m1 = T::one() % self;
+        let mm1 = (&m1).negm(self);
+
         let mut x = base.powm(&u, self);
-        if x == T::one() || x == tm1 {
+        if x == m1 || x == mm1 {
             return Either::Left(true);
         }
 
         for _ in 0..shift {
             let y = (&x).sqm(self);
-            if y.is_one() {
+            if y == m1 {
                 return Either::Right(self.gcd(&(x - T::one())));
             }
-            if y == tm1 {
+            if y == mm1 {
                 return Either::Left(true);
             }
             x = y;
         }
 
-        Either::Left(x == T::one())
+        Either::Left(x == m1)
     }
 
     fn is_lprp(&self, p: Option<usize>, q: Option<isize>) -> bool {
@@ -386,6 +391,7 @@ impl<T, Base> PrimalityRefBase<Base> for T where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mint::Mint;
     use num_modular::{ModularAbs, ModularSymbols};
     use rand::random;
 
@@ -411,10 +417,12 @@ mod tests {
         let spsp: [u16; 5] = [2047, 3277, 4033, 4681, 8321];
         for psp in spsp {
             assert!(psp.is_sprp(2));
+            assert!(Mint::from(psp).is_sprp(2.into())); // test Mint execution
         }
 
         // test cofactor return
-        assert!(matches!(341u16.test_sprp(2), Either::Right(31)));
+        assert_eq!(341u16.test_sprp(2), Either::Right(31));
+        assert_eq!(Mint::from(341u16).test_sprp(2.into()), Either::Right(31.into()));
     }
 
     #[test]

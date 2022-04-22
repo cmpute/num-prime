@@ -85,6 +85,7 @@ where
             return None;
         }
 
+        // FIXME: optimize abs_diff for montgomery form
         let diff = if b > a { &b - &a } else { &a - &b }; // abs_diff
         let d = diff.gcd(target);
         if d > T::one() && &d < target {
@@ -183,13 +184,27 @@ fn williams_pp1() {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mint::Mint;
+    use num_modular::MontgomeryInt;
     use rand::random;
 
     #[test]
     fn pollard_rho_test() {
-        assert!(matches!(pollard_rho(&8051u16, 2, 1), Some(97)));
+        assert_eq!(pollard_rho(&8051u16, 2, 1), Some(97));
         assert!(matches!(pollard_rho(&8051u16, random(), 1), Some(i) if i == 97 || i == 83));
-        assert!(matches!(pollard_rho(&455459u32, 2, 1), Some(743)))
+        assert_eq!(pollard_rho(&455459u32, 2, 1), Some(743));
+
+        // Mint test
+        for _ in 0..10 {
+            let target = random::<u16>() | 1;
+            let start = random::<u16>() % target;
+            let offset = random::<u16>() % target;
+            assert_eq!(pollard_rho(&target, start, offset),
+                       pollard_rho(&Mint::from(target),
+                       MontgomeryInt::new(start, target).into(),
+                       MontgomeryInt::new(offset, target).into()
+                ).map(|v| v.value()));
+        }
     }
 
     #[test]
