@@ -18,7 +18,7 @@ pub trait BitTest {
 }
 
 /// This enum describes the result of primality checks
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Primality {
     /// The number passes deterministic primality check.
     Yes,
@@ -82,6 +82,7 @@ impl BitOr<Primality> for Primality {
 pub struct PrimalityTestConfig {
     // TODO: add option to divides small primes in the table
     //       and this option should be enabled if the probabilistic test is used for strict config
+
     /// Number of strong probable prime test, starting from base 2
     pub sprp_trials: usize,
 
@@ -209,6 +210,7 @@ pub trait ExactRoots: Roots + Pow<u32, Output = Self> + Clone {
 //      factor.c `divexact_21`
 
 // TODO: implement quick is_x_power (specifically is_235_power)
+// This could be used during factorization to filter out perfect powers
 // REF: PARI/GP `Z_ispowerall`, `is_357_power`
 //      FLINT `n_is_perfect_power235`, `fmpz_is_perfect_power`
 //      GMP `mpz_perfect_power_p`

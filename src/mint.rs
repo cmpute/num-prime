@@ -733,18 +733,27 @@ where
     T::Inv: Clone, {
     #[inline]
     fn checked_jacobi(&self, n: &Self) -> Option<i8> {
-        let (a, n) = left_ref_only(self, n);
-        a.checked_jacobi(n)
+        match (&self.0, &n.0) {
+            (Left(a), Left(n)) => a.checked_jacobi(n),
+            (Right(a), Left(n)) => a.residue().checked_jacobi(n),
+            (_, Right(_)) => unreachable!()
+        }
     }
     #[inline]
     fn checked_legendre(&self, n: &Self) -> Option<i8> {
-        let (a, n) = left_ref_only(self, n);
-        a.checked_legendre(n)
+        match (&self.0, &n.0) {
+            (Left(a), Left(n)) => a.checked_legendre(n),
+            (Right(a), Left(n)) => a.residue().checked_legendre(n),
+            (_, Right(_)) => unreachable!()
+        }
     }
     #[inline]
     fn kronecker(&self, n: &Self) -> i8 {
-        let (a, n) = left_ref_only(self, n);
-        a.kronecker(n)
+        match (&self.0, &n.0) {
+            (Left(a), Left(n)) => a.kronecker(n),
+            (Right(a), Left(n)) => a.residue().kronecker(n),
+            (_, Right(_)) => unreachable!()
+        }
     }
 }
 
@@ -762,7 +771,6 @@ where
         }))
     }
 }
-// TODO: implement ModularRefOps
 
 #[cfg(test)]
 mod tests {

@@ -44,8 +44,8 @@ where
             T::from_isize(-q).unwrap().negm(&m)
         };
 
-        let mut uk = T::zero(); // U(k)
-        let mut uk1 = T::one(); // U(k+1)
+        let mut uk = T::zero() % &m; // U(k), mod m for montgomery form
+        let mut uk1 = T::one() % &m; // U(k+1)
 
         for i in (0..n.bits()).rev() {
             if n.bit(i) {

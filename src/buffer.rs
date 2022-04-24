@@ -113,6 +113,8 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
     /// factorization failed, then a list of found factors (not necessarily primes) will be returned. A prime
     /// factor will repeat if its exponent is larget than one, and it's ensured that the product of the list of
     /// factors is equal to the original target.
+    /// 
+    /// TODO(v0.next): Return two lists when failed, one for prime factors, another one for remaining cofactors
     fn factors<T: PrimalityBase>(
         &self,
         target: T,
@@ -475,6 +477,7 @@ impl NaiveBuffer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::detail::Mint;
     #[cfg(feature = "num-bigint")]
     use core::str::FromStr;
     #[cfg(feature = "num-bigint")]
@@ -536,21 +539,25 @@ mod tests {
     }
 
     #[test]
-    fn pb_is_prime_test() {
+    fn is_prime_test() {
         // test for is_prime
         let pb = NaiveBuffer::new();
 
         // some mersenne numbers
-        assert!(matches!(
+        assert_eq!(
             pb.is_prime(&(2u32.pow(19) - 1), None),
             Primality::Yes
-        ));
-        assert!(matches!(
+        );
+        assert_eq!(
             pb.is_prime(&(2u32.pow(23) - 1), None),
             Primality::No
-        ));
+        );
         assert!(matches!(
             pb.is_prime(&(2u128.pow(89) - 1), None),
+            Primality::Probable(_)
+        ));
+        assert!(matches!(
+            pb.is_prime(&Mint::from(2u128.pow(89) - 1), None),
             Primality::Probable(_)
         ));
 
@@ -567,12 +574,27 @@ mod tests {
         }
 
         // test large numbers
+        const P: u128 = 18699199384836356663; // https://golang.org/issue/638
+        assert!(matches!(
+            pb.is_prime(&P, None),
+            Primality::Probable(_)
+        ));
+        assert!(matches!(
+            pb.is_prime(&P, Some(PrimalityTestConfig::bpsw())),
+            Primality::Probable(_)
+        ));
+        assert!(matches!(
+            pb.is_prime(&Mint::from(P), None),
+            Primality::Probable(_)
+        ));
+        assert!(matches!(
+            pb.is_prime(&Mint::from(P), Some(PrimalityTestConfig::bpsw())),
+            Primality::Probable(_)
+        ));
+
         #[cfg(feature = "num-bigint")]
         {
             let large_primes = [
-                // https://golang.org/issue/638
-                "18699199384836356663",
-
                 "98920366548084643601728869055592650835572950932266967461790948584315647051443",
                 "94560208308847015747498523884063394671606671904944666360068158221458669711639",
 
@@ -587,6 +609,9 @@ mod tests {
                 "9850501549098619803069760025035903451269934817616361666987073351061430442874302652853566563721228910201656997576599",                                           // E-382: 2^382-105
                 "42307582002575910332922579714097346549017899709713998034217522897561970639123926132812109468141778230245837569601494931472367",                                 // Curve41417: 2^414-17
                 "6864797660130609714981900799081393217269435300143305409394463459185543183397656052122559640661454554977296311391480858037121987999716643812574028291115057151", // E-521: 2^521-1
+
+                // https://github.com/AtropineTears/num-primes/issues/1#issuecomment-934629597
+                "169511182982703321453314585423962898651587669459838234386506572286328885534468792292646838949809616446341407457141008401355628947670484184607678853094537849610289912805960069455687743151708433319901176932959509872662610091644590437761688516626993416011399330087939042347256922771590903190536793274742859624657"
             ];
             for pstr in large_primes {
                 assert!(

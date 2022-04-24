@@ -56,6 +56,13 @@ pub fn is_prime64(target: u64) -> bool {
     }
 
     // Then do a deterministic Miller-rabin test
+    is_prime64_miller(target)
+}
+
+// Primality test for u64 with only miller-rabin tests, used during factorization.
+// It assumes the target is odd, not too small and cannot be divided small primes
+#[cfg(not(feature = "big-table"))]
+fn is_prime64_miller(target: u64) -> bool {
     // The collection of witnesses are from http://miller-rabin.appspot.com/
     if let Ok(u) = u16::try_from(target) {
         // 2, 3 for u16 range
@@ -86,6 +93,8 @@ pub fn is_prime64(target: u64) -> bool {
     if target & 1 == 0 {
         return target == 2;
     }
+
+    // trial division
     if target < SMALL_PRIMES_NEXT {
         // find in the prime list if the target is small enough
         return SMALL_PRIMES.binary_search(&(target as u16)).is_ok();
@@ -97,6 +106,13 @@ pub fn is_prime64(target: u64) -> bool {
         }
     }
 
+    is_prime64_miller(target)
+}
+
+// Primality test for u64 with only miller-rabin tests, used during factorization.
+// It assumes the target is odd, not too small and cannot be divided small primes
+#[cfg(feature = "big-table")]
+fn is_prime64_miller(target: u64) -> bool {
     // 32bit test
     const MAGIC: u32 = 0xAD625B89;
     if let Ok(u) = u32::try_from(target) {
@@ -159,16 +175,15 @@ pub fn factorize64(target: u64) -> BTreeMap<u64, usize> {
     let mut factored = false;
 
     #[cfg(not(feature = "big-table"))]
-    for &p in SMALL_PRIMES.iter().skip(1) {
-        let p64 = p as u64;
-        if p64 > tsqrt {
+    for p in SMALL_PRIMES.iter().skip(1).map(|&v| v as u64) {
+        if p > tsqrt {
             factored = true;
             break;
         }
 
-        while residual % p64 == 0 {
-            residual = residual / p64;
-            *result.entry(p64).or_insert(0) += 1;
+        while residual % p == 0 {
+            residual = residual / p;
+            *result.entry(p).or_insert(0) += 1;
         }
         if residual == 1 {
             factored = true;
@@ -239,9 +254,7 @@ pub fn factorize64(target: u64) -> BTreeMap<u64, usize> {
         3 * 5 * 7 * 11,
     ];
     while let Some(target) = todo.pop() {
-        // TODO: add a separate method (is_prime64_mint?) which skips the trial division part, as it's
-        // already performed by division above
-        if is_prime64(target) {
+        if is_prime64_miller(target) {
             *result.entry(target).or_insert(0) += 1;
         } else {
             let mut i = 1usize;
@@ -268,7 +281,54 @@ pub fn factorize64(target: u64) -> BTreeMap<u64, usize> {
     result
 }
 
-// TODO: support factorize128, as we have efficient modular arithmetic for u128
+pub fn factorize128(target: u128) -> BTreeMap<u128, usize> {
+    // shortcut for u64
+    if target < (1u128 << 64) {
+        return factorize64(target as u64)
+            .into_iter()
+            .map(|(k, v)| (k as u128, v))
+            .collect();
+    }
+
+    let mut result = BTreeMap::new();
+    let f2 = target.trailing_zeros(); // quick check on factors of 2
+    if f2 != 0 {
+        result.insert(2, f2 as usize);
+    }
+
+    // trial division using primes in the table
+    // TODO(v0.3.2): speed up this by precompute tables
+    let mut residual = target >> f2;
+    for p in SMALL_PRIMES.iter().skip(1).map(|&v| v as u128) {
+        while residual % p == 0 {
+            residual = residual / p;
+            *result.entry(p).or_insert(0) += 1;
+        }
+    }
+    if residual == 1 {
+        return result;
+    }
+
+    // then try pollard's rho and SQUFOF methods util fully factored
+    let mut todo = vec![residual];
+    while let Some(target) = todo.pop() {
+        if is_prime(&Mint::from(target), Some(PrimalityTestConfig::bpsw())).probably() {
+            *result.entry(target).or_insert(0) += 1;
+        } else {
+            let divisor = loop {
+                // TODO: only pollard rho is used by now, select better methods
+                let start = MontgomeryInt::new(random::<u128>(), target);
+                let offset = start.convert(random::<u128>());
+                if let Some(p) = pollard_rho(&Mint::from(target), start.into(), offset.into()) {
+                    break p.value();
+                }
+            };
+            todo.push(divisor);
+            todo.push(target / divisor);
+        }
+    }
+    result
+}
 
 /// This function re-exports [PrimeBufferExt::is_prime()][crate::buffer::PrimeBufferExt::is_prime()] with a default buffer distance
 pub fn is_prime<T: PrimalityBase>(target: &T, config: Option<PrimalityTestConfig>) -> Primality
@@ -569,8 +629,8 @@ where
 {
     let buf = NaiveBuffer::new();
     let config = Some(PrimalityTestConfig::strict());
-    // TODO: use miller-rabin for large numbers (more than 256 bits?), as BPSW could be too slow
-    //       the NIST recommends 5 rounds for 512 and 1024 bits. For 1536 bits, the recommendation is 4 rounds.
+    // XXX: use miller-rabin for large numbers (more than 256 bits?), as BPSW could be too slow (need check)
+    //      the NIST recommends 5 rounds for 512 and 1024 bits. For 1536 bits, the recommendation is 4 rounds.
 
     // test (n-1)/2 first since its smaller
     let sophie_p = buf.is_prime(&(target >> 1), config);
@@ -986,14 +1046,30 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "big-int")]
-    fn is_prime_test() {
-        #[cfg(feature = "num-bigint")]
-        {
-            use num_bigint::BigUint;
-            // https://github.com/AtropineTears/num-primes/issues/1#issuecomment-934629597
-            let p = BigUint::parse_bytes(b"169511182982703321453314585423962898651587669459838234386506572286328885534468792292646838949809616446341407457141008401355628947670484184607678853094537849610289912805960069455687743151708433319901176932959509872662610091644590437761688516626993416011399330087939042347256922771590903190536793274742859624657", 10).unwrap();
-            assert!(is_prime(&p, None).probably());
+    fn factorize128_test() {
+        // some known cases
+        let fac_primorial19 = BTreeMap::from_iter(SMALL_PRIMES.iter().take(19).map(|&p| (p as u128, 1)));
+        let fac = factorize128(7858321551080267055879090);
+        assert_eq!(fac, fac_primorial19);
+        
+        let fac_smallbig = BTreeMap::from_iter([(167, 1), (2417851639229258349412369, 1)]);
+        let fac = factorize128(403781223751286144351865623);
+        assert_eq!(fac, fac_smallbig);
+
+        // random factorization tests
+        for _ in 0..1 { // TODO: run more tests when other factorization methods are implemented
+            let x = random();
+            let fac = factorize128(x);
+            let mut prod = 1;
+            for (p, exp) in fac {
+                assert!(
+                    is_prime(&p, None).probably(),
+                    "factorization result should have prime factors! (get {})",
+                    p
+                );
+                prod *= p.pow(exp as u32);
+            }
+            assert_eq!(x, prod, "factorization check failed! ({} != {})", x, prod);
         }
     }
 
