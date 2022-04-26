@@ -139,6 +139,8 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
             .map(|(k, v)| (T::from_u64(k).unwrap(), v))
             .collect();
 
+        // TODO: check is_perfect_power before other methods
+
         // find factors by dividing
         let mut successful = true;
         let mut config = config;

@@ -8,6 +8,7 @@
 - Support modular integer in a unified API
 - Stablize API, determine minimal verison for each dependency
 - Support no_std
+- Split the nt_funcs, factor and primality modules into sub files, and put the tables into the related files.
 
 # Undetermined
 - Use NumAssign as trait bounds and see if there's prominent performance improvement

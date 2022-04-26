@@ -204,8 +204,8 @@ pub trait ExactRoots: Roots + Pow<u32, Output = Self> + Clone {
     }
 }
 
-// TODO: implement quick is_x_power (specifically is_235_power)
-// This could be used during factorization to filter out perfect powers
+// TODO: implement is_perfect_power, this could be used during factorization
+//       to filter out perfect powers when factorize large integers
 // REF: PARI/GP `Z_ispowerall`, `is_357_power`
 //      FLINT `n_is_perfect_power235`, `fmpz_is_perfect_power`
 //      GMP `mpz_perfect_power_p`

@@ -19,7 +19,7 @@ use crate::tables::{MOEBIUS_ODD, SMALL_PRIMES, WHEEL_NEXT, WHEEL_PREV, WHEEL_SIZ
 #[cfg(feature = "big-table")]
 use crate::tables::{SMALL_PRIMES_INV, ZETA_LOG_TABLE, SMALL_PRIMES_NEXT};
 use crate::traits::{FactorizationConfig, Primality, PrimalityTestConfig, PrimalityUtils};
-use crate::RandPrime;
+use crate::{RandPrime, ExactRoots};
 #[cfg(feature = "num-bigint")]
 use num_bigint::{BigUint, RandBigInt};
 use num_integer::Roots;
@@ -29,7 +29,7 @@ use num_modular::DivExact;
 use num_traits::{CheckedAdd, FromPrimitive, Num, RefNum, ToPrimitive};
 use rand::{random, Rng};
 use std::collections::BTreeMap;
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 
 #[cfg(feature = "big-table")]
 use crate::tables::{MILLER_RABIN_BASE32, MILLER_RABIN_BASE64};
@@ -151,6 +151,7 @@ fn is_prime64_miller(target: u64) -> bool {
 ///
 /// The factorization can be quite faster under 2^64 because: 1) faster and deterministic primality check,
 /// 2) efficient montgomery multiplication implementation of u64
+// TODO(v0.next): return BTreeMap<u64, u8> instead of BTreeMap<u64, usize>
 pub fn factorize64(target: u64) -> BTreeMap<u64, usize> {
     // TODO: improve factorization performance
     // REF: http://flintlib.org/doc/ulong_extras.html#factorisation
@@ -211,22 +212,14 @@ pub fn factorize64(target: u64) -> BTreeMap<u64, usize> {
         }
 
         let mut exp: usize = 0;
-        loop {
-            match residual.div_exact(p, &pinv) {
-                Some(q) => {
-                    // residual is divisible by p
-                    exp += 1;
-                    residual = q;
-                },
-                None => {
-                    // otherwise
-                    if exp > 0 {
-                        result.insert(p, exp);
-                    }
-                    break;
-                }
-            }
+        while let Some(q) = residual.div_exact(p, &pinv) {
+            exp += 1;
+            residual = q;
         }
+        if exp > 0 {
+            result.insert(p, exp);
+        }
+
         if residual == 1 {
             factored = true;
             break;
@@ -240,8 +233,18 @@ pub fn factorize64(target: u64) -> BTreeMap<u64, usize> {
         return result;
     }
 
-    // then try pollard's rho and SQUFOF methods util fully factored
-    let mut todo = vec![residual];
+    // then try advanced methods to find a divisor util fully factored
+    for (p, exp) in factorize64_advance(vec![(residual, 1usize)]).into_iter() {
+        *result.entry(p).or_insert(0) += exp;
+    }
+    result
+}
+
+// This function factorize all cofactors after some trivial division steps
+pub(crate) fn factorize64_advance(cofactors: Vec<(u64, usize)>) -> Vec<(u64, usize)> {
+    let mut todo = cofactors;
+    let mut factored: Vec<(u64, usize)> = Vec::new(); // prime factor, exponent
+
     const SQUFOF_MULTIPLIERS: [u16; 16] = [
         1,
         3,
@@ -260,36 +263,47 @@ pub fn factorize64(target: u64) -> BTreeMap<u64, usize> {
         5 * 7 * 11,
         3 * 5 * 7 * 11,
     ];
-    while let Some(target) = todo.pop() {
+    while let Some((target, exp)) = todo.pop() {
         if is_prime64_miller(target) {
-            *result.entry(target).or_insert(0) += 1;
-        } else {
-            let mut i = 1usize;
-            let divisor = loop {
-                // try SQUFOF after 4 failed pollard rho trials
-                if i % 5 == 0 && (i / 5) < SQUFOF_MULTIPLIERS.len() {
-                    // TODO: check if the residual is a sqaure number before SQUFOF (and also pollard_rho?)
-                    if let Some(p) = squfof(&target, SQUFOF_MULTIPLIERS[i / 5] as u64) {
-                        break p;
-                    }
-                } else {
-                    let start = MontgomeryInt::new(random::<u64>(), target);
-                    let offset = start.convert(random::<u64>());
-                    if let Some(p) = pollard_rho(&Mint::from(target), start.into(), offset.into()) {
-                        break p.value();
-                    }
-                }
-                i += 1;
-            };
-            todo.push(divisor);
-            todo.push(target / divisor);
+            factored.push((target, exp));
+            continue;
         }
+
+        // check perfect powers before other methods
+        // it suffices to check square and cubic if big-table is enabled, since fifth power of
+        // the smallest prime that haven't been checked is 8167^5 > 2^64
+        if let Some(d) = target.sqrt_exact() {
+            todo.push((d, exp * 2));
+            continue;
+        }
+        if let Some(d) = target.cbrt_exact() {
+            todo.push((d, exp * 3));
+            continue;
+        }
+
+        // try to find a divisor
+        let mut i = 1usize;
+        let divisor = loop {
+            // try SQUFOF after 4 failed pollard rho trials
+            if i % 5 == 0 && (i / 5) < SQUFOF_MULTIPLIERS.len() {
+                if let Some(p) = squfof(&target, SQUFOF_MULTIPLIERS[i / 5] as u64) {
+                    break p;
+                }
+            } else {
+                let start = MontgomeryInt::new(random::<u64>(), target);
+                let offset = start.convert(random::<u64>());
+                if let Some(p) = pollard_rho(&Mint::from(target), start.into(), offset.into()) {
+                    break p.value();
+                }
+            }
+            i += 1;
+        };
+        todo.push((divisor, exp));
+        todo.push((target / divisor, exp));
     }
-    result
+    factored
 }
 
-// TODO: GNU factor uses [Lucas test](https://en.wikipedia.org/wiki/Lucas_primality_test) to prove primality, we could use that as well
-// (only need to test 64bit ~ 128bit)
 pub fn factorize128(target: u128) -> BTreeMap<u128, usize> {
     // shortcut for u64
     if target < (1u128 << 64) {
@@ -328,49 +342,76 @@ pub fn factorize128(target: u128) -> BTreeMap<u128, usize> {
         .skip(1)
     {
         let mut exp: usize = 0;
-        loop {
-            match residual.div_exact(p, &pinv) {
-                Some(q) => {
-                    // residual is divisible by p
-                    exp += 1;
-                    residual = q;
-                },
-                None => {
-                    // otherwise
-                    if exp > 0 {
-                        result.insert(p as u128, exp);
-                    }
-                    break;
-                }
-            }
+        while let Some(q) = residual.div_exact(p, &pinv) {
+            exp += 1;
+            residual = q;
         }
+        if exp > 0 {
+            result.insert(p as u128, exp);
+        }
+
         if residual == 1 {
-            break;
+            return result;
         }
-    }
-    
-    if residual == 1 {
-        return result;
     }
 
-    // then try pollard's rho util fully factored
-    // TODO: split todo list into large(u128) and small(u64) two lists to utilize the efficient u64 prime test
-    let mut todo = vec![residual]; // cofactors to be processed
-    while let Some(target) = todo.pop() {
+    // then try advanced methods to find a divisor util fully factored
+    let (mut todo128, mut todo64) = if let Ok(r64) = residual.try_into() {
+        (Vec::new(), vec![(r64, 1usize)])
+    } else {
+        (vec![(residual, 1usize)], Vec::new())
+    }; // cofactors to be processed
+
+    while let Some((target, exp)) = todo128.pop() {
         if is_prime(&Mint::from(target), None).probably() {
             *result.entry(target).or_insert(0) += 1;
-        } else {
-            let divisor = loop {
-                // TODO: only pollard rho is used by now, select better methods
-                let start = MontgomeryInt::new(random::<u128>(), target);
-                let offset = start.convert(random::<u128>());
-                if let Some(p) = pollard_rho(&Mint::from(target), start.into(), offset.into()) {
-                    break p.value();
-                }
-            };
-            todo.push(divisor);
-            todo.push(target / divisor);
+            continue;
         }
+
+        // check perfect powers before other methods
+        // it suffices to check 2, 3, 5, 7 power if big-table is enabled, since tenth power of
+        // the smallest prime that haven't been checked is 8167^10 > 2^128
+        if let Some(d) = target.sqrt_exact() {
+            if let Ok(d64) = d.try_into() {
+                todo64.push((d64, exp * 2));
+            } else {
+                todo128.push((d, exp * 2));
+            }
+            continue;
+        }
+        if let Some(d) = target.cbrt_exact() {
+            if let Ok(d64) = d.try_into() {
+                todo64.push((d64, exp * 3));
+            } else {
+                todo128.push((d, exp * 3));
+            }
+            continue;
+        }
+
+        let divisor = loop {
+            // TODO: only pollard rho is used by now, select better methods
+            let start = MontgomeryInt::new(random::<u128>(), target);
+            let offset = start.convert(random::<u128>());
+            if let Some(p) = pollard_rho(&Mint::from(target), start.into(), offset.into()) {
+                break p.value();
+            }
+        };
+
+        if let Ok(d64) = divisor.try_into() {
+            todo64.push((d64, exp));
+        } else {
+            todo128.push((divisor, exp));
+        }
+        let co = target / divisor;
+        if let Ok(d64) = co.try_into() {
+            todo64.push((d64, exp));
+        } else {
+            todo128.push((co, exp));
+        }
+    }
+
+    for (p, exp) in factorize64_advance(todo64).into_iter() {
+        *result.entry(p as u128).or_insert(0) += exp;
     }
     result
 }
@@ -1060,7 +1101,7 @@ mod tests {
 
     #[test]
     fn factorize64_test() {
-        // some known cases
+        // some simple cases
         let fac4095 = BTreeMap::from_iter([(3, 2), (5, 1), (7, 1), (13, 1)]);
         let fac = factorize64(4095);
         assert_eq!(fac, fac4095);
@@ -1072,6 +1113,11 @@ mod tests {
         let fac1_17 = BTreeMap::from_iter([(2071723, 1), (5363222357, 1)]);
         let fac = factorize64(11111111111111111);
         assert_eq!(fac, fac1_17);
+
+        // perfect powers
+        for exp in 2u32..5 {
+            assert_eq!(factorize128(8167u128.pow(exp)), BTreeMap::from_iter([(8167, exp as usize)]));
+        }
 
         // 100 random factorization tests
         for _ in 0..100 {
@@ -1092,7 +1138,7 @@ mod tests {
 
     #[test]
     fn factorize128_test() {
-        // some known cases
+        // some simple cases
         let fac_primorial19 = BTreeMap::from_iter(SMALL_PRIMES.iter().take(19).map(|&p| (p as u128, 1)));
         let fac = factorize128(7858321551080267055879090);
         assert_eq!(fac, fac_primorial19);
@@ -1100,6 +1146,12 @@ mod tests {
         let fac_smallbig = BTreeMap::from_iter([(167, 1), (2417851639229258349412369, 1)]);
         let fac = factorize128(403781223751286144351865623);
         assert_eq!(fac, fac_smallbig);
+
+        // perfect powers
+        for exp in 5u32..10 {
+            // 2^64 < 8167^5 < 8167^9 < 2^128
+            assert_eq!(factorize128(8167u128.pow(exp)), BTreeMap::from_iter([(8167, exp as usize)]));
+        }
 
         // random factorization tests
         for _ in 0..1 { // TODO: run more tests when other factorization methods are implemented
