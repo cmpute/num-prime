@@ -11,6 +11,8 @@ use std::collections::BTreeMap;
 /// The target is guaranteed fully factored only if bound * bound > target, where bound = max(primes).
 /// The parameter limit additionally sets the maximum of primes to be tried.
 /// The residual will be Ok(1) or Ok(p) if fully factored.
+/// 
+/// TODO: implement fast check for small primes with BigInts in the precomputed table, and skip them in this function
 pub fn trial_division<
     I: Iterator<Item = u64>,
     T: Integer + Clone + Roots + NumRef + FromPrimitive,
@@ -85,7 +87,7 @@ where
             return None;
         }
 
-        // FIXME: optimize abs_diff for montgomery form
+        // FIXME: optimize abs_diff for montgomery form if we are going to use the abs_diff in the std lib
         let diff = if b > a { &b - &a } else { &a - &b }; // abs_diff
         let d = diff.gcd(target);
         if d > T::one() && &d < target {

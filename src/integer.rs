@@ -59,6 +59,8 @@ macro_rules! impl_exactroot_prim {
             }
         }
     )*};
+    // TODO: it might worth use QUAD_RESIDUE and CUBIC_RESIDUE for large size
+    //       primitive integers, need benchmark
 }
 impl_exactroot_prim!(u8 u16 u32 u64 u128 usize i8 i16 i32 i64 i128 isize);
 

@@ -110,7 +110,7 @@ impl Default for PrimalityTestConfig {
 }
 
 impl PrimalityTestConfig {
-    /// Create a configuration with the known stongest deterministic primality test
+    /// Create a configuration with the **stongest deterministic** primality test available
     pub fn strict() -> Self {
         Self::bpsw() // TODO: change to 2-base SPRP + VPRP
     }
@@ -203,11 +203,6 @@ pub trait ExactRoots: Roots + Pow<u32, Output = Self> + Clone {
         self.cbrt_exact().is_some()
     }
 }
-
-// TODO: implement quick div_exact (which might be useful in various functions)
-// REF: GMP `mpz_divexact`
-//      FLINT `fmpz_divexact`
-//      factor.c `divexact_21`
 
 // TODO: implement quick is_x_power (specifically is_235_power)
 // This could be used during factorization to filter out perfect powers

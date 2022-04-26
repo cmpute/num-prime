@@ -12,7 +12,7 @@
 
 use crate::factor::{pollard_rho, trial_division};
 use crate::nt_funcs::{
-    factorize64, factors, is_prime64, next_prime, nth_prime_bounds, nth_prime_est, prev_prime,
+    factorize128, factors, is_prime64, next_prime, nth_prime_bounds, nth_prime_est, prev_prime,
 };
 use crate::primality::{PrimalityBase, PrimalityRefBase};
 use crate::tables::{SMALL_PRIMES, SMALL_PRIMES_NEXT};
@@ -123,11 +123,11 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
     where
         for<'r> &'r T: PrimalityRefBase<T>,
     {
-        // shortcut if the target is in u64 range
-        if let Some(x) = target.to_u64() {
-            return Ok(factorize64(x)
+        // shortcut if the target is in u128 range
+        if let Some(x) = target.to_u128() {
+            return Ok(factorize128(x)
                 .into_iter()
-                .map(|(k, v)| (T::from_u64(k).unwrap(), v))
+                .map(|(k, v)| (T::from_u128(k).unwrap(), v))
                 .collect());
         }
         let config = config.unwrap_or(FactorizationConfig::default());

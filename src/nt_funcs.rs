@@ -15,15 +15,17 @@ use crate::buffer::{NaiveBuffer, PrimeBufferExt};
 use crate::mint::Mint;
 use crate::factor::{pollard_rho, squfof};
 use crate::primality::{PrimalityBase, PrimalityRefBase};
-use crate::tables::{MOEBIUS_ODD, SMALL_PRIMES, SMALL_PRIMES_NEXT, WHEEL_NEXT, WHEEL_PREV, WHEEL_SIZE};
+use crate::tables::{MOEBIUS_ODD, SMALL_PRIMES, WHEEL_NEXT, WHEEL_PREV, WHEEL_SIZE};
 #[cfg(feature = "big-table")]
-use crate::tables::{SMALL_PRIMES_INV, SMALL_PRIMES_INVLIM, ZETA_LOG_TABLE};
+use crate::tables::{SMALL_PRIMES_INV, ZETA_LOG_TABLE, SMALL_PRIMES_NEXT};
 use crate::traits::{FactorizationConfig, Primality, PrimalityTestConfig, PrimalityUtils};
 use crate::RandPrime;
 #[cfg(feature = "num-bigint")]
 use num_bigint::{BigUint, RandBigInt};
 use num_integer::Roots;
 use num_modular::{ModularCoreOps, MontgomeryInt, ModularInteger};
+#[cfg(feature = "num-bigint")]
+use num_modular::DivExact;
 use num_traits::{CheckedAdd, FromPrimitive, Num, RefNum, ToPrimitive};
 use rand::{random, Rng};
 use std::collections::BTreeMap;
@@ -49,6 +51,7 @@ pub fn is_prime64(target: u64) -> bool {
         return SMALL_PRIMES.binary_search(&u).is_ok();
     } else {
         // check remainder against the wheel table
+        // this step eliminates any number that is not coprime to WHEEL_SIZE
         let pos = (target % WHEEL_SIZE as u64) as usize;
         if pos == 0 || WHEEL_NEXT[pos] < WHEEL_NEXT[pos-1] {
             return false;
@@ -100,6 +103,7 @@ pub fn is_prime64(target: u64) -> bool {
         return SMALL_PRIMES.binary_search(&(target as u16)).is_ok();
     } else {
         // check remainder against the wheel table
+        // this step eliminates any number that is not coprime to WHEEL_SIZE
         let pos = (target % WHEEL_SIZE as u64) as usize;
         if pos == 0 || WHEEL_NEXT[pos] < WHEEL_NEXT[pos-1] {
             return false;
@@ -158,7 +162,9 @@ pub fn factorize64(target: u64) -> BTreeMap<u64, usize> {
     //      https://github.com/radii/msieve
     //      Pari/GP: ifac_crack
     let mut result = BTreeMap::new();
-    let f2 = target.trailing_zeros(); // quick check on factors of 2
+
+    // quick check on factors of 2
+    let f2 = target.trailing_zeros();
     if f2 == 0 {
         if is_prime64(target) {
             result.insert(target, 1);
@@ -192,33 +198,34 @@ pub fn factorize64(target: u64) -> BTreeMap<u64, usize> {
     }
 
     #[cfg(feature = "big-table")]
-    // divisibility check with pre-computed tables
-    for (&p, (&pinv, plim)) in SMALL_PRIMES
-        .iter()
-        .zip(SMALL_PRIMES_INV.iter().zip(SMALL_PRIMES_INVLIM))
+    // divisibility check with pre-computed tables, see comments on SMALL_PRIMES_INV for reference 
+    for (p, &pinv) in SMALL_PRIMES
+        .iter().map(|&p| p as u64)
+        .zip(SMALL_PRIMES_INV.iter())
         .skip(1)
     {
-        let p64 = p as u64;
-        if p64 > tsqrt {
+        // only need to test primes up to sqrt(target)
+        if p > tsqrt {
             factored = true;
             break;
         }
 
-        let mut r = residual;
-        let mut k: u32 = 0;
+        let mut exp: usize = 0;
         loop {
-            let r2 = r.wrapping_mul(pinv);
-
-            if r2 <= plim {
-                k += 1;
-                r = r2;
-            } else {
-                break;
+            match residual.div_exact(p, &pinv) {
+                Some(q) => {
+                    // residual is divisible by p
+                    exp += 1;
+                    residual = q;
+                },
+                None => {
+                    // otherwise
+                    if exp > 0 {
+                        result.insert(p, exp);
+                    }
+                    break;
+                }
             }
-        }
-        if k > 0 {
-            residual = residual / p64.pow(k);
-            result.insert(p64, k as usize);
         }
         if residual == 1 {
             factored = true;
@@ -281,6 +288,8 @@ pub fn factorize64(target: u64) -> BTreeMap<u64, usize> {
     result
 }
 
+// TODO: GNU factor uses [Lucas test](https://en.wikipedia.org/wiki/Lucas_primality_test) to prove primality, we could use that as well
+// (only need to test 64bit ~ 128bit)
 pub fn factorize128(target: u128) -> BTreeMap<u128, usize> {
     // shortcut for u64
     if target < (1u128 << 64) {
@@ -291,28 +300,64 @@ pub fn factorize128(target: u128) -> BTreeMap<u128, usize> {
     }
 
     let mut result = BTreeMap::new();
-    let f2 = target.trailing_zeros(); // quick check on factors of 2
+
+    // quick check on factors of 2
+    let f2 = target.trailing_zeros();
     if f2 != 0 {
         result.insert(2, f2 as usize);
     }
+    let mut residual = target >> f2;
 
     // trial division using primes in the table
-    // TODO(v0.3.2): speed up this by precompute tables
-    let mut residual = target >> f2;
+    #[cfg(not(feature = "big-table"))]
     for p in SMALL_PRIMES.iter().skip(1).map(|&v| v as u128) {
         while residual % p == 0 {
             residual = residual / p;
             *result.entry(p).or_insert(0) += 1;
         }
+        if residual == 1 {
+            break;
+        }
     }
+
+    #[cfg(feature = "big-table")]
+    // divisibility check with pre-computed tables, see comments on SMALL_PRIMES_INV for reference 
+    for (p, &pinv) in SMALL_PRIMES
+        .iter().map(|&p| p as u64)
+        .zip(SMALL_PRIMES_INV.iter())
+        .skip(1)
+    {
+        let mut exp: usize = 0;
+        loop {
+            match residual.div_exact(p, &pinv) {
+                Some(q) => {
+                    // residual is divisible by p
+                    exp += 1;
+                    residual = q;
+                },
+                None => {
+                    // otherwise
+                    if exp > 0 {
+                        result.insert(p as u128, exp);
+                    }
+                    break;
+                }
+            }
+        }
+        if residual == 1 {
+            break;
+        }
+    }
+    
     if residual == 1 {
         return result;
     }
 
-    // then try pollard's rho and SQUFOF methods util fully factored
-    let mut todo = vec![residual];
+    // then try pollard's rho util fully factored
+    // TODO: split todo list into large(u128) and small(u64) two lists to utilize the efficient u64 prime test
+    let mut todo = vec![residual]; // cofactors to be processed
     while let Some(target) = todo.pop() {
-        if is_prime(&Mint::from(target), Some(PrimalityTestConfig::bpsw())).probably() {
+        if is_prime(&Mint::from(target), None).probably() {
             *result.entry(target).or_insert(0) += 1;
         } else {
             let divisor = loop {
