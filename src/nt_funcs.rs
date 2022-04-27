@@ -13,7 +13,7 @@
 
 use crate::buffer::{NaiveBuffer, PrimeBufferExt};
 use crate::mint::Mint;
-use crate::factor::{pollard_rho, squfof, SQUFOF_MULTIPLIERS};
+use crate::factor::{pollard_rho, squfof, SQUFOF_MULTIPLIERS, one_line64, one_line128};
 use crate::primality::{PrimalityBase, PrimalityRefBase};
 use crate::tables::{MOEBIUS_ODD, SMALL_PRIMES, SMALL_PRIMES_NEXT, WHEEL_NEXT, WHEEL_PREV, WHEEL_SIZE};
 #[cfg(feature = "big-table")]
@@ -267,10 +267,10 @@ pub(crate) fn factorize64_advanced(cofactors: &[(u64, usize)]) -> Vec<(u64, usiz
         let mut i = 0usize;
         let divisor = loop {
             // try various factorization method iteratively
-            const NMETHODS: usize = 2;
+            const NMETHODS: usize = 3;
             match i % NMETHODS {
                 0 => {
-                    // pollard rho
+                    // Pollard's rho
                     let start = MontgomeryInt::new(random::<u64>(), target);
                     let offset = start.convert(random::<u64>());
                     if let Some(p) = pollard_rho(&Mint::from(target), start.into(), offset.into()) {
@@ -278,11 +278,19 @@ pub(crate) fn factorize64_advanced(cofactors: &[(u64, usize)]) -> Vec<(u64, usiz
                     }
                 },
                 1 => {
-                    // squfof
-                    if i / NMETHODS >= SQUFOF_MULTIPLIERS.len() {
+                    // Hart's one-line, test 16 iterations
+                    let n = i / NMETHODS;
+                    if let Some(p) = one_line64(target, 480, n..(n*16)) {
+                        break p;
+                    }
+                },
+                2 => {
+                    // Shank's squfof
+                    let n = i / NMETHODS;
+                    if n >= SQUFOF_MULTIPLIERS.len() {
                         continue;
                     }
-                    if let Some(p) = squfof(&target, SQUFOF_MULTIPLIERS[i / NMETHODS] as u64) {
+                    if let Some(p) = squfof(&target, SQUFOF_MULTIPLIERS[n] as u64) {
                         break p;
                     }
                 },
@@ -298,7 +306,7 @@ pub(crate) fn factorize64_advanced(cofactors: &[(u64, usize)]) -> Vec<(u64, usiz
 
 /// Fast integer factorization on a u128 target. It's based on a selection of factorization methods.
 /// if target is larger than 2^128 or more controlled primality tests are desired, please use [factors()].
-// TODO(v0.next): return BTreeMap<u64, u8> instead of BTreeMap<u64, usize>
+// TODO(v0.next): return BTreeMap<u64, u8> instead of BTreeMap<u128, usize>
 pub fn factorize128(target: u128) -> BTreeMap<u128, usize> {
     // shortcut for u64
     if target < (1u128 << 64) {
@@ -400,10 +408,10 @@ pub(crate) fn factorize128_advanced(cofactors: &[(u128, usize)]) -> Vec<(u128, u
         let mut i = 0usize;
         let divisor = loop {
             // try various factorization method iteratively
-            const NMETHODS: usize = 2;
+            const NMETHODS: usize = 3;
             match i % NMETHODS {
                 0 => {
-                    // pollard rho
+                    // Pollard's rho
                     let start = MontgomeryInt::new(random::<u128>(), target);
                     let offset = start.convert(random::<u128>());
                     if let Some(p) = pollard_rho(&Mint::from(target), start.into(), offset.into()) {
@@ -411,7 +419,14 @@ pub(crate) fn factorize128_advanced(cofactors: &[(u128, usize)]) -> Vec<(u128, u
                     }
                 },
                 1 => {
-                    // squfof
+                    // Hart's one-line, test 32 iterations
+                    let n = i / NMETHODS;
+                    if let Some(p) = one_line128(target, 480, n..(n*32)) {
+                        break p;
+                    }
+                },
+                2 => {
+                    // Shanks's squfof
                     if i / NMETHODS >= SQUFOF_MULTIPLIERS.len() {
                         continue;
                     }

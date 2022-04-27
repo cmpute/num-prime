@@ -1,4 +1,6 @@
-//! Implementations for various factorization algorithms
+//! Implementations for various factorization algorithms.
+//! 
+//! Note general prime number field sieve is not planned to be implemented, since it's too complex
 //! 
 //! See <https://web.archive.org/web/20110331180514/https://diamond.boisestate.edu/~liljanab/BOISECRYPTFall09/Jacobsen.pdf>
 //! for a detailed comparison between different factorization algorithms
@@ -7,7 +9,7 @@ use crate::traits::ExactRoots;
 use num_integer::{Integer, Roots};
 use num_modular::{ModularCoreOps, ModularUnaryOps};
 use num_traits::{FromPrimitive, NumRef, RefNum};
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, ops::Range};
 
 /// Find factors by trial division, returns a tuple of the found factors and the residual.
 ///
@@ -118,7 +120,7 @@ pub fn squfof<T: Integer + NumRef + Clone + ExactRoots>(target: &T, multiplier: 
 where
     for<'r> &'r T: RefNum<T>,
 {
-    let kn = multiplier * target;
+    let kn = multiplier * target; // TODO(v0.next): this could overflow, we might want to add special version of squfof for 64bits and 128bits
 
     // the strategy of limiting iterations is from GNU factor
     let s = Roots::sqrt(&kn);
@@ -207,11 +209,48 @@ pub const SQUFOF_MULTIPLIERS: [u16; 16] = [
     3 * 5 * 7 * 11,
 ];
 
-// TODO(v0.3.3): implement one line factorization and its optimization
-// REF:  doi:10.1017/S1446788712000146
-//      https://math.mit.edu/research/highschool/primes/materials/2019/Gopalakrishna.pdf
+/// William Hart's one line factorization algorithm for 64 bit integers.
+/// 
+/// The number to be factored could be multiplied by a smooth number (coprime to the target)
+/// to speed up. The number given by Hart is 480. `iters` determine the range for iterating
+/// the inner multiplier itself.
+/// 
+/// Reference: Hart, W. B. (2012). A one line factoring algorithm. Journal of the Australian Mathematical Society, 92(1), 61-69. doi:10.1017/S1446788712000146
+pub fn one_line64(target: u64, multiplier: u64, iters: Range<usize>) -> Option<u64> {
+    let kn = multiplier.checked_mul(target).unwrap_or(target); // fallback to original value if overflow
+    for i in iters {
+        let ikn = i as u64 * kn;
+        let s = ikn.sqrt() + 1; // assuming target is not perfect square
+        let m = s * &s - ikn;
+        if let Some(t) = m.sqrt_exact() {
+            if t != 1 {
+                return Some(target.gcd(&(s - t)));
+            }
+        }
+    }
+    return None;
+}
 
-// TODO: ECM, Quadratic sieve / Prime field sieve, Fermat(https://en.wikipedia.org/wiki/Fermat%27s_factorization_method)
+/// William Hart's one line factorization algorithm for 128 bit integers.
+/// 
+/// See [one_line64] for more info
+pub fn one_line128(target: u128, multiplier: u128, iters: Range<usize>) -> Option<u128> {
+    let kn = multiplier.checked_mul(target).unwrap_or(target); // fallback to original value if overflow
+    for i in iters {
+        let ikn = i as u128 * kn;
+        let s = ikn.sqrt() + 1; // assuming target is not perfect square
+        let m = s * &s - ikn;
+        if let Some(t) = m.sqrt_exact() {
+            if t != 1 {
+                return Some(target.gcd(&(s - t)));
+            }
+        }
+    }
+    return None;
+}
+// TODO(v0.next): determine how to avoid overflow, and implement this using macros
+
+// TODO: ECM, (self initialize) Quadratic sieve, Lehman's Fermat(https://en.wikipedia.org/wiki/Fermat%27s_factorization_method, n_factor_lehman)
 // REF: https://pypi.org/project/primefac/
 //      http://flintlib.org/doc/ulong_extras.html#factorisation
 //      https://github.com/zademn/facto-rs/
@@ -248,6 +287,12 @@ mod tests {
 
     #[test]
     fn squfof_test() {
-        assert!(matches!(squfof(&11111u32, 1), Some(41)));
+        assert_eq!(squfof(&11111u32, 1), Some(41));
+    }
+
+    #[test]
+    fn one_line_test() {
+        assert_eq!(one_line64(11111, 1, 0..32), Some(271));
+        assert_eq!(one_line128(11111, 1, 0..32), Some(271));
     }
 }
