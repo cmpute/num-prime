@@ -475,7 +475,7 @@ mod tests {
             let m = m as usize;
             let q = q.absm(&m);
             let (mut um1, mut u) = (0, 1); // U_{n-1}, U_{n}
-            let (mut vm1, mut v) = (2, p); // V_{n-1}, V_{n}
+            let (mut vm1, mut v) = (2, p % m); // V_{n-1}, V_{n}
 
             for _ in 1..n {
                 let new_u = p.mulm(u, &m).subm(q.mulm(um1, &m), &m);

@@ -15,9 +15,9 @@ use crate::buffer::{NaiveBuffer, PrimeBufferExt};
 use crate::mint::Mint;
 use crate::factor::{pollard_rho, squfof};
 use crate::primality::{PrimalityBase, PrimalityRefBase};
-use crate::tables::{MOEBIUS_ODD, SMALL_PRIMES, WHEEL_NEXT, WHEEL_PREV, WHEEL_SIZE};
+use crate::tables::{MOEBIUS_ODD, SMALL_PRIMES, SMALL_PRIMES_NEXT, WHEEL_NEXT, WHEEL_PREV, WHEEL_SIZE};
 #[cfg(feature = "big-table")]
-use crate::tables::{SMALL_PRIMES_INV, ZETA_LOG_TABLE, SMALL_PRIMES_NEXT};
+use crate::tables::{SMALL_PRIMES_INV, ZETA_LOG_TABLE};
 use crate::traits::{FactorizationConfig, Primality, PrimalityTestConfig, PrimalityUtils};
 use crate::{RandPrime, ExactRoots};
 #[cfg(feature = "num-bigint")]
@@ -323,6 +323,7 @@ pub fn factorize128(target: u128) -> BTreeMap<u128, usize> {
     let mut residual = target >> f2;
 
     // trial division using primes in the table
+    // note that p^2 is never larger than target, so we don't need to shortcut trial division
     #[cfg(not(feature = "big-table"))]
     for p in SMALL_PRIMES.iter().skip(1).map(|&v| v as u128) {
         while residual % p == 0 {
@@ -330,7 +331,7 @@ pub fn factorize128(target: u128) -> BTreeMap<u128, usize> {
             *result.entry(p).or_insert(0) += 1;
         }
         if residual == 1 {
-            break;
+            return result;
         }
     }
 
@@ -356,7 +357,7 @@ pub fn factorize128(target: u128) -> BTreeMap<u128, usize> {
     }
 
     // then try advanced methods to find a divisor util fully factored
-    let (mut todo128, mut todo64) = if let Ok(r64) = residual.try_into() {
+    let (mut todo128, mut todo64) = if let Ok(r64) = u64::try_from(residual) {
         (Vec::new(), vec![(r64, 1usize)])
     } else {
         (vec![(residual, 1usize)], Vec::new())
@@ -372,7 +373,7 @@ pub fn factorize128(target: u128) -> BTreeMap<u128, usize> {
         // it suffices to check 2, 3, 5, 7 power if big-table is enabled, since tenth power of
         // the smallest prime that haven't been checked is 8167^10 > 2^128
         if let Some(d) = target.sqrt_exact() {
-            if let Ok(d64) = d.try_into() {
+            if let Ok(d64) = u64::try_from(d) {
                 todo64.push((d64, exp * 2));
             } else {
                 todo128.push((d, exp * 2));
@@ -380,7 +381,7 @@ pub fn factorize128(target: u128) -> BTreeMap<u128, usize> {
             continue;
         }
         if let Some(d) = target.cbrt_exact() {
-            if let Ok(d64) = d.try_into() {
+            if let Ok(d64) = u64::try_from(d) {
                 todo64.push((d64, exp * 3));
             } else {
                 todo128.push((d, exp * 3));
@@ -397,13 +398,13 @@ pub fn factorize128(target: u128) -> BTreeMap<u128, usize> {
             }
         };
 
-        if let Ok(d64) = divisor.try_into() {
+        if let Ok(d64) = u64::try_from(divisor) {
             todo64.push((d64, exp));
         } else {
             todo128.push((divisor, exp));
         }
         let co = target / divisor;
-        if let Ok(d64) = co.try_into() {
+        if let Ok(d64) = u64::try_from(co) {
             todo64.push((d64, exp));
         } else {
             todo128.push((co, exp));
@@ -741,11 +742,14 @@ where
 {
     // first search in small primes
     if let Some(x) = target.to_u8() {
-        let next = match SMALL_PRIMES.binary_search(&x) {
-            Ok(pos) => SMALL_PRIMES[pos + 1],
-            Err(pos) => SMALL_PRIMES[pos],
+        return match SMALL_PRIMES.binary_search(&x) {
+            Ok(pos) => if pos + 1 == SMALL_PRIMES.len() {
+                T::from_u64(SMALL_PRIMES_NEXT)
+            } else {
+                T::from_u8(SMALL_PRIMES[pos + 1])
+            },
+            Err(pos) => T::from_u8(SMALL_PRIMES[pos]),
         };
-        return T::from_u8(next);
     }
 
     // then moving along the wheel
@@ -772,7 +776,7 @@ where
     for<'r> &'r T: PrimalityRefBase<T>,
 {
     // first search in small primes
-    if target <= &T::from_u8(255).unwrap() // shortcut for u8
+    if target <= &T::from_u8(255).unwrap() // shortcut for T=u8
         || target < &T::from_u16(*SMALL_PRIMES.last().unwrap()).unwrap()
     {
         let next = match SMALL_PRIMES.binary_search(&target.to_u16().unwrap()) {
@@ -1324,6 +1328,13 @@ mod tests {
     #[test]
     fn prev_next_test() {
         assert_eq!(prev_prime(&2u32, None), None);
+
+        // prime table boundary test
+        assert_eq!(prev_prime(&257u16, None), Some(251));
+        assert_eq!(next_prime(&251u16, None), Some(257));
+        assert_eq!(next_prime(&251u8, None), None);
+        assert_eq!(prev_prime(&8167u16, None), Some(8161));
+        assert_eq!(next_prime(&8161u16, None), Some(8167));
 
         // OEIS:A077800
         let twine_primes: [(u32, u32); 8] = [
