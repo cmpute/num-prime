@@ -13,7 +13,7 @@
 
 use crate::buffer::{NaiveBuffer, PrimeBufferExt};
 use crate::mint::Mint;
-use crate::factor::{pollard_rho, squfof};
+use crate::factor::{pollard_rho, squfof, SQUFOF_MULTIPLIERS};
 use crate::primality::{PrimalityBase, PrimalityRefBase};
 use crate::tables::{MOEBIUS_ODD, SMALL_PRIMES, SMALL_PRIMES_NEXT, WHEEL_NEXT, WHEEL_PREV, WHEEL_SIZE};
 #[cfg(feature = "big-table")]
@@ -29,7 +29,7 @@ use num_modular::DivExact;
 use num_traits::{CheckedAdd, FromPrimitive, Num, RefNum, ToPrimitive};
 use rand::{random, Rng};
 use std::collections::BTreeMap;
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryFrom;
 
 #[cfg(feature = "big-table")]
 use crate::tables::{MILLER_RABIN_BASE32, MILLER_RABIN_BASE64};
@@ -146,8 +146,8 @@ fn is_prime64_miller(target: u64) -> bool {
     mt.is_sprp(Mint::from(SECOND_BASES[base as usize]))
 }
 
-/// Fast integer factorization on a u64 target. It's based on pollard's rho method and SQUFOF.
-/// if target is larger than 2^64 or more controlled primality tests are desired, please use [factors()].
+/// Fast integer factorization on a u64 target. It's based on a selection of factorization methods.
+/// if target is larger than 2^128 or more controlled primality tests are desired, please use [factors()].
 ///
 /// The factorization can be quite faster under 2^64 because: 1) faster and deterministic primality check,
 /// 2) efficient montgomery multiplication implementation of u64
@@ -234,42 +234,24 @@ pub fn factorize64(target: u64) -> BTreeMap<u64, usize> {
     }
 
     // then try advanced methods to find a divisor util fully factored
-    for (p, exp) in factorize64_advance(vec![(residual, 1usize)]).into_iter() {
+    for (p, exp) in factorize64_advanced(&[(residual, 1usize)]).into_iter() {
         *result.entry(p).or_insert(0) += exp;
     }
     result
 }
 
 // This function factorize all cofactors after some trivial division steps
-pub(crate) fn factorize64_advance(cofactors: Vec<(u64, usize)>) -> Vec<(u64, usize)> {
-    let mut todo = cofactors;
+pub(crate) fn factorize64_advanced(cofactors: &[(u64, usize)]) -> Vec<(u64, usize)> {
+    let mut todo: Vec<_> = cofactors.iter().cloned().collect();
     let mut factored: Vec<(u64, usize)> = Vec::new(); // prime factor, exponent
 
-    const SQUFOF_MULTIPLIERS: [u16; 16] = [
-        1,
-        3,
-        5,
-        7,
-        11,
-        3 * 5,
-        3 * 7,
-        3 * 11,
-        5 * 7,
-        5 * 11,
-        7 * 11,
-        3 * 5 * 7,
-        3 * 5 * 11,
-        3 * 7 * 11,
-        5 * 7 * 11,
-        3 * 5 * 7 * 11,
-    ];
     while let Some((target, exp)) = todo.pop() {
         if is_prime64_miller(target) {
             factored.push((target, exp));
             continue;
         }
 
-        // check perfect powers before other methods
+        // check perfect powers before other methods, this is required for SQUFOF
         // it suffices to check square and cubic if big-table is enabled, since fifth power of
         // the smallest prime that haven't been checked is 8167^5 > 2^64
         if let Some(d) = target.sqrt_exact() {
@@ -282,19 +264,29 @@ pub(crate) fn factorize64_advance(cofactors: Vec<(u64, usize)>) -> Vec<(u64, usi
         }
 
         // try to find a divisor
-        let mut i = 1usize;
+        let mut i = 0usize;
         let divisor = loop {
-            // try SQUFOF after 4 failed pollard rho trials
-            if i % 5 == 0 && (i / 5) < SQUFOF_MULTIPLIERS.len() {
-                if let Some(p) = squfof(&target, SQUFOF_MULTIPLIERS[i / 5] as u64) {
-                    break p;
-                }
-            } else {
-                let start = MontgomeryInt::new(random::<u64>(), target);
-                let offset = start.convert(random::<u64>());
-                if let Some(p) = pollard_rho(&Mint::from(target), start.into(), offset.into()) {
-                    break p.value();
-                }
+            // try various factorization method iteratively
+            const NMETHODS: usize = 2;
+            match i % NMETHODS {
+                0 => {
+                    // pollard rho
+                    let start = MontgomeryInt::new(random::<u64>(), target);
+                    let offset = start.convert(random::<u64>());
+                    if let Some(p) = pollard_rho(&Mint::from(target), start.into(), offset.into()) {
+                        break p.value();
+                    }
+                },
+                1 => {
+                    // squfof
+                    if i / NMETHODS >= SQUFOF_MULTIPLIERS.len() {
+                        continue;
+                    }
+                    if let Some(p) = squfof(&target, SQUFOF_MULTIPLIERS[i / NMETHODS] as u64) {
+                        break p;
+                    }
+                },
+                _ => unreachable!()
             }
             i += 1;
         };
@@ -304,6 +296,9 @@ pub(crate) fn factorize64_advance(cofactors: Vec<(u64, usize)>) -> Vec<(u64, usi
     factored
 }
 
+/// Fast integer factorization on a u128 target. It's based on a selection of factorization methods.
+/// if target is larger than 2^128 or more controlled primality tests are desired, please use [factors()].
+// TODO(v0.next): return BTreeMap<u64, u8> instead of BTreeMap<u64, usize>
 pub fn factorize128(target: u128) -> BTreeMap<u128, usize> {
     // shortcut for u64
     if target < (1u128 << 64) {
@@ -323,7 +318,7 @@ pub fn factorize128(target: u128) -> BTreeMap<u128, usize> {
     let mut residual = target >> f2;
 
     // trial division using primes in the table
-    // note that p^2 is never larger than target, so we don't need to shortcut trial division
+    // note that p^2 is never larger than target (at least 64 bits), so we don't need to shortcut trial division
     #[cfg(not(feature = "big-table"))]
     for p in SMALL_PRIMES.iter().skip(1).map(|&v| v as u128) {
         while residual % p == 0 {
@@ -357,15 +352,26 @@ pub fn factorize128(target: u128) -> BTreeMap<u128, usize> {
     }
 
     // then try advanced methods to find a divisor util fully factored
-    let (mut todo128, mut todo64) = if let Ok(r64) = u64::try_from(residual) {
-        (Vec::new(), vec![(r64, 1usize)])
-    } else {
-        (vec![(residual, 1usize)], Vec::new())
-    }; // cofactors to be processed
+    for (p, exp) in factorize128_advanced(&[(residual, 1usize)]).into_iter() {
+        *result.entry(p).or_insert(0) += exp;
+    }
+    result
+}
+
+pub(crate) fn factorize128_advanced(cofactors: &[(u128, usize)]) -> Vec<(u128, usize)> {
+    let (mut todo128, mut todo64) = (Vec::new(), Vec::new()); // cofactors to be processed
+    let mut factored: Vec<(u128, usize)> = Vec::new(); // prime factor, exponent
+    for &(co, e) in cofactors.iter() {
+        if let Ok(co64) = u64::try_from(co) {
+            todo64.push((co64, e));
+        } else {
+            todo128.push((co, e));
+        };
+    }
 
     while let Some((target, exp)) = todo128.pop() {
-        if is_prime(&Mint::from(target), None).probably() {
-            *result.entry(target).or_insert(0) += 1;
+        if is_prime(&Mint::from(target), Some(PrimalityTestConfig::bpsw())).probably() {
+            factored.push((target, exp));
             continue;
         }
 
@@ -388,14 +394,34 @@ pub fn factorize128(target: u128) -> BTreeMap<u128, usize> {
             }
             continue;
         }
+        // TODO: check 5-th, 7-th power
 
+        // try to find a divisor
+        let mut i = 0usize;
         let divisor = loop {
-            // TODO: only pollard rho is used by now, select better methods
-            let start = MontgomeryInt::new(random::<u128>(), target);
-            let offset = start.convert(random::<u128>());
-            if let Some(p) = pollard_rho(&Mint::from(target), start.into(), offset.into()) {
-                break p.value();
+            // try various factorization method iteratively
+            const NMETHODS: usize = 2;
+            match i % NMETHODS {
+                0 => {
+                    // pollard rho
+                    let start = MontgomeryInt::new(random::<u128>(), target);
+                    let offset = start.convert(random::<u128>());
+                    if let Some(p) = pollard_rho(&Mint::from(target), start.into(), offset.into()) {
+                        break p.value();
+                    }
+                },
+                1 => {
+                    // squfof
+                    if i / NMETHODS >= SQUFOF_MULTIPLIERS.len() {
+                        continue;
+                    }
+                    if let Some(p) = squfof(&target, SQUFOF_MULTIPLIERS[i / NMETHODS] as u128) {
+                        break p;
+                    }
+                },
+                _ => unreachable!()
             }
+            i += 1;
         };
 
         if let Ok(d64) = u64::try_from(divisor) {
@@ -411,10 +437,9 @@ pub fn factorize128(target: u128) -> BTreeMap<u128, usize> {
         }
     }
 
-    for (p, exp) in factorize64_advance(todo64).into_iter() {
-        *result.entry(p as u128).or_insert(0) += exp;
-    }
-    result
+    // forward 64 bit cofactors
+    factored.extend(factorize64_advanced(&todo64).into_iter().map(|(p, exp)| (p as u128, exp)));
+    factored
 }
 
 /// This function re-exports [PrimeBufferExt::is_prime()][crate::buffer::PrimeBufferExt::is_prime()] with a default buffer distance

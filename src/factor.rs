@@ -1,4 +1,7 @@
 //! Implementations for various factorization algorithms
+//! 
+//! See <https://web.archive.org/web/20110331180514/https://diamond.boisestate.edu/~liljanab/BOISECRYPTFall09/Jacobsen.pdf>
+//! for a detailed comparison between different factorization algorithms
 
 use crate::traits::ExactRoots;
 use num_integer::{Integer, Roots};
@@ -106,8 +109,11 @@ where
 /// This function implements Shanks's square forms factorization (SQUFOF). It will assume that target
 /// is not a perfect square and the multiplier is square-free.
 /// 
-/// Note that the multiplier is usually selected from the following sequence:
-/// `[1, 3, 5, 7, 11, 3*5, 3*7, 3*11, .., 3*5*7*11]`
+/// The multiplier can be choosen from SQUFOF_MULTIPLIERS, or other square-free odd numbers.
+/// 
+/// Reference: Gower, J., & Wagstaff Jr, S. (2008). Square form factorization.
+/// In [Mathematics of Computation](https://homes.cerias.purdue.edu/~ssw/gowerthesis804/wthe.pdf)
+/// or [thesis](https://homes.cerias.purdue.edu/~ssw/gowerthesis804/wthe.pdf)
 pub fn squfof<T: Integer + NumRef + Clone + ExactRoots>(target: &T, multiplier: T) -> Option<T>
 where
     for<'r> &'r T: RefNum<T>,
@@ -181,7 +187,31 @@ where
     }
 }
 
-// TODO: ECM, One line, Quadratic sieve / Prime field sieve, Fermat(https://en.wikipedia.org/wiki/Fermat%27s_factorization_method)
+// Square-free even numbers are suitable as SQUFOF multipliers 
+pub const SQUFOF_MULTIPLIERS: [u16; 16] = [
+    1,
+    3,
+    5,
+    7,
+    11,
+    3 * 5,
+    3 * 7,
+    3 * 11,
+    5 * 7,
+    5 * 11,
+    7 * 11,
+    3 * 5 * 7,
+    3 * 5 * 11,
+    3 * 7 * 11,
+    5 * 7 * 11,
+    3 * 5 * 7 * 11,
+];
+
+// TODO(v0.3.3): implement one line factorization and its optimization
+// REF:  doi:10.1017/S1446788712000146
+//      https://math.mit.edu/research/highschool/primes/materials/2019/Gopalakrishna.pdf
+
+// TODO: ECM, Quadratic sieve / Prime field sieve, Fermat(https://en.wikipedia.org/wiki/Fermat%27s_factorization_method)
 // REF: https://pypi.org/project/primefac/
 //      http://flintlib.org/doc/ulong_extras.html#factorisation
 //      https://github.com/zademn/facto-rs/
