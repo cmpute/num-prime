@@ -12,20 +12,22 @@
 //!
 
 use crate::buffer::{NaiveBuffer, PrimeBufferExt};
+use crate::factor::{one_line128, one_line64, pollard_rho, squfof, SQUFOF_MULTIPLIERS};
 use crate::mint::Mint;
-use crate::factor::{pollard_rho, squfof, SQUFOF_MULTIPLIERS, one_line64, one_line128};
 use crate::primality::{PrimalityBase, PrimalityRefBase};
-use crate::tables::{MOEBIUS_ODD, SMALL_PRIMES, SMALL_PRIMES_NEXT, WHEEL_NEXT, WHEEL_PREV, WHEEL_SIZE};
+use crate::tables::{
+    MOEBIUS_ODD, SMALL_PRIMES, SMALL_PRIMES_NEXT, WHEEL_NEXT, WHEEL_PREV, WHEEL_SIZE,
+};
 #[cfg(feature = "big-table")]
 use crate::tables::{SMALL_PRIMES_INV, ZETA_LOG_TABLE};
 use crate::traits::{FactorizationConfig, Primality, PrimalityTestConfig, PrimalityUtils};
-use crate::{RandPrime, ExactRoots};
+use crate::{ExactRoots, RandPrime};
 #[cfg(feature = "num-bigint")]
 use num_bigint::{BigUint, RandBigInt};
 use num_integer::Roots;
-use num_modular::{ModularCoreOps, MontgomeryInt, ModularInteger};
 #[cfg(feature = "num-bigint")]
 use num_modular::DivExact;
+use num_modular::{ModularCoreOps, ModularInteger, MontgomeryInt};
 use num_traits::{CheckedAdd, FromPrimitive, Num, RefNum, ToPrimitive};
 use rand::{random, Rng};
 use std::collections::BTreeMap;
@@ -45,7 +47,7 @@ pub fn is_prime64(target: u64) -> bool {
     }
     if target & 1 == 0 {
         return target == 2;
-    } 
+    }
     if let Ok(u) = u8::try_from(target) {
         // find in the prime list if the target is small enough
         return SMALL_PRIMES.binary_search(&u).is_ok();
@@ -53,7 +55,7 @@ pub fn is_prime64(target: u64) -> bool {
         // check remainder against the wheel table
         // this step eliminates any number that is not coprime to WHEEL_SIZE
         let pos = (target % WHEEL_SIZE as u64) as usize;
-        if pos == 0 || WHEEL_NEXT[pos] < WHEEL_NEXT[pos-1] {
+        if pos == 0 || WHEEL_NEXT[pos] < WHEEL_NEXT[pos - 1] {
             return false;
         }
     }
@@ -105,7 +107,7 @@ pub fn is_prime64(target: u64) -> bool {
         // check remainder against the wheel table
         // this step eliminates any number that is not coprime to WHEEL_SIZE
         let pos = (target % WHEEL_SIZE as u64) as usize;
-        if pos == 0 || WHEEL_NEXT[pos] < WHEEL_NEXT[pos-1] {
+        if pos == 0 || WHEEL_NEXT[pos] < WHEEL_NEXT[pos - 1] {
             return false;
         }
     }
@@ -198,9 +200,10 @@ pub fn factorize64(target: u64) -> BTreeMap<u64, usize> {
     }
 
     #[cfg(feature = "big-table")]
-    // divisibility check with pre-computed tables, see comments on SMALL_PRIMES_INV for reference 
+    // divisibility check with pre-computed tables, see comments on SMALL_PRIMES_INV for reference
     for (p, &pinv) in SMALL_PRIMES
-        .iter().map(|&p| p as u64)
+        .iter()
+        .map(|&p| p as u64)
         .zip(SMALL_PRIMES_INV.iter())
         .skip(1)
     {
@@ -275,14 +278,14 @@ pub(crate) fn factorize64_advanced(cofactors: &[(u64, usize)]) -> Vec<(u64, usiz
                     if let Some(p) = pollard_rho(&Mint::from(target), start.into(), offset.into()) {
                         break p.value();
                     }
-                },
+                }
                 1 => {
                     // Hart's one-line, test 16 iterations
                     let n = i / NMETHODS;
-                    if let Some(p) = one_line64(target, 480, n..(n*16)) {
+                    if let Some(p) = one_line64(target, 480, n..(n * 16)) {
                         break p;
                     }
-                },
+                }
                 2 => {
                     // Shank's squfof
                     let n = i / NMETHODS;
@@ -292,8 +295,8 @@ pub(crate) fn factorize64_advanced(cofactors: &[(u64, usize)]) -> Vec<(u64, usiz
                     if let Some(p) = squfof(&target, SQUFOF_MULTIPLIERS[n] as u64) {
                         break p;
                     }
-                },
-                _ => unreachable!()
+                }
+                _ => unreachable!(),
             }
             i += 1;
         };
@@ -337,9 +340,10 @@ pub fn factorize128(target: u128) -> BTreeMap<u128, usize> {
     }
 
     #[cfg(feature = "big-table")]
-    // divisibility check with pre-computed tables, see comments on SMALL_PRIMES_INV for reference 
+    // divisibility check with pre-computed tables, see comments on SMALL_PRIMES_INV for reference
     for (p, &pinv) in SMALL_PRIMES
-        .iter().map(|&p| p as u64)
+        .iter()
+        .map(|&p| p as u64)
         .zip(SMALL_PRIMES_INV.iter())
         .skip(1)
     {
@@ -415,14 +419,14 @@ pub(crate) fn factorize128_advanced(cofactors: &[(u128, usize)]) -> Vec<(u128, u
                     if let Some(p) = pollard_rho(&Mint::from(target), start.into(), offset.into()) {
                         break p.value();
                     }
-                },
+                }
                 1 => {
                     // Hart's one-line, test 32 iterations
                     let n = i / NMETHODS;
-                    if let Some(p) = one_line128(target, 480, n..(n*32)) {
+                    if let Some(p) = one_line128(target, 480, n..(n * 32)) {
                         break p;
                     }
-                },
+                }
                 2 => {
                     // Shanks's squfof
                     if i / NMETHODS >= SQUFOF_MULTIPLIERS.len() {
@@ -431,8 +435,8 @@ pub(crate) fn factorize128_advanced(cofactors: &[(u128, usize)]) -> Vec<(u128, u
                     if let Some(p) = squfof(&target, SQUFOF_MULTIPLIERS[i / NMETHODS] as u128) {
                         break p;
                     }
-                },
-                _ => unreachable!()
+                }
+                _ => unreachable!(),
             }
             i += 1;
         };
@@ -451,7 +455,11 @@ pub(crate) fn factorize128_advanced(cofactors: &[(u128, usize)]) -> Vec<(u128, u
     }
 
     // forward 64 bit cofactors
-    factored.extend(factorize64_advanced(&todo64).into_iter().map(|(p, exp)| (p as u128, exp)));
+    factored.extend(
+        factorize64_advanced(&todo64)
+            .into_iter()
+            .map(|(p, exp)| (p as u128, exp)),
+    );
     factored
 }
 
@@ -781,11 +789,13 @@ where
     // first search in small primes
     if let Some(x) = target.to_u8() {
         return match SMALL_PRIMES.binary_search(&x) {
-            Ok(pos) => if pos + 1 == SMALL_PRIMES.len() {
-                T::from_u64(SMALL_PRIMES_NEXT)
-            } else {
-                T::from_u8(SMALL_PRIMES[pos + 1])
-            },
+            Ok(pos) => {
+                if pos + 1 == SMALL_PRIMES.len() {
+                    T::from_u64(SMALL_PRIMES_NEXT)
+                } else {
+                    T::from_u8(SMALL_PRIMES[pos + 1])
+                }
+            }
             Err(pos) => T::from_u8(SMALL_PRIMES[pos]),
         };
     }
@@ -1158,7 +1168,10 @@ mod tests {
 
         // perfect powers
         for exp in 2u32..5 {
-            assert_eq!(factorize128(8167u128.pow(exp)), BTreeMap::from_iter([(8167, exp as usize)]));
+            assert_eq!(
+                factorize128(8167u128.pow(exp)),
+                BTreeMap::from_iter([(8167, exp as usize)])
+            );
         }
 
         // 100 random factorization tests
@@ -1181,10 +1194,11 @@ mod tests {
     #[test]
     fn factorize128_test() {
         // some simple cases
-        let fac_primorial19 = BTreeMap::from_iter(SMALL_PRIMES.iter().take(19).map(|&p| (p as u128, 1)));
+        let fac_primorial19 =
+            BTreeMap::from_iter(SMALL_PRIMES.iter().take(19).map(|&p| (p as u128, 1)));
         let fac = factorize128(7858321551080267055879090);
         assert_eq!(fac, fac_primorial19);
-        
+
         let fac_smallbig = BTreeMap::from_iter([(167, 1), (2417851639229258349412369, 1)]);
         let fac = factorize128(403781223751286144351865623);
         assert_eq!(fac, fac_smallbig);
@@ -1192,11 +1206,15 @@ mod tests {
         // perfect powers
         for exp in 5u32..10 {
             // 2^64 < 8167^5 < 8167^9 < 2^128
-            assert_eq!(factorize128(8167u128.pow(exp)), BTreeMap::from_iter([(8167, exp as usize)]));
+            assert_eq!(
+                factorize128(8167u128.pow(exp)),
+                BTreeMap::from_iter([(8167, exp as usize)])
+            );
         }
 
         // random factorization tests
-        for _ in 0..1 { // TODO: run more tests when other factorization methods are implemented
+        for _ in 0..1 {
+            // TODO: run more tests when other factorization methods are implemented
             let x = random();
             let fac = factorize128(x);
             let mut prod = 1;

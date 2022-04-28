@@ -1,7 +1,7 @@
 //! Implementations for various factorization algorithms.
-//! 
+//!
 //! Note general prime number field sieve is not planned to be implemented, since it's too complex
-//! 
+//!
 //! See <https://web.archive.org/web/20110331180514/https://diamond.boisestate.edu/~liljanab/BOISECRYPTFall09/Jacobsen.pdf>
 //! for a detailed comparison between different factorization algorithms
 
@@ -16,7 +16,7 @@ use std::{collections::BTreeMap, ops::Range};
 /// The target is guaranteed fully factored only if bound * bound > target, where bound = max(primes).
 /// The parameter limit additionally sets the maximum of primes to be tried.
 /// The residual will be Ok(1) or Ok(p) if fully factored.
-/// 
+///
 /// TODO: implement fast check for small primes with BigInts in the precomputed table, and skip them in this function
 pub fn trial_division<
     I: Iterator<Item = u64>,
@@ -110,9 +110,9 @@ where
 
 /// This function implements Shanks's square forms factorization (SQUFOF). It will assume that target
 /// is not a perfect square and the multiplier is square-free.
-/// 
+///
 /// The multiplier can be choosen from SQUFOF_MULTIPLIERS, or other square-free odd numbers.
-/// 
+///
 /// Reference: Gower, J., & Wagstaff Jr, S. (2008). Square form factorization.
 /// In [Mathematics of Computation](https://homes.cerias.purdue.edu/~ssw/gowerthesis804/wthe.pdf)
 /// or [thesis](https://homes.cerias.purdue.edu/~ssw/gowerthesis804/wthe.pdf)
@@ -213,11 +213,11 @@ pub const SQUFOF_MULTIPLIERS: [u16; 16] = [
 ];
 
 /// William Hart's one line factorization algorithm for 64 bit integers.
-/// 
+///
 /// The number to be factored could be multiplied by a smooth number (coprime to the target)
 /// to speed up. The number given by Hart is 480. `iters` determine the range for iterating
 /// the inner multiplier itself.
-/// 
+///
 /// Reference: Hart, W. B. (2012). A one line factoring algorithm. Journal of the Australian Mathematical Society, 92(1), 61-69. doi:10.1017/S1446788712000146
 pub fn one_line64(target: u64, multiplier: u64, iters: Range<usize>) -> Option<u64> {
     let kn = multiplier.checked_mul(target).unwrap_or(target); // fallback to original value if overflow
@@ -235,7 +235,7 @@ pub fn one_line64(target: u64, multiplier: u64, iters: Range<usize>) -> Option<u
 }
 
 /// William Hart's one line factorization algorithm for 128 bit integers.
-/// 
+///
 /// See [one_line64] for more info
 pub fn one_line128(target: u128, multiplier: u128, iters: Range<usize>) -> Option<u128> {
     let kn = multiplier.checked_mul(target).unwrap_or(target); // fallback to original value if overflow
@@ -284,11 +284,15 @@ mod tests {
             let target = random::<u16>() | 1;
             let start = random::<u16>() % target;
             let offset = random::<u16>() % target;
-            assert_eq!(pollard_rho(&target, start, offset),
-                       pollard_rho(&Mint::from(target),
-                       MontgomeryInt::new(start, target).into(),
-                       MontgomeryInt::new(offset, target).into()
-                ).map(|v| v.value()));
+            assert_eq!(
+                pollard_rho(&target, start, offset),
+                pollard_rho(
+                    &Mint::from(target),
+                    MontgomeryInt::new(start, target).into(),
+                    MontgomeryInt::new(offset, target).into()
+                )
+                .map(|v| v.value())
+            );
         }
     }
 

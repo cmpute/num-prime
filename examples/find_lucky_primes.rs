@@ -7,7 +7,12 @@ fn list_lucky_numbers(limit: u64) -> Vec<u64> {
     let mut numbers: Vec<_> = (1..limit).step_by(2).collect();
     while k < numbers.len() / 2 {
         let step = numbers[k] as usize;
-        numbers = numbers.into_iter().enumerate().filter(|(i, _)| (i+1) % step != 0).map(|(_, n)| n).collect();
+        numbers = numbers
+            .into_iter()
+            .enumerate()
+            .filter(|(i, _)| (i + 1) % step != 0)
+            .map(|(_, n)| n)
+            .collect();
         k += 1;
     }
     numbers
@@ -16,7 +21,10 @@ fn list_lucky_numbers(limit: u64) -> Vec<u64> {
 /// Find all lucky primes under limit.
 /// Reference: <https://prime-numbers.info/article/lucky-primes>
 fn list_lucky_primes(limit: u64) -> Vec<u64> {
-    list_lucky_numbers(limit).into_iter().filter(|p| is_prime64(*p)).collect()
+    list_lucky_numbers(limit)
+        .into_iter()
+        .filter(|p| is_prime64(*p))
+        .collect()
 }
 
 fn main() {

@@ -420,7 +420,10 @@ mod tests {
 
         // test cofactor return
         assert_eq!(341u16.test_sprp(2), Either::Right(31));
-        assert_eq!(Mint::from(341u16).test_sprp(2.into()), Either::Right(31.into()));
+        assert_eq!(
+            Mint::from(341u16).test_sprp(2.into()),
+            Either::Right(31.into())
+        );
     }
 
     #[test]

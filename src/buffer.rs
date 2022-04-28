@@ -113,7 +113,7 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
     /// factorization failed, then a list of found factors (not necessarily primes) will be returned. A prime
     /// factor will repeat if its exponent is larget than one, and it's ensured that the product of the list of
     /// factors is equal to the original target.
-    /// 
+    ///
     /// TODO(v0.next): Return two lists when failed, one for prime factors, another one for remaining cofactors
     fn factors<T: PrimalityBase>(
         &self,
@@ -546,14 +546,8 @@ mod tests {
         let pb = NaiveBuffer::new();
 
         // some mersenne numbers
-        assert_eq!(
-            pb.is_prime(&(2u32.pow(19) - 1), None),
-            Primality::Yes
-        );
-        assert_eq!(
-            pb.is_prime(&(2u32.pow(23) - 1), None),
-            Primality::No
-        );
+        assert_eq!(pb.is_prime(&(2u32.pow(19) - 1), None), Primality::Yes);
+        assert_eq!(pb.is_prime(&(2u32.pow(23) - 1), None), Primality::No);
         assert!(matches!(
             pb.is_prime(&(2u128.pow(89) - 1), None),
             Primality::Probable(_)
@@ -577,10 +571,7 @@ mod tests {
 
         // test large numbers
         const P: u128 = 18699199384836356663; // https://golang.org/issue/638
-        assert!(matches!(
-            pb.is_prime(&P, None),
-            Primality::Probable(_)
-        ));
+        assert!(matches!(pb.is_prime(&P, None), Primality::Probable(_)));
         assert!(matches!(
             pb.is_prime(&P, Some(PrimalityTestConfig::bpsw())),
             Primality::Probable(_)
@@ -595,10 +586,7 @@ mod tests {
         ));
 
         const P2: u128 = 2019922777445599503530083;
-        assert!(matches!(
-            pb.is_prime(&P2, None),
-            Primality::Probable(_)
-        ));
+        assert!(matches!(pb.is_prime(&P2, None), Primality::Probable(_)));
         assert!(matches!(
             pb.is_prime(&P2, Some(PrimalityTestConfig::bpsw())),
             Primality::Probable(_)
