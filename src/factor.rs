@@ -83,7 +83,7 @@ where
     let mut a = start.clone();
     let mut b = start;
     // using Brent's loop detection, i = tortoise, j = hare
-    // XXX: further optimization see https://www.cnblogs.com/812-xiao-wen/p/10544546.html
+    // TODO: further optimization see https://www.cnblogs.com/812-xiao-wen/p/10544546.html
     let (mut i, mut j) = (1usize, 2usize);
     while i > 0 {
         i += 1;
@@ -116,11 +116,12 @@ where
 /// Reference: Gower, J., & Wagstaff Jr, S. (2008). Square form factorization.
 /// In [Mathematics of Computation](https://homes.cerias.purdue.edu/~ssw/gowerthesis804/wthe.pdf)
 /// or [thesis](https://homes.cerias.purdue.edu/~ssw/gowerthesis804/wthe.pdf)
+// TODO(v0.next): add option for limit max_iter, set to None for default strategy, 0 for endless
 pub fn squfof<T: Integer + NumRef + Clone + ExactRoots>(target: &T, multiplier: T) -> Option<T>
 where
     for<'r> &'r T: RefNum<T>,
 {
-    let kn = multiplier * target; // TODO(v0.next): this could overflow, we might want to add special version of squfof for 64bits and 128bits
+    let kn = multiplier * target; // TODO(v0.next): this could overflow, return None directly if overflow?
 
     // the strategy of limiting iterations is from GNU factor
     let s = Roots::sqrt(&kn);
@@ -189,7 +190,9 @@ where
     }
 }
 
-// Square-free even numbers are suitable as SQUFOF multipliers 
+// Square-free even numbers are suitable as SQUFOF multipliers
+// TODO(v0.next): change to descending order and starting from the max multiplier
+//                fetch multiplier from Pari/GP
 pub const SQUFOF_MULTIPLIERS: [u16; 16] = [
     1,
     3,
@@ -248,7 +251,11 @@ pub fn one_line128(target: u128, multiplier: u128, iters: Range<usize>) -> Optio
     }
     return None;
 }
-// TODO(v0.next): determine how to avoid overflow, and implement this using macros
+// TODO(v0.next): determine how to avoid overflow, and implement one_line using macros or traits
+// TODO(v0.next): change squfof signature to `fn squfof(target: T, mul_target: T, max_iter: T) -> (Option<T>, usize)`
+//                     one_line signature to `fn one_line(target: T, mul_target: T, iter: Range) -> (Option<T>, usize)`
+//                test one_line to see how much iterations are usually required, we can just use max_iter instead of iter range
+//                also let pollard_rho return number of iterations
 
 // TODO: ECM, (self initialize) Quadratic sieve, Lehman's Fermat(https://en.wikipedia.org/wiki/Fermat%27s_factorization_method, n_factor_lehman)
 // REF: https://pypi.org/project/primefac/

@@ -594,6 +594,24 @@ mod tests {
             Primality::Probable(_)
         ));
 
+        const P2: u128 = 2019922777445599503530083;
+        assert!(matches!(
+            pb.is_prime(&P2, None),
+            Primality::Probable(_)
+        ));
+        assert!(matches!(
+            pb.is_prime(&P2, Some(PrimalityTestConfig::bpsw())),
+            Primality::Probable(_)
+        ));
+        assert!(matches!(
+            pb.is_prime(&Mint::from(P2), None),
+            Primality::Probable(_)
+        ));
+        assert!(matches!(
+            pb.is_prime(&Mint::from(P2), Some(PrimalityTestConfig::bpsw())),
+            Primality::Probable(_)
+        )); // TODO(v0.3.3): this test fails
+
         #[cfg(feature = "num-bigint")]
         {
             let large_primes = [

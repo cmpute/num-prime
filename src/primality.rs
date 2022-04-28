@@ -263,7 +263,7 @@ where
         if shift == 0 {
             return false;
         }
-        let qk = Self::from_isize(q.abs()).unwrap().powm(&base, self);
+        let mut qk = Self::from_isize(q.abs()).unwrap().powm(&base, self);
         // V(2k) = V(k)² - 2Q^k
         let mut vd = if q >= 0 {
             vd.sqm(self).subm(&(&qk).dblm(self), self)
@@ -273,15 +273,14 @@ where
         if vd.is_zero() {
             return true;
         }
-        let mut qk = qk.sqm(self);
 
         for _ in 1..shift {
             // V(2k) = V(k)² - 2Q^k
+            qk = qk.sqm(self);
             vd = vd.sqm(self).subm(&(&qk).dblm(self), self);
             if vd.is_zero() {
                 return true;
             }
-            qk = qk.sqm(self);
         }
         false
     }
