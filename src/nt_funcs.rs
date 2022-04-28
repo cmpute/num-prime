@@ -151,7 +151,6 @@ fn is_prime64_miller(target: u64) -> bool {
 ///
 /// The factorization can be quite faster under 2^64 because: 1) faster and deterministic primality check,
 /// 2) efficient montgomery multiplication implementation of u64
-// TODO(v0.next): return BTreeMap<u64, u8> instead of BTreeMap<u64, usize>
 pub fn factorize64(target: u64) -> BTreeMap<u64, usize> {
     // TODO: improve factorization performance
     // REF: http://flintlib.org/doc/ulong_extras.html#factorisation
@@ -306,7 +305,6 @@ pub(crate) fn factorize64_advanced(cofactors: &[(u64, usize)]) -> Vec<(u64, usiz
 
 /// Fast integer factorization on a u128 target. It's based on a selection of factorization methods.
 /// if target is larger than 2^128 or more controlled primality tests are desired, please use [factors()].
-// TODO(v0.next): return BTreeMap<u64, u8> instead of BTreeMap<u128, usize>
 pub fn factorize128(target: u128) -> BTreeMap<u128, usize> {
     // shortcut for u64
     if target < (1u128 << 64) {

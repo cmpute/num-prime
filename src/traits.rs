@@ -273,9 +273,16 @@ pub trait RandPrime<T> {
     /// Generate a random prime within the given bit size limit
     fn gen_prime(&mut self, bit_size: usize, config: Option<PrimalityTestConfig>) -> T;
 
+    // (v0.next) implmenent exact methods
+
+    /// Generate a random prime with **exact** the given bit size
+    // fn gen_prime_exact(&mut self, bit_size: usize, config: Option<PrimalityTestConfig>) -> T;
+
     /// Generate a random (Sophie German) safe prime within the given bit size limit. The generated prime
     /// is guaranteed to pass the [is_safe_prime][crate::nt_funcs::is_safe_prime] test
     fn gen_safe_prime(&mut self, bit_size: usize) -> T;
 
-    // TODO(v0.3.3): add gen_prime_exact and gen_safe_prime_exact for generating primes with exact this bit size
+    // /// Generate a random (Sophie German) safe prime with the **exact** given bit size. The generated prime
+    // /// is guaranteed to pass the [is_safe_prime][crate::nt_funcs::is_safe_prime] test
+    // fn gen_safe_prime_exact(&mut self, bit_size: usize) -> T;
 }

@@ -1,6 +1,30 @@
-// https://en.wikipedia.org/wiki/Divisor_function
-// TODO(v0.3.3): implement divisor sigma as example for factorization
+use num_prime::nt_funcs::factorize64;
+
+/// Return all divisors of the target
+fn divisors(target: u64) -> Vec<u64> {
+    let factors = factorize64(target);
+    let mut result = Vec::with_capacity(factors.iter().map(|(_, e)| e + 1).product());
+    result.push(1);
+
+    for (p, e) in factors {
+        let mut new_result = Vec::with_capacity(result.len() * e);
+        for i in 1..(e as u32 + 1) {
+            new_result.extend(result.iter().map(|f| f * p.pow(i)));
+        }
+        result.append(&mut new_result);
+    }
+    result
+}
+
+/// Calculate the divisor sigma function σ_z(n) on the target
+/// Reference: <https://en.wikipedia.org/wiki/Divisor_function>
+fn divisor_sigma(target: u64, z: u32) -> u64 {
+    divisors(target).into_iter().map(|d| d.pow(z)).sum()
+}
 
 fn main() {
-    println!("nothing here")
+    println!("Divisor sigma with z=1 of numbers from 10 to 99:");
+    for i in 10..100 {
+        println!("{}: {:?}", i, divisor_sigma(i, 1));
+    }
 }

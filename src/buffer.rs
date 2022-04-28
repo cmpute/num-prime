@@ -610,7 +610,7 @@ mod tests {
         assert!(matches!(
             pb.is_prime(&Mint::from(P2), Some(PrimalityTestConfig::bpsw())),
             Primality::Probable(_)
-        )); // TODO(v0.3.3): this test fails
+        ));
 
         #[cfg(feature = "num-bigint")]
         {

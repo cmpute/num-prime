@@ -1,8 +1,7 @@
 # Roadmap for v0.next
-- Implement factorization for Gaussian integers (and other quadratic integers?)
-- Implement a wrapper supporting fast modular arithmetics and use it to speed up is_prime64 and factors64
 - Implement SIQS
 - Euler totient
+- support `primal` as backend
 
 # Roadmap for v1
 - Support modular integer in a unified API
@@ -15,6 +14,7 @@
 - Support `rug` and `ibig` as backend
 - Support `rug` & `primal` or `primesieve-sys` as PrimeBuffer backend
 - Support async and multi-thread
+- Implement factorization for Gaussian integers (and other quadratic integers?)
 
 # Not in plan
 - Support number field sieve factorization (this is efficient only for very larg numbers)

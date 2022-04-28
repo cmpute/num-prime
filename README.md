@@ -22,5 +22,7 @@ This crate provides utilities for prime number related functionalities:
   - Prime Pi function (number of primes under limit), its estimation and its bounds
   - Nth prime, its estimation and its bounds
   - Moebius function
+  - Divisor Sigma function *([in examples](./examples/divisor_sigma.rs))*
+  - Prime Omega function *([in examples](./examples/prime_omega.rs))*
 
 It's based on the `num` creates and most functions are decently optimized with pre-computed tables (see **[benchmark results here](./PERFORMANCE.md)**).
