@@ -1214,7 +1214,7 @@ mod tests {
 
         // random factorization tests
         for _ in 0..1 {
-            // TODO: run more tests when other factorization methods are implemented
+            // TODO(0.next): run more tests when factorize128 is further optimized
             let x = random();
             let fac = factorize128(x);
             let mut prod = 1;

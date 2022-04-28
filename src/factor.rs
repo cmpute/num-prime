@@ -82,10 +82,10 @@ where
 {
     let mut a = start.clone();
     let mut b = start;
+    let mut z = T::one() % target; // accumulator for gcd
     // using Brent's loop detection, i = tortoise, j = hare
-    // TODO: further optimization see https://www.cnblogs.com/812-xiao-wen/p/10544546.html
-    let (mut i, mut j) = (1usize, 2usize);
-    while i > 0 {
+    let (mut i, mut j) = (0usize, 1usize);
+    while i < 65536 {
         i += 1;
         a = a.sqm(&target).addm(&offset, &target);
         if a == b {
@@ -94,12 +94,22 @@ where
 
         // FIXME: optimize abs_diff for montgomery form if we are going to use the abs_diff in the std lib
         let diff = if b > a { &b - &a } else { &a - &b }; // abs_diff
-        let d = diff.gcd(target);
-        if d > T::one() && &d < target {
-            return Some(d);
+        z = z.mulm(&diff, &target);
+        if z.is_zero() { // this condition happens very unlikely
+            return None;
         }
 
-        // when a catches up with b
+        // here we check gcd every 2^k steps or 128 steps
+        // backtracing is not implemented, and we just start another round if gcd = target.
+        // reference: https://www.cnblogs.com/812-xiao-wen/p/10544546.html
+        if i == j || i & 127 == 0 {
+            let d = z.gcd(target);
+            if d > T::one() && &d < target {
+                return Some(d);
+            }
+        }
+
+        // when tortoise catches up with hare, let hare jump to the next stop
         if i == j {
             b = a.clone();
             j <<= 1;
