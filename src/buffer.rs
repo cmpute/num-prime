@@ -244,7 +244,8 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
                 )
             };
             config.rho_trials -= 1;
-            if let Some(p) = pollard_rho(target, start, offset) {
+            // TODO(0.vnext): add max_iter in FactorizationConfig
+            if let (Some(p), _) = pollard_rho(target, start, offset, 1048576) {
                 return Some(p);
             }
         }

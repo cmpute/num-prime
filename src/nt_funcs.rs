@@ -12,7 +12,7 @@
 //!
 
 use crate::buffer::{NaiveBuffer, PrimeBufferExt};
-use crate::factor::{one_line128, one_line64, pollard_rho, squfof, SQUFOF_MULTIPLIERS};
+use crate::factor::{one_line, pollard_rho, squfof, SQUFOF_MULTIPLIERS};
 use crate::mint::Mint;
 use crate::primality::{PrimalityBase, PrimalityRefBase};
 use crate::tables::{
@@ -270,19 +270,21 @@ pub(crate) fn factorize64_advanced(cofactors: &[(u64, usize)]) -> Vec<(u64, usiz
         let divisor = loop {
             // try various factorization method iteratively
             const NMETHODS: usize = 3;
+            let mut max_iter = 2 << 16;
+
             match i % NMETHODS {
                 0 => {
-                    // Pollard's rho
+                    // Pollard's rho, allow 4x iterations since it's fast
                     let start = MontgomeryInt::new(random::<u64>(), target);
                     let offset = start.convert(random::<u64>());
-                    if let Some(p) = pollard_rho(&Mint::from(target), start.into(), offset.into()) {
+                    if let (Some(p), _) = pollard_rho(&Mint::from(target), start.into(), offset.into(), max_iter * 4) {
                         break p.value();
                     }
                 }
                 1 => {
                     // Hart's one-line, test 16 iterations
-                    let n = i / NMETHODS;
-                    if let Some(p) = one_line64(target, 480, n..(n * 16)) {
+                    let mul_target = target.checked_mul(480).unwrap_or(target);
+                    if let (Some(p), _) = one_line(&target, mul_target, max_iter) {
                         break p;
                     }
                 }
@@ -292,13 +294,24 @@ pub(crate) fn factorize64_advanced(cofactors: &[(u64, usize)]) -> Vec<(u64, usiz
                     if n >= SQUFOF_MULTIPLIERS.len() {
                         continue;
                     }
-                    if let Some(p) = squfof(&target, SQUFOF_MULTIPLIERS[n] as u64) {
+                    let mul_target = if let Some(kn) = target.checked_mul(SQUFOF_MULTIPLIERS[n] as u64) {
+                        kn
+                    } else {
+                        continue;
+                    };
+                    if let (Some(p), _) = squfof(&target, mul_target, max_iter) {
                         break p;
                     }
                 }
                 _ => unreachable!(),
             }
             i += 1;
+
+            // increase max iterations after trying all methods
+            #[allow(unused_assignments)]
+            if i % NMETHODS == 0 {
+                max_iter *= 2;
+            }
         };
         todo.push((divisor, exp));
         todo.push((target / divisor, exp));
@@ -411,34 +424,48 @@ pub(crate) fn factorize128_advanced(cofactors: &[(u128, usize)]) -> Vec<(u128, u
         let divisor = loop {
             // try various factorization method iteratively
             const NMETHODS: usize = 3;
+            let mut max_iter = 2 << 18; // allow more iterations than u64
+
             match i % NMETHODS {
                 0 => {
                     // Pollard's rho
                     let start = MontgomeryInt::new(random::<u128>(), target);
                     let offset = start.convert(random::<u128>());
-                    if let Some(p) = pollard_rho(&Mint::from(target), start.into(), offset.into()) {
+                    if let (Some(p), _) = pollard_rho(&Mint::from(target), start.into(), offset.into(), max_iter * 4) {
                         break p.value();
                     }
                 }
                 1 => {
-                    // Hart's one-line, test 32 iterations
-                    let n = i / NMETHODS;
-                    if let Some(p) = one_line128(target, 480, n..(n * 32)) {
+                    // Hart's one-line, test 16 iterations
+                    let mul_target = target.checked_mul(480).unwrap_or(target);
+                    if let (Some(p), _) = one_line(&target, mul_target, max_iter) {
                         break p;
                     }
                 }
                 2 => {
                     // Shanks's squfof
-                    if i / NMETHODS >= SQUFOF_MULTIPLIERS.len() {
+                    let n = i / NMETHODS;
+                    if n >= SQUFOF_MULTIPLIERS.len() {
                         continue;
                     }
-                    if let Some(p) = squfof(&target, SQUFOF_MULTIPLIERS[i / NMETHODS] as u128) {
+                    let mul_target = if let Some(kn) = target.checked_mul(SQUFOF_MULTIPLIERS[n] as u128) {
+                        kn
+                    } else {
+                        continue;
+                    };
+                    if let (Some(p), _) = squfof(&target, mul_target, max_iter) {
                         break p;
                     }
                 }
                 _ => unreachable!(),
             }
             i += 1;
+
+            // increase max iterations after trying all methods
+            #[allow(unused_assignments)]
+            if i % NMETHODS == 0 {
+                max_iter *= 2;
+            }
         };
 
         if let Ok(d64) = u64::try_from(divisor) {

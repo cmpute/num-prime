@@ -7,6 +7,7 @@ fn divisors(target: u64) -> Vec<u64> {
     result.push(1);
 
     for (p, e) in factors {
+        // the new results contain all previous divisors multiplied by p, p^2, .., p^e
         let mut new_result = Vec::with_capacity(result.len() * e);
         for i in 1..(e as u32 + 1) {
             new_result.extend(result.iter().map(|f| f * p.pow(i)));

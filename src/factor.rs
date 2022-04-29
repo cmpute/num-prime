@@ -8,8 +8,8 @@
 use crate::traits::ExactRoots;
 use num_integer::{Integer, Roots};
 use num_modular::{ModularCoreOps, ModularUnaryOps};
-use num_traits::{FromPrimitive, NumRef, RefNum};
-use std::{collections::BTreeMap, ops::Range};
+use num_traits::{FromPrimitive, NumRef, RefNum, CheckedAdd};
+use std::collections::BTreeMap;
 
 /// Find factors by trial division, returns a tuple of the found factors and the residual.
 ///
@@ -65,6 +65,8 @@ where
 }
 
 /// Find factors using Pollard's rho algorithm with Brent's loop detection algorithm
+/// 
+/// The returned values are the factor and the count of passed iterations.
 pub fn pollard_rho<
     T: Integer
         + FromPrimitive
@@ -76,37 +78,56 @@ pub fn pollard_rho<
     target: &T,
     start: T,
     offset: T,
-) -> Option<T>
+    max_iter: usize,
+) -> (Option<T>, usize)
 where
     for<'r> &'r T: RefNum<T>,
 {
     let mut a = start.clone();
-    let mut b = start;
+    let mut b = start.clone();
     let mut z = T::one() % target; // accumulator for gcd
+
     // using Brent's loop detection, i = tortoise, j = hare
     let (mut i, mut j) = (0usize, 1usize);
-    while i < 65536 {
+
+    // backtracing states
+    let mut s = start;
+    let mut backtrace = false;
+
+    while i < max_iter {
         i += 1;
         a = a.sqm(&target).addm(&offset, &target);
         if a == b {
-            return None;
+            return (None, i);
         }
 
         // FIXME: optimize abs_diff for montgomery form if we are going to use the abs_diff in the std lib
         let diff = if b > a { &b - &a } else { &a - &b }; // abs_diff
         z = z.mulm(&diff, &target);
-        if z.is_zero() { // this condition happens very unlikely
-            return None;
+        if z.is_zero() {
+            // the factor is missed by a combined GCD, do backtracing
+            if backtrace {
+                // ultimately failed
+                return (None, i);
+            } else {
+                backtrace = true;
+                a = std::mem::replace(&mut s, T::one()); // s is discarded
+                z = T::one() % target; // clear gcd
+                continue;
+            }
         }
 
         // here we check gcd every 2^k steps or 128 steps
-        // backtracing is not implemented, and we just start another round if gcd = target.
+        // larger batch size leads to large overhead when backtracing.
         // reference: https://www.cnblogs.com/812-xiao-wen/p/10544546.html
-        if i == j || i & 127 == 0 {
+        if i == j || i & 127 == 0 || backtrace {
             let d = z.gcd(target);
-            if d > T::one() && &d < target {
-                return Some(d);
+            if !d.is_one() && &d != target {
+                return (Some(d), i);
             }
+
+            // save state
+            s = a.clone();
         }
 
         // when tortoise catches up with hare, let hare jump to the next stop
@@ -115,36 +136,35 @@ where
             j <<= 1;
         }
     }
-    None
+
+    (None, i)
 }
 
 /// This function implements Shanks's square forms factorization (SQUFOF). It will assume that target
 /// is not a perfect square and the multiplier is square-free.
 ///
-/// The multiplier can be choosen from SQUFOF_MULTIPLIERS, or other square-free odd numbers.
+/// The input is usually multiplied by a multiplier, and the multiplied integer should be put in
+/// the `mul_target` argument. The multiplier can be choosen from SQUFOF_MULTIPLIERS, or other square-free odd numbers.
+/// The returned values are the factor and the count of passed iterations.
+/// 
+/// The max iteration can be choosed as 2√(2√n), which is the theoretical upper limit for factorization.
 ///
 /// Reference: Gower, J., & Wagstaff Jr, S. (2008). Square form factorization.
 /// In [Mathematics of Computation](https://homes.cerias.purdue.edu/~ssw/gowerthesis804/wthe.pdf)
 /// or [thesis](https://homes.cerias.purdue.edu/~ssw/gowerthesis804/wthe.pdf)
-// TODO(v0.next): add option for limit max_iter, set to None for default strategy, 0 for endless
-pub fn squfof<T: Integer + NumRef + Clone + ExactRoots>(target: &T, multiplier: T) -> Option<T>
+pub fn squfof<T: Integer + NumRef + Clone + ExactRoots>(target: &T, mul_target: T, max_iter: usize) -> (Option<T>, usize)
 where
     for<'r> &'r T: RefNum<T>,
 {
-    let kn = multiplier * target; // TODO(v0.next): this could overflow, return None directly if overflow?
-
-    // the strategy of limiting iterations is from GNU factor
-    let s = Roots::sqrt(&kn);
-    let two = T::one() + T::one();
-    let max_iter = &two * Roots::sqrt(&(&two * &s));
+    assert!(&mul_target.is_multiple_of(&target), "mul_target should be multiples of target");
 
     // forward
-    let p0 = s;
+    let p0 = Roots::sqrt(&mul_target);
     let mut pm1 = p0.clone();
     let mut p; // to be initialized in the first iteration
     let mut qm1 = T::one();
-    let mut q = &kn - &p0 * &p0;
-    let mut i = T::one();
+    let mut q = &mul_target - &p0 * &p0;
+    let mut i = 1usize;
     let qsqrt = loop {
         let b = (&p0 + &pm1) / &q;
         p = &b * &q - &pm1;
@@ -162,10 +182,10 @@ where
         pm1 = p;
         qm1 = q;
         q = qnext;
-        i = i + T::one();
 
+        i += 1;
         if i == max_iter {
-            return None;
+            return (None, i);
         }
     };
 
@@ -173,7 +193,7 @@ where
     let b0 = (&p0 - &p) / &qsqrt;
     pm1 = &b0 * &qsqrt + &p;
     qm1 = qsqrt;
-    q = (&kn - &pm1 * &pm1) / &qm1;
+    q = (&mul_target - &pm1 * &pm1) / &qm1;
 
     loop {
         let b = (&p0 + &pm1) / &q;
@@ -194,15 +214,14 @@ where
 
     let d = target.gcd(&p);
     if d > T::one() && &d < target {
-        Some(d)
+        (Some(d), i)
     } else {
-        None
+        (None, i)
     }
 }
 
 // Square-free even numbers are suitable as SQUFOF multipliers
-// TODO(v0.next): change to descending order and starting from the max multiplier
-//                fetch multiplier from Pari/GP
+// TODO(v0.next): which multiplier is more efficient?
 pub const SQUFOF_MULTIPLIERS: [u16; 16] = [
     1,
     3,
@@ -225,47 +244,39 @@ pub const SQUFOF_MULTIPLIERS: [u16; 16] = [
 /// William Hart's one line factorization algorithm for 64 bit integers.
 ///
 /// The number to be factored could be multiplied by a smooth number (coprime to the target)
-/// to speed up. The number given by Hart is 480. `iters` determine the range for iterating
-/// the inner multiplier itself.
+/// to speed up, put the multiplied number in the `mul_target` argument. A good multiplier given by Hart is 480.
+/// `iters` determine the range for iterating the inner multiplier itself. The returned values are the factor
+/// and the count of passed iterations.
+/// 
+/// 
+/// The one line factorization algorithm is especially good at factoring semiprimes with form pq,
+/// where p = next_prime(c^a+d1), p = next_prime(c^b+d2), a and b are close, and c, d1, d2 are small integers.
 ///
 /// Reference: Hart, W. B. (2012). A one line factoring algorithm. Journal of the Australian Mathematical Society, 92(1), 61-69. doi:10.1017/S1446788712000146
-pub fn one_line64(target: u64, multiplier: u64, iters: Range<usize>) -> Option<u64> {
-    let kn = multiplier.checked_mul(target).unwrap_or(target); // fallback to original value if overflow
-    for i in iters {
-        let ikn = i as u64 * kn;
-        let s = ikn.sqrt() + 1; // assuming target is not perfect square
-        let m = s * &s - ikn;
-        if let Some(t) = m.sqrt_exact() {
-            if t != 1 {
-                return Some(target.gcd(&(s - t)));
-            }
-        }
-    }
-    return None;
-}
+pub fn one_line<T: Integer + NumRef + FromPrimitive + ExactRoots + CheckedAdd>(target: &T, mul_target: T, max_iter: usize) -> (Option<T>, usize)
+where
+    for<'r> &'r T: RefNum<T>, {
+    assert!(&mul_target.is_multiple_of(&target), "mul_target should be multiples of target");
 
-/// William Hart's one line factorization algorithm for 128 bit integers.
-///
-/// See [one_line64] for more info
-pub fn one_line128(target: u128, multiplier: u128, iters: Range<usize>) -> Option<u128> {
-    let kn = multiplier.checked_mul(target).unwrap_or(target); // fallback to original value if overflow
-    for i in iters {
-        let ikn = i as u128 * kn;
-        let s = ikn.sqrt() + 1; // assuming target is not perfect square
-        let m = s * &s - ikn;
+    let mut ikn = mul_target.clone();
+    for i in 1..max_iter {
+        let s = ikn.sqrt() + T::one(); // assuming target is not perfect square
+        let m = &s * &s - &ikn;
         if let Some(t) = m.sqrt_exact() {
-            if t != 1 {
-                return Some(target.gcd(&(s - t)));
+            let g = target.gcd(&(s - t));
+            if !g.is_one() && &g != target {
+                return (Some(g), i);
             }
         }
+
+        ikn = if let Some(n) = (&ikn).checked_add(&mul_target) {
+            n
+        } else {
+            return (None, i)
+        }
     }
-    return None;
+    return (None, max_iter);
 }
-// TODO(v0.next): determine how to avoid overflow, and implement one_line using macros or traits
-// TODO(v0.next): change squfof signature to `fn squfof(target: T, mul_target: T, max_iter: T) -> (Option<T>, usize)`
-//                     one_line signature to `fn one_line(target: T, mul_target: T, iter: Range) -> (Option<T>, usize)`
-//                test one_line to see how much iterations are usually required, we can just use max_iter instead of iter range
-//                also let pollard_rho return number of iterations
 
 // TODO: ECM, (self initialize) Quadratic sieve, Lehman's Fermat(https://en.wikipedia.org/wiki/Fermat%27s_factorization_method, n_factor_lehman)
 // REF: https://pypi.org/project/primefac/
@@ -285,35 +296,37 @@ mod tests {
 
     #[test]
     fn pollard_rho_test() {
-        assert_eq!(pollard_rho(&8051u16, 2, 1), Some(97));
-        assert!(matches!(pollard_rho(&8051u16, random(), 1), Some(i) if i == 97 || i == 83));
-        assert_eq!(pollard_rho(&455459u32, 2, 1), Some(743));
+        assert_eq!(pollard_rho(&8051u16, 2, 1, 100).0, Some(97));
+        assert!(matches!(pollard_rho(&8051u16, random(), 1, 100).0, Some(i) if i == 97 || i == 83));
+        assert_eq!(pollard_rho(&455459u32, 2, 1, 100).0, Some(743));
 
         // Mint test
         for _ in 0..10 {
             let target = random::<u16>() | 1;
             let start = random::<u16>() % target;
             let offset = random::<u16>() % target;
+
+            let expect = pollard_rho(&target, start, offset, 65536);
+            let mint_result = pollard_rho(
+                &Mint::from(target),
+                MontgomeryInt::new(start, target).into(),
+                MontgomeryInt::new(offset, target).into(),
+                65536
+            );
             assert_eq!(
-                pollard_rho(&target, start, offset),
-                pollard_rho(
-                    &Mint::from(target),
-                    MontgomeryInt::new(start, target).into(),
-                    MontgomeryInt::new(offset, target).into()
-                )
-                .map(|v| v.value())
+                expect.0,
+                mint_result.0.map(|v| v.value())
             );
         }
     }
 
     #[test]
     fn squfof_test() {
-        assert_eq!(squfof(&11111u32, 1), Some(41));
+        assert_eq!(squfof(&11111u32, 11111u32, 100).0, Some(41));
     }
 
     #[test]
     fn one_line_test() {
-        assert_eq!(one_line64(11111, 1, 0..32), Some(271));
-        assert_eq!(one_line128(11111, 1, 0..32), Some(271));
+        assert_eq!(one_line(&11111u32, 11111u32, 100).0, Some(271));
     }
 }
