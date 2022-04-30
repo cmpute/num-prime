@@ -141,7 +141,7 @@ where
 }
 
 /// This function implements Shanks's square forms factorization (SQUFOF). It will assume that target
-/// is not a perfect square and the multiplier is square-free.
+/// is **not a perfect square**.
 ///
 /// The input is usually multiplied by a multiplier, and the multiplied integer should be put in
 /// the `mul_target` argument. The multiplier can be choosen from SQUFOF_MULTIPLIERS, or other square-free odd numbers.
@@ -150,74 +150,63 @@ where
 /// The max iteration can be choosed as 2√(2√n), which is the theoretical upper limit for factorization.
 ///
 /// Reference: Gower, J., & Wagstaff Jr, S. (2008). Square form factorization.
-/// In [Mathematics of Computation](https://homes.cerias.purdue.edu/~ssw/gowerthesis804/wthe.pdf)
-/// or [thesis](https://homes.cerias.purdue.edu/~ssw/gowerthesis804/wthe.pdf)
-pub fn squfof<T: Integer + NumRef + Clone + ExactRoots>(target: &T, mul_target: T, max_iter: usize) -> (Option<T>, usize)
+/// In [1] [Mathematics of Computation](https://homes.cerias.purdue.edu/~ssw/gowerthesis804/wthe.pdf)
+/// or [2] [his thesis](https://homes.cerias.purdue.edu/~ssw/gowerthesis804/wthe.pdf)
+/// The code is from [3] [Rosetta code](https://rosettacode.org/wiki/Square_form_factorization)
+pub fn squfof<T: Integer + NumRef + Clone + ExactRoots + std::fmt::Debug>(target: &T, mul_target: T, max_iter: usize) -> (Option<T>, usize)
 where
     for<'r> &'r T: RefNum<T>,
 {
     assert!(&mul_target.is_multiple_of(&target), "mul_target should be multiples of target");
+    let rd = Roots::sqrt(&mul_target); // root of k*N
 
-    // forward
-    let p0 = Roots::sqrt(&mul_target);
-    let mut pm1 = p0.clone();
-    let mut p; // to be initialized in the first iteration
-    let mut qm1 = T::one();
-    let mut q = &mul_target - &p0 * &p0;
-    let mut i = 1usize;
-    let qsqrt = loop {
-        let b = (&p0 + &pm1) / &q;
-        p = &b * &q - &pm1;
-        let qnext = if pm1 > p {
-            &qm1 + &b * (&pm1 - &p)
+    /// Reduction operator for binary quadratic forms. It's equivalent to
+    /// the one used in the `num-irrational` crate, in a little different form.
+    /// 
+    /// This function reduces (a, b, c) = (qm1, p, q), updates qm1 and q, returns new p.
+    #[inline]
+    fn rho<T: Integer + Clone + NumRef> (rd: &T, p: &T, q: &mut T, qm1: &mut T) -> T where
+        for<'r> &'r T: RefNum<T>, {
+        let b = (rd + p).div_floor(&*q);
+        let new_p = &b * &*q - p;
+        let new_q = if p > &new_p {
+            &*qm1 + b * (p - &new_p)
         } else {
-            &qm1 - &b * (&p - &pm1)
+            &*qm1 - b * (&new_p - p)
         };
+
+        *qm1 = std::mem::replace(q, new_q);
+        new_p
+    }
+
+    // forward loop, search principal cycle
+    let (mut p, mut q, mut qm1) = (rd.clone(), &mul_target - &rd * &rd, T::one());
+    for i in 1..max_iter {
+        p = rho(&rd, &p, &mut q, &mut qm1);
         if i.is_odd() {
-            if let Some(v) = qnext.sqrt_exact() {
-                break v;
+            if let Some(rq) = q.sqrt_exact() {
+                let b = (&rd - &p) / &rq;
+                let mut u = b * &rq + &p;
+                let (mut v, mut vm1) = ((&mul_target - &u * &u) / &rq, rq);
+
+                // backward loop, search ambiguous cycle
+                loop {
+                    let new_u = rho(&rd, &u, &mut v, &mut vm1);
+                    if new_u == u {
+                        break;
+                    } else {
+                        u = new_u
+                    }
+                }
+
+                let d = target.gcd(&u);
+                if d > T::one() && &d < target {
+                   return (Some(d), i)
+                }
             }
         }
-
-        pm1 = p;
-        qm1 = q;
-        q = qnext;
-
-        i += 1;
-        if i == max_iter {
-            return (None, i);
-        }
     };
-
-    // backward
-    let b0 = (&p0 - &p) / &qsqrt;
-    pm1 = &b0 * &qsqrt + &p;
-    qm1 = qsqrt;
-    q = (&mul_target - &pm1 * &pm1) / &qm1;
-
-    loop {
-        let b = (&p0 + &pm1) / &q;
-        p = &b * &q - &pm1;
-        if p == pm1 {
-            break;
-        }
-
-        let qnext = if pm1 > p {
-            &qm1 + &b * (&pm1 - &p)
-        } else {
-            &qm1 - &b * (&p - &pm1)
-        };
-        pm1 = p;
-        qm1 = q;
-        q = qnext;
-    }
-
-    let d = target.gcd(&p);
-    if d > T::one() && &d < target {
-        (Some(d), i)
-    } else {
-        (None, i)
-    }
+    (None, max_iter)
 }
 
 // Square-free even numbers are suitable as SQUFOF multipliers
@@ -323,6 +312,9 @@ mod tests {
     #[test]
     fn squfof_test() {
         assert_eq!(squfof(&11111u32, 11111u32, 100).0, Some(41));
+
+        // this case should success at step 276, from https://rosettacode.org/wiki/Talk:Square_form_factorization
+        assert!(matches!(squfof(&4558849u32, 4558849u32, 300).0, Some(_)));
     }
 
     #[test]

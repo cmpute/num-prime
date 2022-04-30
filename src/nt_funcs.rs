@@ -274,15 +274,15 @@ pub(crate) fn factorize64_advanced(cofactors: &[(u64, usize)]) -> Vec<(u64, usiz
 
             match i % NMETHODS {
                 0 => {
-                    // Pollard's rho, allow 4x iterations since it's fast
+                    // Pollard's rho
                     let start = MontgomeryInt::new(random::<u64>(), target);
                     let offset = start.convert(random::<u64>());
-                    if let (Some(p), _) = pollard_rho(&Mint::from(target), start.into(), offset.into(), max_iter * 4) {
+                    if let (Some(p), _) = pollard_rho(&Mint::from(target), start.into(), offset.into(), max_iter) {
                         break p.value();
                     }
                 }
                 1 => {
-                    // Hart's one-line, test 16 iterations
+                    // Hart's one-line
                     let mul_target = target.checked_mul(480).unwrap_or(target);
                     if let (Some(p), _) = one_line(&target, mul_target, max_iter) {
                         break p;
@@ -290,17 +290,10 @@ pub(crate) fn factorize64_advanced(cofactors: &[(u64, usize)]) -> Vec<(u64, usiz
                 }
                 2 => {
                     // Shank's squfof
-                    let n = i / NMETHODS;
-                    if n >= SQUFOF_MULTIPLIERS.len() {
-                        continue;
-                    }
-                    let mul_target = if let Some(kn) = target.checked_mul(SQUFOF_MULTIPLIERS[n] as u64) {
-                        kn
-                    } else {
-                        continue;
-                    };
-                    if let (Some(p), _) = squfof(&target, mul_target, max_iter) {
-                        break p;
+                    if let Some(mul_target) = target.checked_mul(SQUFOF_MULTIPLIERS[i % SQUFOF_MULTIPLIERS.len()] as u64) {   
+                        if let (Some(p), _) = squfof(&target, mul_target, max_iter) {
+                            break p;
+                        }
                     }
                 }
                 _ => unreachable!(),
@@ -431,12 +424,12 @@ pub(crate) fn factorize128_advanced(cofactors: &[(u128, usize)]) -> Vec<(u128, u
                     // Pollard's rho
                     let start = MontgomeryInt::new(random::<u128>(), target);
                     let offset = start.convert(random::<u128>());
-                    if let (Some(p), _) = pollard_rho(&Mint::from(target), start.into(), offset.into(), max_iter * 4) {
+                    if let (Some(p), _) = pollard_rho(&Mint::from(target), start.into(), offset.into(), max_iter) {
                         break p.value();
                     }
                 }
                 1 => {
-                    // Hart's one-line, test 16 iterations
+                    // Hart's one-line
                     let mul_target = target.checked_mul(480).unwrap_or(target);
                     if let (Some(p), _) = one_line(&target, mul_target, max_iter) {
                         break p;
@@ -444,17 +437,10 @@ pub(crate) fn factorize128_advanced(cofactors: &[(u128, usize)]) -> Vec<(u128, u
                 }
                 2 => {
                     // Shanks's squfof
-                    let n = i / NMETHODS;
-                    if n >= SQUFOF_MULTIPLIERS.len() {
-                        continue;
-                    }
-                    let mul_target = if let Some(kn) = target.checked_mul(SQUFOF_MULTIPLIERS[n] as u128) {
-                        kn
-                    } else {
-                        continue;
-                    };
-                    if let (Some(p), _) = squfof(&target, mul_target, max_iter) {
-                        break p;
+                    if let Some(mul_target) = target.checked_mul(SQUFOF_MULTIPLIERS[i % NMETHODS] as u128) {   
+                        if let (Some(p), _) = squfof(&target, mul_target, max_iter) {
+                            break p;
+                        }
                     }
                 }
                 _ => unreachable!(),
@@ -464,7 +450,7 @@ pub(crate) fn factorize128_advanced(cofactors: &[(u128, usize)]) -> Vec<(u128, u
             // increase max iterations after trying all methods
             #[allow(unused_assignments)]
             if i % NMETHODS == 0 {
-                max_iter *= 2;
+                max_iter *= 4;
             }
         };
 
