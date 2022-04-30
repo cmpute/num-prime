@@ -2,6 +2,8 @@ use num_prime::factor::{pollard_rho, squfof, one_line, SQUFOF_MULTIPLIERS};
 use num_prime::RandPrime;
 use rand::random;
 
+// TODO: create a plot for iterations needed for factoring random numbers
+
 fn main() {
     let mut rng = rand::thread_rng();
 
@@ -18,7 +20,7 @@ fn main() {
     // let n: u128 = 133717415095455410877609739380293;
 
     const MAXITER: usize = 2 << 20;
-    for k in SQUFOF_MULTIPLIERS {
+    for &k in SQUFOF_MULTIPLIERS.iter().take(10) {
         if let Some(kn) = n.checked_mul(k as u128) {
             println!("squfof k={} result: {:?}", k, squfof(&n, kn, MAXITER));
         }

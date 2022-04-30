@@ -209,25 +209,17 @@ where
     (None, max_iter)
 }
 
-// Square-free even numbers are suitable as SQUFOF multipliers
-// TODO(v0.next): which multiplier is more efficient?
-pub const SQUFOF_MULTIPLIERS: [u16; 16] = [
-    1,
-    3,
-    5,
-    7,
-    11,
-    3 * 5,
-    3 * 7,
-    3 * 11,
-    5 * 7,
-    5 * 11,
-    7 * 11,
-    3 * 5 * 7,
-    3 * 5 * 11,
-    3 * 7 * 11,
-    5 * 7 * 11,
-    3 * 5 * 7 * 11,
+/// Good squfof multipliers sorted by efficiency descendingly, from Dana Jacobsen.
+/// 
+/// Note: square-free odd numbers are suitable as SQUFOF multipliers
+pub const SQUFOF_MULTIPLIERS: [u16; 38] = [
+    3 * 5 * 7 * 11, 3 * 5 * 7, 3 * 5 * 7 * 11 * 13, 3 * 5 * 7 * 13, 3 * 5 * 7 * 11 * 17, 3 * 5 * 11,
+    3 * 5 * 7 * 17, 3 * 5, 3 * 5 * 7 * 11 * 19, 3 * 5 * 11 * 13, 3 * 5 * 7 * 19, 3 * 5 * 7 * 13 * 17,
+    3 * 5 * 13, 3 * 7 * 11, 3 * 7, 5 * 7 * 11, 3 * 7 * 13, 5 * 7,
+    3 * 5 * 17, 5 * 7 * 13, 3 * 5 * 19, 3 * 11, 3 * 7 * 17, 3,
+    3 * 11 * 13, 5 * 11, 3 * 7 * 19, 3 * 13, 5, 5 * 11 * 13,
+    5 * 7 * 19, 5 * 13, 7 * 11, 7, 3 * 17, 7 * 13,
+    11, 1
 ];
 
 /// William Hart's one line factorization algorithm for 64 bit integers.

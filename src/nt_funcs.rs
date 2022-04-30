@@ -267,11 +267,10 @@ pub(crate) fn factorize64_advanced(cofactors: &[(u64, usize)]) -> Vec<(u64, usiz
 
         // try to find a divisor
         let mut i = 0usize;
+        let mut max_iter = 2 << 16;
         let divisor = loop {
             // try various factorization method iteratively
             const NMETHODS: usize = 3;
-            let mut max_iter = 2 << 16;
-
             match i % NMETHODS {
                 0 => {
                     // Pollard's rho
@@ -301,9 +300,8 @@ pub(crate) fn factorize64_advanced(cofactors: &[(u64, usize)]) -> Vec<(u64, usiz
             i += 1;
 
             // increase max iterations after trying all methods
-            #[allow(unused_assignments)]
             if i % NMETHODS == 0 {
-                max_iter *= 2;
+                max_iter *= 4;
             }
         };
         todo.push((divisor, exp));
@@ -414,11 +412,10 @@ pub(crate) fn factorize128_advanced(cofactors: &[(u128, usize)]) -> Vec<(u128, u
 
         // try to find a divisor
         let mut i = 0usize;
+        let mut max_iter = 2 << 18; // allow more iterations than u64
         let divisor = loop {
             // try various factorization method iteratively
             const NMETHODS: usize = 3;
-            let mut max_iter = 2 << 18; // allow more iterations than u64
-
             match i % NMETHODS {
                 0 => {
                     // Pollard's rho
@@ -448,7 +445,6 @@ pub(crate) fn factorize128_advanced(cofactors: &[(u128, usize)]) -> Vec<(u128, u
             i += 1;
 
             // increase max iterations after trying all methods
-            #[allow(unused_assignments)]
             if i % NMETHODS == 0 {
                 max_iter *= 4;
             }
@@ -775,8 +771,6 @@ where
 {
     let buf = NaiveBuffer::new();
     let config = Some(PrimalityTestConfig::strict());
-    // XXX: use miller-rabin for large numbers (more than 256 bits?), as BPSW could be too slow (need check)
-    //      the NIST recommends 5 rounds for 512 and 1024 bits. For 1536 bits, the recommendation is 4 rounds.
 
     // test (n-1)/2 first since its smaller
     let sophie_p = buf.is_prime(&(target >> 1), config);

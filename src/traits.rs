@@ -109,9 +109,12 @@ impl Default for PrimalityTestConfig {
 }
 
 impl PrimalityTestConfig {
-    /// Create a configuration with the **stongest deterministic** primality test available
+    /// Create a configuration with a very strong primality check.
+    /// Currently the configuration is BPSW test + SPRP test with 1 random base
     pub fn strict() -> Self {
-        Self::bpsw() // TODO: change to 2-base SPRP + VPRP
+        let mut config = Self::bpsw();
+        config.sprp_random_trials = 1;
+        config
     }
 
     /// Create a configuration for Baillie-PSW test (base 2 SPRP test + SLPRP test)
