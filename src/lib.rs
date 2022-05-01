@@ -64,6 +64,7 @@ pub mod nt_funcs;
 mod integer;
 mod mint;
 mod primality;
+mod rand;
 mod tables;
 mod traits;
 
