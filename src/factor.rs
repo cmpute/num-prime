@@ -5,6 +5,9 @@
 //! See <https://web.archive.org/web/20110331180514/https://diamond.boisestate.edu/~liljanab/BOISECRYPTFall09/Jacobsen.pdf>
 //! for a detailed comparison between different factorization algorithms
 
+
+// XXX: make the factorization method resumable?
+
 use crate::traits::ExactRoots;
 use num_integer::{Integer, Roots};
 use num_modular::{ModularCoreOps, ModularUnaryOps};
@@ -234,6 +237,7 @@ pub const SQUFOF_MULTIPLIERS: [u16; 38] = [
 /// where p = next_prime(c^a+d1), p = next_prime(c^b+d2), a and b are close, and c, d1, d2 are small integers.
 ///
 /// Reference: Hart, W. B. (2012). A one line factoring algorithm. Journal of the Australian Mathematical Society, 92(1), 61-69. doi:10.1017/S1446788712000146
+// TODO: add multipliers preset for one_line method?
 pub fn one_line<T: Integer + NumRef + FromPrimitive + ExactRoots + CheckedAdd>(target: &T, mul_target: T, max_iter: usize) -> (Option<T>, usize)
 where
     for<'r> &'r T: RefNum<T>, {
@@ -250,6 +254,7 @@ where
             }
         }
 
+        // prevent overflow
         ikn = if let Some(n) = (&ikn).checked_add(&mul_target) {
             n
         } else {
@@ -307,6 +312,8 @@ mod tests {
 
         // this case should success at step 276, from https://rosettacode.org/wiki/Talk:Square_form_factorization
         assert!(matches!(squfof(&4558849u32, 4558849u32, 300).0, Some(_)));
+
+        // TODO(v0.next): add more cases from rosetta code
     }
 
     #[test]

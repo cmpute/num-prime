@@ -161,10 +161,6 @@ pub fn factorize64(target: u64) -> BTreeMap<u64, usize> {
     //      https://github.com/elmomoilanen/prime-factorization
     //      https://github.com/radii/msieve
     //      Pari/GP: ifac_crack
-    // TODO(v0.next): check the runtime of each factorization and put the fastest first
-    // TODO(v0.next): add multipliers for one_line method
-    // TODO(v0.next): quickly increase the limit for squfof, try to match the behavior of gnu factor
-    // TODO(v0.next): make the factorization method resumable?
     let mut result = BTreeMap::new();
 
     // quick check on factors of 2
@@ -269,31 +265,34 @@ pub(crate) fn factorize64_advanced(cofactors: &[(u64, usize)]) -> Vec<(u64, usiz
 
         // try to find a divisor
         let mut i = 0usize;
-        let mut max_iter = 2 << (target.bits() / 4); // empirical lower bound for iterations
+        let mut max_iter_ratio = 1; // increase max_iter after factorization round
         let divisor = loop {
             // try various factorization method iteratively
             const NMETHODS: usize = 3;
             match i % NMETHODS {
                 0 => {
-                    // Pollard's rho
+                    // Pollard's rho (quick check)
                     let start = MontgomeryInt::new(random::<u64>(), target);
                     let offset = start.convert(random::<u64>());
+                    let max_iter = max_iter_ratio << (target.bits() / 6); // unoptimized heuristic
                     if let (Some(p), _) = pollard_rho(&Mint::from(target), start.into(), offset.into(), max_iter) {
                         break p.value();
                     }
                 }
                 1 => {
-                    // Hart's one-line
+                    // Hart's one-line (quick check)
                     let mul_target = target.checked_mul(480).unwrap_or(target);
+                    let max_iter = max_iter_ratio << (mul_target.bits() / 6); // unoptimized heuristic
                     if let (Some(p), _) = one_line(&target, mul_target, max_iter) {
                         break p;
                     }
                 }
                 2 => {
-                    // Shanks's squfof
+                    // Shanks's squfof (main power)
                     let mut d = None;
                     for &k in SQUFOF_MULTIPLIERS.iter() {
                         if let Some(mul_target) = target.checked_mul(k as u64) {   
+                            let max_iter = max_iter_ratio * 2 * (2 * mul_target.sqrt()).sqrt() as usize;
                             if let (Some(p), _) = squfof(&target, mul_target, max_iter) {
                                 d = Some(p);
                                 break;
@@ -310,7 +309,7 @@ pub(crate) fn factorize64_advanced(cofactors: &[(u64, usize)]) -> Vec<(u64, usiz
 
             // increase max iterations after trying all methods
             if i % NMETHODS == 0 {
-                max_iter *= 4;
+                max_iter_ratio *= 2;
             }
         };
         todo.push((divisor, exp));
@@ -421,23 +420,36 @@ pub(crate) fn factorize128_advanced(cofactors: &[(u128, usize)]) -> Vec<(u128, u
 
         // try to find a divisor
         let mut i = 0usize;
-        let mut max_iter = 2 << (target.bits() / 6); // empirical lower bound
+        let mut max_iter_ratio = 1;
+
         let divisor = loop {
-            // try various factorization method iteratively
+            // try various factorization method iteratively, sort by time per iteration
             const NMETHODS: usize = 3;
             match i % NMETHODS {
                 0 => {
+                    // Pollard's rho
+                    let start = MontgomeryInt::new(random::<u128>(), target);
+                    let offset = start.convert(random::<u128>());
+                    let max_iter = max_iter_ratio << (target.bits() / 6); // unoptimized heuristic
+                    if let (Some(p), _) = pollard_rho(&Mint::from(target), start.into(), offset.into(), max_iter) {
+                        break p.value();
+                    }
+                }
+                1 => {
                     // Hart's one-line
                     let mul_target = target.checked_mul(480).unwrap_or(target);
+                    let max_iter = max_iter_ratio << (mul_target.bits() / 6); // unoptimized heuristic
                     if let (Some(p), _) = one_line(&target, mul_target, max_iter) {
                         break p;
                     }
                 }
-                1 => {
+                2 => {
                     // Shanks's squfof, try all mutipliers
                     let mut d = None;
                     for &k in SQUFOF_MULTIPLIERS.iter() {
-                        if let Some(mul_target) = target.checked_mul(k as u128) {   
+                        if let Some(mul_target) = target.checked_mul(k as u128) {
+                            // this bound is from GNU factor
+                            let max_iter = 2*(2 * mul_target.sqrt()).sqrt() as usize;
                             if let (Some(p), _) = squfof(&target, mul_target, max_iter) {
                                 d = Some(p);
                                 break;
@@ -448,23 +460,13 @@ pub(crate) fn factorize128_advanced(cofactors: &[(u128, usize)]) -> Vec<(u128, u
                         break p;
                     }
                 }
-                2 => {
-                    // Pollard's rho, only twice
-                    if i / NMETHODS < 2 {
-                        let start = MontgomeryInt::new(random::<u128>(), target);
-                        let offset = start.convert(random::<u128>());
-                        if let (Some(p), _) = pollard_rho(&Mint::from(target), start.into(), offset.into(), max_iter) {
-                            break p.value();
-                        }
-                    }
-                }
                 _ => unreachable!(),
             }
             i += 1;
 
             // increase max iterations after trying all methods
             if i % NMETHODS == 0 {
-                max_iter *= 4;
+                max_iter_ratio *= 2;
             }
         };
 
