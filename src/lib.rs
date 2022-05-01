@@ -18,6 +18,7 @@
 //!   - [Trial division][factor::trial_division]
 //!   - [Pollard's rho algorithm][factor::pollard_rho]
 //!   - [Shanks's square forms factorization (SQUFOF)][factor::squfof]
+//!   - [Hart's one line algorithm][factor::one_line]
 //!   - [Fast factorization of `u64` integers][nt_funcs::factorize64]
 //! - Number theoretic functions
 //!   - [Prime Pi function][nt_funcs::prime_pi], its [estimation](nt_funcs::prime_pi_est), and its [bounds](nt_funcs::prime_pi_bounds)
@@ -30,8 +31,8 @@
 //!
 //! Example code for primality testing and integer factorization:
 //! ```rust
-//! use num_prime::PrimalityTestConfig;
-//! use num_prime::nt_funcs::{is_prime, factors};
+//! use num_prime::{PrimalityTestConfig, FactorizationConfig};
+//! use num_prime::nt_funcs::{is_prime, factorize, factors};
 //!
 //! let p = 2u128.pow(89) - 1; // a prime number
 //! assert!(is_prime(&p, None).probably()); // use default primality check config
@@ -39,8 +40,12 @@
 //!
 //! let c = 2u128.pow(83) - 1; // a composite number
 //! assert!(!is_prime(&c, None).probably());
-//! let fac = factors(c, None); // use default factorization config
-//! assert!(matches!(fac, Ok(f) if f.len() == 2)); // 2^83-1 = 167 * 57912614113275649087721
+//! let fac = factorize(c); // infallible factorization with default configuration
+//! assert_eq!(fac.len(), 2); // 2^83-1 = 167 * 57912614113275649087721
+//! 
+//! let config = FactorizationConfig::strict();
+//! let (fac, rem) = factors(c, Some(config)); // fallible factorization with customized configuration
+//! assert!(fac.len() == 2 && rem.is_none());
 //! ```
 //!
 //! # Backends

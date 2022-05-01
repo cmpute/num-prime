@@ -6,7 +6,7 @@
 //! for a detailed comparison between different factorization algorithms
 
 
-// XXX: make the factorization method resumable?
+// XXX: make the factorization method resumable? Maybe let all of them returns a Future
 
 use crate::traits::ExactRoots;
 use num_integer::{Integer, Roots};

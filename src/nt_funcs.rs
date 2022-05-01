@@ -147,7 +147,7 @@ fn is_prime64_miller(target: u64) -> bool {
 }
 
 /// Fast integer factorization on a u64 target. It's based on a selection of factorization methods.
-/// if target is larger than 2^128 or more controlled primality tests are desired, please use [factors()].
+/// if target is larger than 2^128 or more controlled primality tests are desired, please use [factors()][crate::buffer::PrimeBufferExt::factors].
 ///
 /// The factorization can be quite faster under 2^64 because: 1) faster and deterministic primality check,
 /// 2) efficient montgomery multiplication implementation of u64
@@ -319,7 +319,7 @@ pub(crate) fn factorize64_advanced(cofactors: &[(u64, usize)]) -> Vec<(u64, usiz
 }
 
 /// Fast integer factorization on a u128 target. It's based on a selection of factorization methods.
-/// if target is larger than 2^128 or more controlled primality tests are desired, please use [factors()].
+/// if target is larger than 2^128 or more controlled primality tests are desired, please use [factors()][crate::buffer::PrimeBufferExt::factors].
 pub fn factorize128(target: u128) -> BTreeMap<u128, usize> {
     // shortcut for u64
     if target < (1u128 << 64) {
@@ -491,7 +491,9 @@ pub(crate) fn factorize128_advanced(cofactors: &[(u128, usize)]) -> Vec<(u128, u
     factored
 }
 
-/// This function re-exports [PrimeBufferExt::is_prime()][crate::buffer::PrimeBufferExt::is_prime()] with a default buffer distance
+/// Primality test
+///
+/// This function re-exports [PrimeBufferExt::is_prime()][crate::buffer::PrimeBufferExt::is_prime()] with a new [NaiveBuffer] distance
 pub fn is_prime<T: PrimalityBase>(target: &T, config: Option<PrimalityTestConfig>) -> Primality
 where
     for<'r> &'r T: PrimalityRefBase<T>,
@@ -499,18 +501,19 @@ where
     NaiveBuffer::new().is_prime(target, config)
 }
 
-/// This function re-exports [PrimeBufferExt::factors()][crate::buffer::PrimeBufferExt::factors()] with a default buffer instance
-pub fn factors<T: PrimalityBase>(
-    target: T,
-    config: Option<FactorizationConfig>,
-) -> Result<BTreeMap<T, usize>, Vec<T>>
+/// Faillible factorization
+/// 
+/// This function re-exports [PrimeBufferExt::factors()][crate::buffer::PrimeBufferExt::factors()] with a new [NaiveBuffer] instance
+pub fn factors<T: PrimalityBase>(target: T, config: Option<FactorizationConfig>) -> (BTreeMap<T, usize>, Option<Vec<T>>)
 where
     for<'r> &'r T: PrimalityRefBase<T>,
 {
     NaiveBuffer::new().factors(target, config)
 }
 
-/// This function re-exports [PrimeBufferExt::factorize()][crate::buffer::PrimeBufferExt::factorize()] with a default buffer instance
+/// Infaillible factorization
+/// 
+/// This function re-exports [PrimeBufferExt::factorize()][crate::buffer::PrimeBufferExt::factorize()] with a new [NaiveBuffer] instance
 pub fn factorize<T: PrimalityBase>(target: T) -> BTreeMap<T, usize>
 where
     for<'r> &'r T: PrimalityRefBase<T>,
@@ -518,27 +521,35 @@ where
     NaiveBuffer::new().factorize(target)
 }
 
+/// Get a list of primes under a limit
+///
 /// This function re-exports [NaiveBuffer::primes()] and collect result as a vector.
 pub fn primes(limit: u64) -> Vec<u64> {
     NaiveBuffer::new().into_primes(limit).collect()
 }
 
+/// Get the first n primes
+/// 
 /// This function re-exports [NaiveBuffer::nprimes()] and collect result as a vector.
 pub fn nprimes(count: usize) -> Vec<u64> {
     NaiveBuffer::new().into_nprimes(count).collect()
 }
 
+/// Calculate and return the prime π function
+/// 
 /// This function re-exports [NaiveBuffer::prime_pi()]
 pub fn prime_pi(limit: u64) -> u64 {
     NaiveBuffer::new().prime_pi(limit)
 }
 
+/// Get the n-th prime (n counts from 1).
+///
 /// This function re-exports [NaiveBuffer::nth_prime()]
 pub fn nth_prime(n: u64) -> u64 {
     NaiveBuffer::new().nth_prime(n)
 }
 
-/// This function re-exports [NaiveBuffer::primorial()]
+/// Calculate the primorial function
 pub fn primorial<T: PrimalityBase + std::iter::Product>(n: usize) -> T {
     NaiveBuffer::new()
         .into_nprimes(n)
@@ -548,7 +559,7 @@ pub fn primorial<T: PrimalityBase + std::iter::Product>(n: usize) -> T {
 
 /// This function calculate the Möbius `μ(n)` function of the input integer `n`
 ///
-/// This function behaves like `moebius_factorized(factors(target, None).unwrap())`.
+/// This function behaves like `moebius_factorized(factorize(target))`.
 /// If the input integer is very hard to factorize, it's better to use
 /// the [factors()] function to control how the factorization is done, and then call
 /// [moebius_factorized()].
@@ -590,14 +601,7 @@ where
     }
 
     // then try complete factorization
-    match factors(target.clone(), None) {
-        Ok(result) => {
-            return moebius_factorized(&result);
-        }
-        Err(_) => {
-            panic!("Failed to factor the integer!");
-        }
-    }
+    moebius_factorized(&factorize(target.clone()))
 }
 
 /// This function calculate the Möbius `μ(n)` function given the factorization

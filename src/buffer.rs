@@ -12,7 +12,7 @@
 
 use crate::factor::{pollard_rho, trial_division};
 use crate::nt_funcs::{
-    factorize128, factors, is_prime64, next_prime, nth_prime_bounds, nth_prime_est, prev_prime,
+    factorize128, is_prime64, next_prime, nth_prime_bounds, nth_prime_est, prev_prime,
 };
 use crate::primality::{PrimalityBase, PrimalityRefBase};
 use crate::tables::{SMALL_PRIMES, SMALL_PRIMES_NEXT};
@@ -109,26 +109,24 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
     /// For targets smaller than 2^64, the efficient [factorize64] will be used, otherwise
     /// the primality test and factorization algorithms can be specified by the `config` argument.
     ///
-    /// The factorization result will be returned as a map from prime factors to their exponents. If the
-    /// factorization failed, then a list of found factors (not necessarily primes) will be returned. A prime
-    /// factor will repeat if its exponent is larget than one, and it's ensured that the product of the list of
-    /// factors is equal to the original target.
-    ///
-    /// TODO(v0.next): Return two lists when failed, one for prime factors, another one for remaining cofactors
+    /// The factorization result consists of two parts. The first is a map from prime factors to their exponents.
+    /// If the factorization failed, the second part will be the remaining cofactors that are not factored, otherwise None
+    /// is returned for the second part. It's ensured that the product of prime factors (and remaining cofactors if exist)
+    /// is equal to the original target.
     fn factors<T: PrimalityBase>(
         &self,
         target: T,
         config: Option<FactorizationConfig>,
-    ) -> Result<BTreeMap<T, usize>, Vec<T>>
+    ) -> (BTreeMap<T, usize>, Option<Vec<T>>)
     where
         for<'r> &'r T: PrimalityRefBase<T>,
     {
         // shortcut if the target is in u128 range
         if let Some(x) = target.to_u128() {
-            return Ok(factorize128(x)
+            return (factorize128(x)
                 .into_iter()
                 .map(|(k, v)| (T::from_u128(k).unwrap(), v))
-                .collect());
+                .collect(), None);
         }
         let config = config.unwrap_or(FactorizationConfig::default());
 
@@ -142,7 +140,7 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
         // TODO: check is_perfect_power before other methods
 
         // find factors by dividing
-        let mut successful = true;
+        let mut failed = Vec::new();
         let mut config = config;
         config.td_limit = Some(0); // disable trial division when finding divisor
         match factored {
@@ -152,7 +150,6 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
                 }
             }
             Err(res) => {
-                successful = true;
                 let mut todo = vec![res];
                 while let Some(target) = todo.pop() {
                     if self
@@ -165,21 +162,17 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
                             todo.push(divisor.clone());
                             todo.push(target / divisor);
                         } else {
-                            *result.entry(target).or_insert(0) += 1;
-                            successful = false;
+                            failed.push(target);
                         }
                     }
                 }
             }
         };
 
-        if successful {
-            Ok(result)
+        if failed.is_empty() {
+            (result, None)
         } else {
-            Err(result
-                .into_iter()
-                .flat_map(|(f, n)| std::iter::repeat(f).take(n))
-                .collect())
+            (result, Some(failed))
         }
     }
 
@@ -193,7 +186,8 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
     {
         // TODO: prevent overhead of repeat trial division
         loop {
-            if let Ok(result) = factors(target.clone(), None) {
+            let (result, remainder) = self.factors(target.clone(), None);
+            if remainder.is_none() {
                 break result;
             }
         }
@@ -339,7 +333,7 @@ impl NaiveBuffer {
     // FIXME: These functions could be implemented in the trait, but only after
     // RFC 2071 and https://github.com/cramertj/impl-trait-goals/issues/3
 
-    /// This function calculates primorial function on n
+    /// Calculate the primorial function
     pub fn primorial<T: PrimalityBase + std::iter::Product>(&mut self, n: usize) -> T {
         self.nprimes(n).map(|&p| T::from_u64(p).unwrap()).product()
     }
@@ -388,7 +382,7 @@ impl NaiveBuffer {
         return self.list.into_iter();
     }
 
-    /// Calculate and return the nth prime. Note that n counts from 1
+    /// Get the n-th prime (n counts from 1).
     ///
     /// Theoretically the result can be larger than 2^64, but it will takes forever to
     /// calculate that so we just return `u64` instead of `Option<u64>` here.
@@ -434,7 +428,7 @@ impl NaiveBuffer {
         t
     }
 
-    /// Calculate and return the prime pi function, i.e. number of primes ≤ `limit`.
+    /// Calculate the prime π function, i.e. number of primes ≤ `limit`.
     ///
     /// Meissel-Lehmer method will be used if the input `limit` is large enough.
     pub fn prime_pi(&mut self, limit: u64) -> u64 {
@@ -665,8 +659,8 @@ mod tests {
         #[cfg(feature = "num-bigint")]
         {
             let m131 = BigUint::from(2u8).pow(131) - 1u8; // m131/263 is a large prime
-            let fac = pb.factors(m131, None);
-            assert!(matches!(fac, Ok(f) if f.len() == 2));
+            let (fac, r) = pb.factors(m131, None);
+            assert!(fac.len() == 2 && r.is_none());
         }
     }
 }
