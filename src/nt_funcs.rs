@@ -21,7 +21,7 @@ use crate::tables::{
 #[cfg(feature = "big-table")]
 use crate::tables::{SMALL_PRIMES_INV, ZETA_LOG_TABLE};
 use crate::traits::{FactorizationConfig, Primality, PrimalityTestConfig, PrimalityUtils};
-use crate::{ExactRoots, BitTest};
+use crate::{BitTest, ExactRoots};
 use num_integer::Roots;
 #[cfg(feature = "num-bigint")]
 use num_modular::DivExact;
@@ -275,7 +275,9 @@ pub(crate) fn factorize64_advanced(cofactors: &[(u64, usize)]) -> Vec<(u64, usiz
                     let start = MontgomeryInt::new(random::<u64>(), target);
                     let offset = start.convert(random::<u64>());
                     let max_iter = max_iter_ratio << (target.bits() / 6); // unoptimized heuristic
-                    if let (Some(p), _) = pollard_rho(&Mint::from(target), start.into(), offset.into(), max_iter) {
+                    if let (Some(p), _) =
+                        pollard_rho(&Mint::from(target), start.into(), offset.into(), max_iter)
+                    {
                         break p.value();
                     }
                 }
@@ -291,14 +293,14 @@ pub(crate) fn factorize64_advanced(cofactors: &[(u64, usize)]) -> Vec<(u64, usiz
                     // Shanks's squfof (main power)
                     let mut d = None;
                     for &k in SQUFOF_MULTIPLIERS.iter() {
-                        if let Some(mul_target) = target.checked_mul(k as u64) {   
+                        if let Some(mul_target) = target.checked_mul(k as u64) {
                             let max_iter = max_iter_ratio * 2 * mul_target.sqrt().sqrt() as usize;
                             if let (Some(p), _) = squfof(&target, mul_target, max_iter) {
                                 d = Some(p);
                                 break;
                             }
                         }
-                    };
+                    }
                     if let Some(p) = d {
                         break p;
                     }
@@ -431,7 +433,9 @@ pub(crate) fn factorize128_advanced(cofactors: &[(u128, usize)]) -> Vec<(u128, u
                     let start = MontgomeryInt::new(random::<u128>(), target);
                     let offset = start.convert(random::<u128>());
                     let max_iter = max_iter_ratio << (target.bits() / 6); // unoptimized heuristic
-                    if let (Some(p), _) = pollard_rho(&Mint::from(target), start.into(), offset.into(), max_iter) {
+                    if let (Some(p), _) =
+                        pollard_rho(&Mint::from(target), start.into(), offset.into(), max_iter)
+                    {
                         break p.value();
                     }
                 }
@@ -454,7 +458,7 @@ pub(crate) fn factorize128_advanced(cofactors: &[(u128, usize)]) -> Vec<(u128, u
                                 break;
                             }
                         }
-                    };
+                    }
                     if let Some(p) = d {
                         break p;
                     }
@@ -502,9 +506,12 @@ where
 }
 
 /// Faillible factorization
-/// 
+///
 /// This function re-exports [PrimeBufferExt::factors()][crate::buffer::PrimeBufferExt::factors()] with a new [NaiveBuffer] instance
-pub fn factors<T: PrimalityBase>(target: T, config: Option<FactorizationConfig>) -> (BTreeMap<T, usize>, Option<Vec<T>>)
+pub fn factors<T: PrimalityBase>(
+    target: T,
+    config: Option<FactorizationConfig>,
+) -> (BTreeMap<T, usize>, Option<Vec<T>>)
 where
     for<'r> &'r T: PrimalityRefBase<T>,
 {
@@ -512,7 +519,7 @@ where
 }
 
 /// Infaillible factorization
-/// 
+///
 /// This function re-exports [PrimeBufferExt::factorize()][crate::buffer::PrimeBufferExt::factorize()] with a new [NaiveBuffer] instance
 pub fn factorize<T: PrimalityBase>(target: T) -> BTreeMap<T, usize>
 where
@@ -529,14 +536,14 @@ pub fn primes(limit: u64) -> Vec<u64> {
 }
 
 /// Get the first n primes
-/// 
+///
 /// This function re-exports [NaiveBuffer::nprimes()] and collect result as a vector.
 pub fn nprimes(count: usize) -> Vec<u64> {
     NaiveBuffer::new().into_nprimes(count).collect()
 }
 
 /// Calculate and return the prime π function
-/// 
+///
 /// This function re-exports [NaiveBuffer::prime_pi()]
 pub fn prime_pi(limit: u64) -> u64 {
     NaiveBuffer::new().prime_pi(limit)

@@ -123,10 +123,11 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
     {
         // shortcut if the target is in u128 range
         if let Some(x) = target.to_u128() {
-            return (factorize128(x)
+            let factors = factorize128(x)
                 .into_iter()
                 .map(|(k, v)| (T::from_u128(k).unwrap(), v))
-                .collect(), None);
+                .collect();
+            return (factors, None);
         }
         let config = config.unwrap_or(FactorizationConfig::default());
 

@@ -1,23 +1,26 @@
 use std::fs::File;
-use std::io::{Write, Error};
-use std::time::{Duration, Instant};
+use std::io::{Error, Write};
+use std::time::Instant;
 
-use num_prime::factor::{pollard_rho, squfof, one_line, SQUFOF_MULTIPLIERS};
+use num_prime::factor::{one_line, pollard_rho, squfof, SQUFOF_MULTIPLIERS};
 use num_prime::RandPrime;
 use rand::random;
 
 /// Collect the the iteration number of each factorization algorithm with different settings
-fn profile_n(n: u128) -> Vec::<(String, usize)> {
+fn profile_n(n: u128) -> Vec<(String, usize)> {
     let k_squfof: Vec<u16> = SQUFOF_MULTIPLIERS.iter().take(10).cloned().collect();
     let k_oneline: Vec<u16> = vec![1, 360, 480];
     const MAXITER: usize = 1 << 20;
     const POLLARD_REPEATS: usize = 2;
 
     let mut n_stats = Vec::new();
-    
+
     // pollard rho
     for i in 0..POLLARD_REPEATS {
-        n_stats.push((format!("pollard_rho{}", i+1), pollard_rho(&n, random(), random(), MAXITER).1));
+        n_stats.push((
+            format!("pollard_rho{}", i + 1),
+            pollard_rho(&n, random(), random(), MAXITER).1,
+        ));
     }
 
     // squfof
@@ -46,14 +49,14 @@ fn profile_n(n: u128) -> Vec::<(String, usize)> {
 }
 
 /// Collect the best case of each factorization algorithm
-fn profile_n_min(n: u128) -> Vec::<(String, usize)> {
+fn profile_n_min(n: u128) -> Vec<(String, usize)> {
     let k_squfof: Vec<u16> = SQUFOF_MULTIPLIERS.iter().cloned().collect();
     let k_oneline: Vec<u16> = vec![1, 360, 480];
     const MAXITER: usize = 1 << 24;
     const POLLARD_REPEATS: usize = 4;
 
     let mut n_stats = Vec::new();
-    
+
     // pollard rho
     let mut pollard_best = (MAXITER, u128::MAX);
     for _ in 0..POLLARD_REPEATS {
@@ -108,11 +111,12 @@ fn main() -> Result<(), Error> {
     for total_bits in 20..120 {
         for _ in 0..REPEATS {
             let p1: u128 = rng.gen_prime(total_bits / 2, None);
-            let p2: u128 = rng.gen_prime_exact(total_bits - (128 - p1.leading_zeros()) as usize, None);
+            let p2: u128 =
+                rng.gen_prime_exact(total_bits - (128 - p1.leading_zeros()) as usize, None);
             if p1 == p2 {
                 continue;
             }
-    
+
             let n = p1 * p2;
             n_list.push((n, (n as f64).log2() as f32));
             println!("Semiprime ({}bits): {} = {} * {}", total_bits, n, p1, p2);

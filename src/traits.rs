@@ -274,27 +274,27 @@ pub trait PrimalityUtils: Integer + Clone {
 /// Supports random generation of primes
 pub trait RandPrime<T> {
     /// Generate a random prime within the given bit size limit
-    /// 
+    ///
     /// # Panics
     /// if the bit_size is 0 or it's larger than the bit width of the integer
     fn gen_prime(&mut self, bit_size: usize, config: Option<PrimalityTestConfig>) -> T;
 
     /// Generate a random prime with **exact** the given bit size
-    /// 
+    ///
     /// # Panics
     /// if the bit_size is 0 or it's larger than the bit width of the integer
     fn gen_prime_exact(&mut self, bit_size: usize, config: Option<PrimalityTestConfig>) -> T;
 
     /// Generate a random (Sophie German) safe prime within the given bit size limit. The generated prime
     /// is guaranteed to pass the [is_safe_prime][crate::nt_funcs::is_safe_prime] test
-    /// 
+    ///
     /// # Panics
     /// if the bit_size is 0 or it's larger than the bit width of the integer
     fn gen_safe_prime(&mut self, bit_size: usize) -> T;
 
     /// Generate a random (Sophie German) safe prime with the **exact** given bit size. The generated prime
     /// is guaranteed to pass the [is_safe_prime][crate::nt_funcs::is_safe_prime] test
-    /// 
+    ///
     /// # Panics
     /// if the bit_size is 0 or it's larger than the bit width of the integer
     fn gen_safe_prime_exact(&mut self, bit_size: usize) -> T;

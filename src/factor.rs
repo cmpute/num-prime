@@ -5,13 +5,12 @@
 //! See <https://web.archive.org/web/20110331180514/https://diamond.boisestate.edu/~liljanab/BOISECRYPTFall09/Jacobsen.pdf>
 //! for a detailed comparison between different factorization algorithms
 
-
 // XXX: make the factorization method resumable? Maybe let all of them returns a Future
 
 use crate::traits::ExactRoots;
 use num_integer::{Integer, Roots};
 use num_modular::{ModularCoreOps, ModularUnaryOps};
-use num_traits::{FromPrimitive, NumRef, RefNum, CheckedAdd};
+use num_traits::{CheckedAdd, FromPrimitive, NumRef, RefNum};
 use std::collections::BTreeMap;
 
 /// Find factors by trial division, returns a tuple of the found factors and the residual.
@@ -68,7 +67,7 @@ where
 }
 
 /// Find factors using Pollard's rho algorithm with Brent's loop detection algorithm
-/// 
+///
 /// The returned values are the factor and the count of passed iterations.
 pub fn pollard_rho<
     T: Integer
@@ -148,27 +147,36 @@ where
 /// The input is usually multiplied by a multiplier, and the multiplied integer should be put in
 /// the `mul_target` argument. The multiplier can be choosen from SQUFOF_MULTIPLIERS, or other square-free odd numbers.
 /// The returned values are the factor and the count of passed iterations.
-/// 
+///
 /// The max iteration can be choosed as 2*n^(1/4), based on Theorem 4.22 from [1].
 ///
 /// Reference: Gower, J., & Wagstaff Jr, S. (2008). Square form factorization.
 /// In [1] [Mathematics of Computation](https://homes.cerias.purdue.edu/~ssw/gowerthesis804/wthe.pdf)
 /// or [2] [his thesis](https://homes.cerias.purdue.edu/~ssw/gowerthesis804/wthe.pdf)
 /// The code is from [3] [Rosetta code](https://rosettacode.org/wiki/Square_form_factorization)
-pub fn squfof<T: Integer + NumRef + Clone + ExactRoots + std::fmt::Debug>(target: &T, mul_target: T, max_iter: usize) -> (Option<T>, usize)
+pub fn squfof<T: Integer + NumRef + Clone + ExactRoots + std::fmt::Debug>(
+    target: &T,
+    mul_target: T,
+    max_iter: usize,
+) -> (Option<T>, usize)
 where
     for<'r> &'r T: RefNum<T>,
 {
-    assert!(&mul_target.is_multiple_of(&target), "mul_target should be multiples of target");
+    assert!(
+        &mul_target.is_multiple_of(&target),
+        "mul_target should be multiples of target"
+    );
     let rd = Roots::sqrt(&mul_target); // root of k*N
 
     /// Reduction operator for binary quadratic forms. It's equivalent to
     /// the one used in the `num-irrational` crate, in a little different form.
-    /// 
+    ///
     /// This function reduces (a, b, c) = (qm1, p, q), updates qm1 and q, returns new p.
     #[inline]
-    fn rho<T: Integer + Clone + NumRef> (rd: &T, p: &T, q: &mut T, qm1: &mut T) -> T where
-        for<'r> &'r T: RefNum<T>, {
+    fn rho<T: Integer + Clone + NumRef>(rd: &T, p: &T, q: &mut T, qm1: &mut T) -> T
+    where
+        for<'r> &'r T: RefNum<T>,
+    {
         let b = (rd + p).div_floor(&*q);
         let new_p = &b * &*q - p;
         let new_q = if p > &new_p {
@@ -208,25 +216,56 @@ where
 
                 let d = target.gcd(&u);
                 if d > T::one() && &d < target {
-                   return (Some(d), i)
+                    return (Some(d), i);
                 }
             }
         }
-    };
+    }
     (None, max_iter)
 }
 
 /// Good squfof multipliers sorted by efficiency descendingly, from Dana Jacobsen.
-/// 
+///
 /// Note: square-free odd numbers are suitable as SQUFOF multipliers
 pub const SQUFOF_MULTIPLIERS: [u16; 38] = [
-    3 * 5 * 7 * 11, 3 * 5 * 7, 3 * 5 * 7 * 11 * 13, 3 * 5 * 7 * 13, 3 * 5 * 7 * 11 * 17, 3 * 5 * 11,
-    3 * 5 * 7 * 17, 3 * 5, 3 * 5 * 7 * 11 * 19, 3 * 5 * 11 * 13, 3 * 5 * 7 * 19, 3 * 5 * 7 * 13 * 17,
-    3 * 5 * 13, 3 * 7 * 11, 3 * 7, 5 * 7 * 11, 3 * 7 * 13, 5 * 7,
-    3 * 5 * 17, 5 * 7 * 13, 3 * 5 * 19, 3 * 11, 3 * 7 * 17, 3,
-    3 * 11 * 13, 5 * 11, 3 * 7 * 19, 3 * 13, 5, 5 * 11 * 13,
-    5 * 7 * 19, 5 * 13, 7 * 11, 7, 3 * 17, 7 * 13,
-    11, 1
+    3 * 5 * 7 * 11,
+    3 * 5 * 7,
+    3 * 5 * 7 * 11 * 13,
+    3 * 5 * 7 * 13,
+    3 * 5 * 7 * 11 * 17,
+    3 * 5 * 11,
+    3 * 5 * 7 * 17,
+    3 * 5,
+    3 * 5 * 7 * 11 * 19,
+    3 * 5 * 11 * 13,
+    3 * 5 * 7 * 19,
+    3 * 5 * 7 * 13 * 17,
+    3 * 5 * 13,
+    3 * 7 * 11,
+    3 * 7,
+    5 * 7 * 11,
+    3 * 7 * 13,
+    5 * 7,
+    3 * 5 * 17,
+    5 * 7 * 13,
+    3 * 5 * 19,
+    3 * 11,
+    3 * 7 * 17,
+    3,
+    3 * 11 * 13,
+    5 * 11,
+    3 * 7 * 19,
+    3 * 13,
+    5,
+    5 * 11 * 13,
+    5 * 7 * 19,
+    5 * 13,
+    7 * 11,
+    7,
+    3 * 17,
+    7 * 13,
+    11,
+    1,
 ];
 
 /// William Hart's one line factorization algorithm for 64 bit integers.
@@ -235,17 +274,25 @@ pub const SQUFOF_MULTIPLIERS: [u16; 38] = [
 /// to speed up, put the multiplied number in the `mul_target` argument. A good multiplier given by Hart is 480.
 /// `iters` determine the range for iterating the inner multiplier itself. The returned values are the factor
 /// and the count of passed iterations.
-/// 
-/// 
+///
+///
 /// The one line factorization algorithm is especially good at factoring semiprimes with form pq,
 /// where p = next_prime(c^a+d1), p = next_prime(c^b+d2), a and b are close, and c, d1, d2 are small integers.
 ///
 /// Reference: Hart, W. B. (2012). A one line factoring algorithm. Journal of the Australian Mathematical Society, 92(1), 61-69. doi:10.1017/S1446788712000146
 // TODO: add multipliers preset for one_line method?
-pub fn one_line<T: Integer + NumRef + FromPrimitive + ExactRoots + CheckedAdd>(target: &T, mul_target: T, max_iter: usize) -> (Option<T>, usize)
+pub fn one_line<T: Integer + NumRef + FromPrimitive + ExactRoots + CheckedAdd>(
+    target: &T,
+    mul_target: T,
+    max_iter: usize,
+) -> (Option<T>, usize)
 where
-    for<'r> &'r T: RefNum<T>, {
-    assert!(&mul_target.is_multiple_of(&target), "mul_target should be multiples of target");
+    for<'r> &'r T: RefNum<T>,
+{
+    assert!(
+        &mul_target.is_multiple_of(&target),
+        "mul_target should be multiples of target"
+    );
 
     let mut ikn = mul_target.clone();
     for i in 1..max_iter {
@@ -262,7 +309,7 @@ where
         ikn = if let Some(n) = (&ikn).checked_add(&mul_target) {
             n
         } else {
-            return (None, i)
+            return (None, i);
         }
     }
     return (None, max_iter);
@@ -301,12 +348,9 @@ mod tests {
                 &Mint::from(target),
                 MontgomeryInt::new(start, target).into(),
                 MontgomeryInt::new(offset, target).into(),
-                65536
+                65536,
             );
-            assert_eq!(
-                expect.0,
-                mint_result.0.map(|v| v.value())
-            );
+            assert_eq!(expect.0, mint_result.0.map(|v| v.value()));
         }
     }
 
@@ -325,13 +369,11 @@ mod tests {
             967009,
             997417,
             7091569,
-
             5214317,
             20834839,
             23515517,
             33409583,
             44524219,
-
             13290059,
             223553581,
             2027651281,
@@ -349,16 +391,16 @@ mod tests {
             1000000000000000127,
             1152921505680588799,
             1537228672809128917,
-
             // this case should success at step 276, from https://rosettacode.org/wiki/Talk:Square_form_factorization
             4558849,
         ];
         for n in cases {
-            let d = squfof(&n, n, 40000).0
-            .or(squfof(&n, 3*n, 40000).0)
-            .or(squfof(&n, 5*n, 40000).0)
-            .or(squfof(&n, 7*n, 40000).0)
-            .or(squfof(&n, 11*n, 40000).0);
+            let d = squfof(&n, n, 40000)
+                .0
+                .or(squfof(&n, 3 * n, 40000).0)
+                .or(squfof(&n, 5 * n, 40000).0)
+                .or(squfof(&n, 7 * n, 40000).0)
+                .or(squfof(&n, 11 * n, 40000).0);
             assert!(matches!(d, Some(_)), "{}", n);
         }
     }

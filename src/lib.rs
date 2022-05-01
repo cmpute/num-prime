@@ -42,7 +42,7 @@
 //! assert!(!is_prime(&c, None).probably());
 //! let fac = factorize(c); // infallible factorization with default configuration
 //! assert_eq!(fac.len(), 2); // 2^83-1 = 167 * 57912614113275649087721
-//! 
+//!
 //! let config = FactorizationConfig::strict();
 //! let (fac, rem) = factors(c, Some(config)); // fallible factorization with customized configuration
 //! assert!(fac.len() == 2 && rem.is_none());
