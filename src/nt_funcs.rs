@@ -292,7 +292,7 @@ pub(crate) fn factorize64_advanced(cofactors: &[(u64, usize)]) -> Vec<(u64, usiz
                     let mut d = None;
                     for &k in SQUFOF_MULTIPLIERS.iter() {
                         if let Some(mul_target) = target.checked_mul(k as u64) {   
-                            let max_iter = max_iter_ratio * 2 * (2 * mul_target.sqrt()).sqrt() as usize;
+                            let max_iter = max_iter_ratio * 2 * mul_target.sqrt().sqrt() as usize;
                             if let (Some(p), _) = squfof(&target, mul_target, max_iter) {
                                 d = Some(p);
                                 break;
@@ -448,8 +448,7 @@ pub(crate) fn factorize128_advanced(cofactors: &[(u128, usize)]) -> Vec<(u128, u
                     let mut d = None;
                     for &k in SQUFOF_MULTIPLIERS.iter() {
                         if let Some(mul_target) = target.checked_mul(k as u128) {
-                            // this bound is from GNU factor
-                            let max_iter = 2*(2 * mul_target.sqrt()).sqrt() as usize;
+                            let max_iter = max_iter_ratio * 2 * mul_target.sqrt().sqrt() as usize;
                             if let (Some(p), _) = squfof(&target, mul_target, max_iter) {
                                 d = Some(p);
                                 break;
@@ -1129,9 +1128,8 @@ mod tests {
         }
 
         // random factorization tests
-        for _ in 0..1 {
-            // TODO(0.next): run more tests when factorize128 is further optimized
-            let x = random();
+        for _ in 0..4 {
+            let x = random::<u128>() >> 28; // test 100 bit numbers
             let fac = factorize128(x);
             let mut prod = 1;
             for (p, exp) in fac {

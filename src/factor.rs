@@ -143,14 +143,13 @@ where
     (None, i)
 }
 
-/// This function implements Shanks's square forms factorization (SQUFOF). It will assume that target
-/// is **not a perfect square**.
+/// This function implements Shanks's square forms factorization (SQUFOF).
 ///
 /// The input is usually multiplied by a multiplier, and the multiplied integer should be put in
 /// the `mul_target` argument. The multiplier can be choosen from SQUFOF_MULTIPLIERS, or other square-free odd numbers.
 /// The returned values are the factor and the count of passed iterations.
 /// 
-/// The max iteration can be choosed as 2√(2√n), which is the theoretical upper limit for factorization.
+/// The max iteration can be choosed as 2*n^(1/4), based on Theorem 4.22 from [1].
 ///
 /// Reference: Gower, J., & Wagstaff Jr, S. (2008). Square form factorization.
 /// In [1] [Mathematics of Computation](https://homes.cerias.purdue.edu/~ssw/gowerthesis804/wthe.pdf)
@@ -184,6 +183,11 @@ where
 
     // forward loop, search principal cycle
     let (mut p, mut q, mut qm1) = (rd.clone(), &mul_target - &rd * &rd, T::one());
+    if q.is_zero() {
+        // shortcut for perfect square
+        return (Some(rd), 0);
+    }
+
     for i in 1..max_iter {
         p = rho(&rd, &p, &mut q, &mut qm1);
         if i.is_odd() {
@@ -308,12 +312,55 @@ mod tests {
 
     #[test]
     fn squfof_test() {
+        // case from wikipedia
         assert_eq!(squfof(&11111u32, 11111u32, 100).0, Some(41));
 
-        // this case should success at step 276, from https://rosettacode.org/wiki/Talk:Square_form_factorization
-        assert!(matches!(squfof(&4558849u32, 4558849u32, 300).0, Some(_)));
+        // cases from https://rosettacode.org/wiki/Square_form_factorization
+        let cases: Vec<u64> = vec![
+            2501,
+            12851,
+            13289,
+            75301,
+            120787,
+            967009,
+            997417,
+            7091569,
 
-        // TODO(v0.next): add more cases from rosetta code
+            5214317,
+            20834839,
+            23515517,
+            33409583,
+            44524219,
+
+            13290059,
+            223553581,
+            2027651281,
+            11111111111,
+            100895598169,
+            60012462237239,
+            287129523414791,
+            9007199254740931,
+            11111111111111111,
+            314159265358979323,
+            384307168202281507,
+            419244183493398773,
+            658812288346769681,
+            922337203685477563,
+            1000000000000000127,
+            1152921505680588799,
+            1537228672809128917,
+
+            // this case should success at step 276, from https://rosettacode.org/wiki/Talk:Square_form_factorization
+            4558849,
+        ];
+        for n in cases {
+            let d = squfof(&n, n, 40000).0
+            .or(squfof(&n, 3*n, 40000).0)
+            .or(squfof(&n, 5*n, 40000).0)
+            .or(squfof(&n, 7*n, 40000).0)
+            .or(squfof(&n, 11*n, 40000).0);
+            assert!(matches!(d, Some(_)), "{}", n);
+        }
     }
 
     #[test]

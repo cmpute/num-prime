@@ -191,7 +191,7 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
     where
         for<'r> &'r T: PrimalityRefBase<T>,
     {
-        // TODO: change to a reasonable strategy after default factorization failed
+        // TODO: prevent overhead of repeat trial division
         loop {
             if let Ok(result) = factors(target.clone(), None) {
                 break result;
@@ -244,7 +244,8 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
                 )
             };
             config.rho_trials -= 1;
-            // TODO(0.vnext): add max_iter in FactorizationConfig
+            // TODO: change to a reasonable pollard rho limit
+            // TODO: add other factorization methods
             if let (Some(p), _) = pollard_rho(target, start, offset, 1048576) {
                 return Some(p);
             }
