@@ -13,7 +13,7 @@
 
 use crate::buffer::{NaiveBuffer, PrimeBufferExt};
 use crate::factor::{one_line, pollard_rho, squfof, SQUFOF_MULTIPLIERS};
-use crate::mint::Mint;
+use crate::mint::SmallMint;
 use crate::primality::{PrimalityBase, PrimalityRefBase};
 use crate::tables::{
     MOEBIUS_ODD, SMALL_PRIMES, SMALL_PRIMES_NEXT, WHEEL_NEXT, WHEEL_PREV, WHEEL_SIZE,
@@ -121,19 +121,19 @@ fn is_prime64_miller(target: u64) -> bool {
     const MAGIC: u32 = 0xAD625B89;
     if let Ok(u) = u32::try_from(target) {
         let base = u.wrapping_mul(MAGIC) >> 24;
-        let u = Mint::from(u);
-        return u.is_sprp(Mint::from(MILLER_RABIN_BASE32[base as usize] as u32));
+        let u = SmallMint::from(u);
+        return u.is_sprp(SmallMint::from(MILLER_RABIN_BASE32[base as usize] as u32));
     }
 
     // 49bit test
-    let mt = Mint::from(target);
+    let mt = SmallMint::from(target);
     if !mt.is_sprp(2.into()) {
         return false;
     }
     let u = target as u32; // truncate
 
     let base = u.wrapping_mul(MAGIC) >> 18;
-    if !mt.is_sprp(Mint::from(MILLER_RABIN_BASE64[base as usize] as u64)) {
+    if !mt.is_sprp(SmallMint::from(MILLER_RABIN_BASE64[base as usize] as u64)) {
         return false;
     }
     if target < (1u64 << 49) {
@@ -143,7 +143,7 @@ fn is_prime64_miller(target: u64) -> bool {
     // 64bit test
     const SECOND_BASES: [u64; 8] = [15, 135, 13, 60, 15, 117, 65, 29];
     let base = base >> 13;
-    mt.is_sprp(Mint::from(SECOND_BASES[base as usize]))
+    mt.is_sprp(SmallMint::from(SECOND_BASES[base as usize]))
 }
 
 /// Fast integer factorization on a u64 target. It's based on a selection of factorization methods.
@@ -160,6 +160,7 @@ pub fn factorize64(target: u64) -> BTreeMap<u64, usize> {
     //      https://github.com/uutils/coreutils/blob/master/src/uu/factor/src/cli.rs
     //      https://github.com/elmomoilanen/prime-factorization
     //      https://github.com/radii/msieve
+    //      https://github.com/zademn/facto-rs
     //      Pari/GP: ifac_crack
     let mut result = BTreeMap::new();
 
@@ -272,11 +273,11 @@ pub(crate) fn factorize64_advanced(cofactors: &[(u64, usize)]) -> Vec<(u64, usiz
             match i % NMETHODS {
                 0 => {
                     // Pollard's rho (quick check)
-                    let start = MontgomeryInt::new(random::<u64>(), target);
+                    let start = MontgomeryInt::new(random::<u64>(), &target);
                     let offset = start.convert(random::<u64>());
                     let max_iter = max_iter_ratio << (target.bits() / 6); // unoptimized heuristic
                     if let (Some(p), _) =
-                        pollard_rho(&Mint::from(target), start.into(), offset.into(), max_iter)
+                        pollard_rho(&SmallMint::from(target), start.into(), offset.into(), max_iter)
                     {
                         break p.value();
                     }
@@ -394,7 +395,7 @@ pub(crate) fn factorize128_advanced(cofactors: &[(u128, usize)]) -> Vec<(u128, u
     }
 
     while let Some((target, exp)) = todo128.pop() {
-        if is_prime(&Mint::from(target), Some(PrimalityTestConfig::bpsw())).probably() {
+        if is_prime(&SmallMint::from(target), Some(PrimalityTestConfig::bpsw())).probably() {
             factored.push((target, exp));
             continue;
         }
@@ -430,11 +431,11 @@ pub(crate) fn factorize128_advanced(cofactors: &[(u128, usize)]) -> Vec<(u128, u
             match i % NMETHODS {
                 0 => {
                     // Pollard's rho
-                    let start = MontgomeryInt::new(random::<u128>(), target);
+                    let start = MontgomeryInt::new(random::<u128>(), &target);
                     let offset = start.convert(random::<u128>());
                     let max_iter = max_iter_ratio << (target.bits() / 6); // unoptimized heuristic
                     if let (Some(p), _) =
-                        pollard_rho(&Mint::from(target), start.into(), offset.into(), max_iter)
+                        pollard_rho(&SmallMint::from(target), start.into(), offset.into(), max_iter)
                     {
                         break p.value();
                     }

@@ -1,4 +1,4 @@
-use crate::mint::Mint;
+use crate::mint::SmallMint;
 use crate::nt_funcs::{is_prime, is_prime64, next_prime};
 use crate::{PrimalityTestConfig, RandPrime};
 #[cfg(feature = "num-bigint")]
@@ -96,7 +96,7 @@ impl<R: Rng> RandPrime<u128> for R {
         loop {
             let t: u128 = self.gen();
             let t = (t >> (u128::BITS - bit_size as u32)) | 1; // filter even numbers
-            if is_prime(&Mint::from(t), config).probably() {
+            if is_prime(&SmallMint::from(t), config).probably() {
                 break t;
             } else if let Some(p) = next_prime(&t, None) {
                 // deterministic primality test will be used for integers under u64
@@ -114,7 +114,7 @@ impl<R: Rng> RandPrime<u128> for R {
         loop {
             let t: u128 = self.gen();
             let t = (t >> (u128::BITS - bit_size as u32)) | 1 | (1 << (bit_size - 1));
-            if is_prime(&Mint::from(t), config).probably() {
+            if is_prime(&SmallMint::from(t), config).probably() {
                 break t;
             } else if let Some(p) = next_prime(&t, None) {
                 // deterministic primality test will be used for integers under u64
@@ -128,7 +128,7 @@ impl<R: Rng> RandPrime<u128> for R {
         loop {
             let config = Some(PrimalityTestConfig::strict());
             let p = self.gen_prime(bit_size, config);
-            if is_prime(&Mint::from(p >> 1), config).probably() {
+            if is_prime(&SmallMint::from(p >> 1), config).probably() {
                 break p;
             }
             if let Some(p2) = p.checked_mul(2).and_then(|v| v.checked_add(1)) {
@@ -144,7 +144,7 @@ impl<R: Rng> RandPrime<u128> for R {
         loop {
             let config = Some(PrimalityTestConfig::strict());
             let p = self.gen_prime_exact(bit_size, config);
-            if is_prime(&Mint::from(p >> 1), config).probably() {
+            if is_prime(&SmallMint::from(p >> 1), config).probably() {
                 break p;
             }
             if let Some(p2) = p.checked_mul(2).and_then(|v| v.checked_add(1)) {

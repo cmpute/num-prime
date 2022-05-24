@@ -476,7 +476,7 @@ impl NaiveBuffer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::detail::Mint;
+    use crate::mint::SmallMint;
     #[cfg(feature = "num-bigint")]
     use core::str::FromStr;
     #[cfg(feature = "num-bigint")]
@@ -550,7 +550,7 @@ mod tests {
             Primality::Probable(_)
         ));
         assert!(matches!(
-            pb.is_prime(&Mint::from(2u128.pow(89) - 1), None),
+            pb.is_prime(&SmallMint::from(2u128.pow(89) - 1), None),
             Primality::Probable(_)
         ));
 
@@ -574,11 +574,11 @@ mod tests {
             Primality::Probable(_)
         ));
         assert!(matches!(
-            pb.is_prime(&Mint::from(P), None),
+            pb.is_prime(&SmallMint::from(P), None),
             Primality::Probable(_)
         ));
         assert!(matches!(
-            pb.is_prime(&Mint::from(P), Some(PrimalityTestConfig::bpsw())),
+            pb.is_prime(&SmallMint::from(P), Some(PrimalityTestConfig::bpsw())),
             Primality::Probable(_)
         ));
 
@@ -589,11 +589,11 @@ mod tests {
             Primality::Probable(_)
         ));
         assert!(matches!(
-            pb.is_prime(&Mint::from(P2), None),
+            pb.is_prime(&SmallMint::from(P2), None),
             Primality::Probable(_)
         ));
         assert!(matches!(
-            pb.is_prime(&Mint::from(P2), Some(PrimalityTestConfig::bpsw())),
+            pb.is_prime(&SmallMint::from(P2), Some(PrimalityTestConfig::bpsw())),
             Primality::Probable(_)
         ));
 

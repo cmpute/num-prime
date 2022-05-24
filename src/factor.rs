@@ -327,7 +327,7 @@ fn williams_pp1() {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mint::Mint;
+    use crate::mint::SmallMint;
     use num_modular::MontgomeryInt;
     use rand::random;
 
@@ -345,9 +345,9 @@ mod tests {
 
             let expect = pollard_rho(&target, start, offset, 65536);
             let mint_result = pollard_rho(
-                &Mint::from(target),
-                MontgomeryInt::new(start, target).into(),
-                MontgomeryInt::new(offset, target).into(),
+                &SmallMint::from(target),
+                MontgomeryInt::new(start, &target).into(),
+                MontgomeryInt::new(offset, &target).into(),
                 65536,
             );
             assert_eq!(expect.0, mint_result.0.map(|v| v.value()));

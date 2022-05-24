@@ -81,7 +81,7 @@ pub mod detail {
     //! designed for such usage. User-friendly is not a goal and backward-compatilibity is not
     //! strictly maintained here. Some traits in this module can be used to extend `num-prime`
     //! with new backends.
-    pub use super::mint::Mint;
+    pub use super::mint::{Mint, SmallMint};
     pub use super::primality::{LucasUtils, PrimalityBase, PrimalityRefBase};
     pub use super::tables::SMALL_PRIMES;
 }

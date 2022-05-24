@@ -389,7 +389,7 @@ impl<T, Base> PrimalityRefBase<Base> for T where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mint::Mint;
+    use crate::mint::SmallMint;
     use num_modular::{ModularAbs, ModularSymbols};
     use rand::random;
 
@@ -415,13 +415,13 @@ mod tests {
         let spsp: [u16; 5] = [2047, 3277, 4033, 4681, 8321];
         for psp in spsp {
             assert!(psp.is_sprp(2));
-            assert!(Mint::from(psp).is_sprp(2.into())); // test Mint execution
+            assert!(SmallMint::from(psp).is_sprp(2.into())); // test Mint execution
         }
 
         // test cofactor return
         assert_eq!(341u16.test_sprp(2), Either::Right(31));
         assert_eq!(
-            Mint::from(341u16).test_sprp(2.into()),
+            SmallMint::from(341u16).test_sprp(2.into()),
             Either::Right(31.into())
         );
     }

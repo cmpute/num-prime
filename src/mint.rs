@@ -5,8 +5,8 @@ use core::ops::*;
 use either::*;
 use num_integer::{Integer, Roots};
 use num_modular::{
-    ModularCoreOps, ModularInteger, ModularPow, ModularSymbols, ModularUnaryOps, Montgomery,
-    MontgomeryInt,
+    ModularCoreOps, ModularInteger, ModularPow, ModularSymbols, ModularUnaryOps, Reducer,
+    ReducedInt, Montgomery,
 };
 use num_traits::{FromPrimitive, Num, One, Pow, ToPrimitive, Zero};
 
@@ -17,44 +17,45 @@ use crate::{BitTest, ExactRoots};
 /// This struct only designed to be working with this crate. Most binary operators assume that
 /// the modulus of two operands (when in montgomery form) are the same, and most implicit conversions
 /// between conventional form and montgomery form will be forbidden
-pub struct Mint<T: Integer + Montgomery>(Either<T, MontgomeryInt<T>>);
+#[derive(Debug, Clone, Copy)]
+pub struct Mint<T: Integer, R: Reducer<T>>(Either<T, ReducedInt<T, R>>);
 
-// it seems that auto derivation struggles to provide an implementation for Copy, Clone and Debug with proper trait bounds
-impl<T: Integer + Montgomery + Clone> Clone for Mint<T>
-where
-    T::Inv: Clone,
-{
-    #[inline(always)]
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-impl<T: Integer + Montgomery + Copy> Copy for Mint<T> where T::Inv: Copy {}
-impl<T: Integer + Montgomery + core::fmt::Debug> core::fmt::Debug for Mint<T>
-where
-    T::Inv: core::fmt::Debug,
-{
-    #[inline(always)]
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f)
-    }
-}
+// // it seems that auto derivation struggles to provide an implementation for Copy, Clone and Debug with proper trait bounds
+// impl<T: Integer + Clone> Clone for Mint<T>
+// where
+//     T::Inv: Clone,
+// {
+//     #[inline(always)]
+//     fn clone(&self) -> Self {
+//         Self(self.0.clone())
+//     }
+// }
+// impl<T: Integer + Copy> Copy for Mint<T> where T::Inv: Copy {}
+// impl<T: Integer + core::fmt::Debug> core::fmt::Debug for Mint<T>
+// where
+//     T::Inv: core::fmt::Debug,
+// {
+//     #[inline(always)]
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         self.0.fmt(f)
+//     }
+// }
 
-impl<T: Integer + Montgomery> From<T> for Mint<T> {
+impl<T: Integer, R: Reducer<T>> From<T> for Mint<T, R> {
     #[inline(always)]
     fn from(v: T) -> Self {
         Self(Left(v))
     }
 }
-impl<T: Integer + Montgomery> From<MontgomeryInt<T>> for Mint<T> {
+impl<T: Integer, R: Reducer<T>> From<ReducedInt<T, R>> for Mint<T, R> {
     #[inline(always)]
-    fn from(v: MontgomeryInt<T>) -> Self {
+    fn from(v: ReducedInt<T, R>) -> Self {
         Self(Right(v))
     }
 }
 
 #[inline(always)]
-fn left_only<T: Integer + Montgomery>(lhs: Mint<T>, rhs: Mint<T>) -> (T, T) {
+fn left_only<T: Integer, R: Reducer<T>>(lhs: Mint<T, R>, rhs: Mint<T, R>) -> (T, T) {
     match (lhs.0, rhs.0) {
         (Left(v1), Left(v2)) => (v1, v2),
         (_, _) => unreachable!(),
@@ -62,9 +63,9 @@ fn left_only<T: Integer + Montgomery>(lhs: Mint<T>, rhs: Mint<T>) -> (T, T) {
 }
 
 #[inline(always)]
-fn left_ref_only<'a, T: Integer + Montgomery>(
-    lhs: &'a Mint<T>,
-    rhs: &'a Mint<T>,
+fn left_ref_only<'a, T: Integer, R: Reducer<T>>(
+    lhs: &'a Mint<T, R>,
+    rhs: &'a Mint<T, R>,
 ) -> (&'a T, &'a T) {
     match (&lhs.0, &rhs.0) {
         (Left(v1), Left(v2)) => (v1, v2),
@@ -101,10 +102,7 @@ macro_rules! forward_uops_ref {
     };
 }
 
-impl<T: Integer + Montgomery + Clone> PartialEq for Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
+impl<T: Integer + Clone, R: Reducer<T>> PartialEq for Mint<T, R>
 {
     fn eq(&self, other: &Self) -> bool {
         match (&self.0, &other.0) {
@@ -114,17 +112,11 @@ where
         }
     }
 }
-impl<T: Integer + Montgomery + Clone> Eq for Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
+impl<T: Integer + Clone, R: Reducer<T>> Eq for Mint<T, R>
 {
 }
 
-impl<T: Integer + Montgomery + Clone> PartialOrd for Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
+impl<T: Integer + Clone, R: Reducer<T> + Clone> PartialOrd for Mint<T, R>
 {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         match (&self.0, &other.0) {
@@ -138,10 +130,7 @@ where
         }
     }
 }
-impl<T: Integer + Montgomery + Clone> Ord for Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
+impl<T: Integer + Clone, R: Reducer<T> + Clone> Ord for Mint<T, R>
 {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         match (&self.0, &other.0) {
@@ -153,10 +142,7 @@ where
     }
 }
 
-impl<T: Integer + Montgomery + Clone> Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
+impl<T: Integer + Clone, R: Reducer<T> + Clone> Mint<T, R>
 {
     #[inline(always)]
     pub fn value(&self) -> T {
@@ -170,10 +156,7 @@ where
 // forward binary operators by converting result to MontgomeryInt whenever possible
 macro_rules! forward_binops_right {
     (impl $imp:ident, $method:ident) => {
-        impl<T: Integer + Montgomery + Clone> $imp for Mint<T>
-        where
-            T::Double: From<T>,
-            T::Inv: Clone,
+        impl<T: Integer + Clone, R: Reducer<T> + Clone> $imp for Mint<T, R>
         {
             type Output = Self;
             #[inline]
@@ -190,13 +173,10 @@ macro_rules! forward_binops_right {
             }
         }
 
-        impl<T: Integer + Montgomery + Clone + for<'r> $imp<&'r T, Output = T>> $imp<&Self>
-            for Mint<T>
-        where
-            T::Double: From<T>,
-            T::Inv: Clone,
+        impl<T: Integer + Clone + for<'r> $imp<&'r T, Output = T>, R: Reducer<T> + Clone> $imp<&Self>
+            for Mint<T, R>
         {
-            type Output = Mint<T>;
+            type Output = Mint<T, R>;
             #[inline]
             fn $method(self, rhs: &Self) -> Self::Output {
                 Mint(match (self.0, &rhs.0) {
@@ -211,16 +191,13 @@ macro_rules! forward_binops_right {
             }
         }
 
-        impl<T: Integer + Montgomery + Clone> $imp<Mint<T>> for &Mint<T>
-        where
-            T::Double: From<T>,
-            T::Inv: Clone,
+        impl<T: Integer + Clone, R: Reducer<T> + Clone> $imp<Mint<T, R>> for &Mint<T, R>
         {
-            type Output = Mint<T>;
+            type Output = Mint<T, R>;
             // FIXME: additional clone here due to https://github.com/rust-lang/rust/issues/39959
             // (same for ref & ref operation below, and those for Div and Rem)
             #[inline]
-            fn $method(self, rhs: Mint<T>) -> Self::Output {
+            fn $method(self, rhs: Mint<T, R>) -> Self::Output {
                 Mint(match (&self.0, rhs.0) {
                     (Left(v1), Left(v2)) => Left(v1.clone().$method(v2)),
                     (Left(v1), Right(v2)) => Right(v2.convert(v1.clone()).$method(v2)),
@@ -232,15 +209,12 @@ macro_rules! forward_binops_right {
                 })
             }
         }
-        impl<'a, 'b, T: Integer + Montgomery + Clone + for<'r> $imp<&'r T, Output = T>>
-            $imp<&'b Mint<T>> for &'a Mint<T>
-        where
-            T::Double: From<T>,
-            T::Inv: Clone,
+        impl<'a, 'b, T: Integer + Clone + for<'r> $imp<&'r T, Output = T>, R: Reducer<T> + Clone>
+            $imp<&'b Mint<T, R>> for &'a Mint<T, R>
         {
-            type Output = Mint<T>;
+            type Output = Mint<T, R>;
             #[inline]
-            fn $method(self, rhs: &Mint<T>) -> Self::Output {
+            fn $method(self, rhs: &Mint<T, R>) -> Self::Output {
                 Mint(match (&self.0, &rhs.0) {
                     (Left(v1), Left(v2)) => Left(v1.clone().$method(v2)),
                     (Left(v1), Right(v2)) => Right(v2.convert(v1.clone()).$method(v2)),
@@ -259,10 +233,7 @@ forward_binops_right!(impl Add, add);
 forward_binops_right!(impl Sub, sub);
 forward_binops_right!(impl Mul, mul);
 
-impl<T: Integer + Montgomery + Clone> Div for Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
+impl<T: Integer + Clone, R: Reducer<T>> Div for Mint<T, R>
 {
     type Output = Self;
 
@@ -272,10 +243,7 @@ where
         Self(Left(v1.div(v2)))
     }
 }
-impl<T: Integer + Montgomery + Clone + for<'r> Div<&'r T, Output = T>> Div<&Self> for Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
+impl<T: Integer + Clone + for<'r> Div<&'r T, Output = T>, R: Reducer<T>> Div<&Self> for Mint<T, R>
 {
     type Output = Self;
 
@@ -287,30 +255,24 @@ where
         }
     }
 }
-impl<T: Integer + Montgomery + Clone> Div<Mint<T>> for &Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
+impl<T: Integer + Clone, R: Reducer<T>> Div<Mint<T, R>> for &Mint<T, R>
 {
-    type Output = Mint<T>;
+    type Output = Mint<T, R>;
 
     #[inline]
-    fn div(self, rhs: Mint<T>) -> Self::Output {
+    fn div(self, rhs: Mint<T, R>) -> Self::Output {
         match (&self.0, rhs.0) {
             (Left(v1), Left(v2)) => Mint(Left(v1.clone().div(v2))),
             (_, _) => unreachable!(),
         }
     }
 }
-impl<'a, 'b, T: Integer + Montgomery + Clone + for<'r> Div<&'r T, Output = T>> Div<&'b Mint<T>>
-    for &'a Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
+impl<'a, 'b, T: Integer + Clone + for<'r> Div<&'r T, Output = T>, R: Reducer<T>> Div<&'b Mint<T, R>>
+    for &'a Mint<T, R>
 {
-    type Output = Mint<T>;
+    type Output = Mint<T, R>;
     #[inline]
-    fn div(self, rhs: &Mint<T>) -> Self::Output {
+    fn div(self, rhs: &Mint<T, R>) -> Self::Output {
         match (&self.0, &rhs.0) {
             (Left(v1), Left(v2)) => Mint(Left(v1.clone().div(v2))),
             (_, _) => unreachable!(),
@@ -318,75 +280,47 @@ where
     }
 }
 
-impl<T: Integer + Montgomery + Clone> Rem for Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
+impl<T: Integer + Clone, R: Reducer<T> + Clone> Rem for Mint<T, R>
 {
     type Output = Self;
 
     #[inline]
     fn rem(self, rhs: Self) -> Self::Output {
         match (self.0, rhs.0) {
-            (Left(v1), Left(v2)) => Self(Right(MontgomeryInt::new(v1, v2))),
+            (Left(v1), Left(v2)) => Self(Right(ReducedInt::new(v1, &v2))),
             (Right(v1), Left(v2)) => {
-                debug_assert!(v1.modulus() == &v2);
+                debug_assert!(v1.modulus() == v2);
                 Self(Right(v1))
             }
             (_, _) => unreachable!(),
         }
     }
 }
-impl<T: Integer + Montgomery + Clone + for<'r> Rem<&'r T, Output = T>> Rem<&Self> for Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
+impl<T: Integer + Clone, R: Reducer<T> + Clone> Rem<&Self> for Mint<T, R>
 {
     type Output = Self;
 
     #[inline]
     fn rem(self, rhs: &Self) -> Self::Output {
         match (self.0, &rhs.0) {
-            (Left(v1), Left(v2)) => Self(Right(MontgomeryInt::new(v1, v2.clone()))),
+            (Left(v1), Left(v2)) => Self(Right(ReducedInt::new(v1, v2))),
             (Right(v1), Left(v2)) => {
-                debug_assert!(v1.modulus() == v2);
+                debug_assert!(&v1.modulus() == v2);
                 Self(Right(v1))
             }
             (_, _) => unreachable!(),
         }
     }
 }
-impl<T: Integer + Montgomery + Clone> Rem<Mint<T>> for &Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
+impl<T: Integer + Clone, R: Reducer<T> + Clone> Rem<Mint<T, R>> for &Mint<T, R>
+where 
 {
-    type Output = Mint<T>;
+    type Output = Mint<T, R>;
 
     #[inline]
-    fn rem(self, rhs: Mint<T>) -> Self::Output {
+    fn rem(self, rhs: Mint<T, R>) -> Self::Output {
         match (&self.0, rhs.0) {
-            (Left(v1), Left(v2)) => Mint(Right(MontgomeryInt::new(v1.clone(), v2))),
-            (Right(v1), Left(v2)) => {
-                debug_assert!(v1.modulus() == &v2);
-                Mint(Right(v1.clone()))
-            }
-            (_, _) => unreachable!(),
-        }
-    }
-}
-impl<'a, 'b, T: Integer + Montgomery + Clone + for<'r> Rem<&'r T, Output = T>> Rem<&'b Mint<T>>
-    for &'a Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
-{
-    type Output = Mint<T>;
-
-    #[inline]
-    fn rem(self, rhs: &Mint<T>) -> Self::Output {
-        match (&self.0, &rhs.0) {
-            (Left(v1), Left(v2)) => Mint(Right(MontgomeryInt::new(v1.clone(), v2.clone()))),
+            (Left(v1), Left(v2)) => Mint(Right(ReducedInt::new(v1.clone(), &v2))),
             (Right(v1), Left(v2)) => {
                 debug_assert!(v1.modulus() == v2);
                 Mint(Right(v1.clone()))
@@ -395,11 +329,25 @@ where
         }
     }
 }
+impl<'a, 'b, T: Integer + Clone, R: Reducer<T> + Clone> Rem<&'b Mint<T, R>>
+    for &'a Mint<T, R>
+{
+    type Output = Mint<T, R>;
 
-impl<T: Integer + Montgomery + Clone> Zero for Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
+    #[inline]
+    fn rem(self, rhs: &Mint<T, R>) -> Self::Output {
+        match (&self.0, &rhs.0) {
+            (Left(v1), Left(v2)) => Mint(Right(ReducedInt::new(v1.clone(), v2))),
+            (Right(v1), Left(v2)) => {
+                debug_assert!(&v1.modulus() == v2);
+                Mint(Right(v1.clone()))
+            }
+            (_, _) => unreachable!(),
+        }
+    }
+}
+
+impl<T: Integer + Clone, R: Reducer<T> + Clone> Zero for Mint<T, R>
 {
     #[inline(always)]
     fn zero() -> Self {
@@ -414,10 +362,7 @@ where
     }
 }
 
-impl<T: Integer + Montgomery + Clone> One for Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
+impl<T: Integer + Clone, R: Reducer<T> + Clone> One for Mint<T, R>
 {
     #[inline(always)]
     fn one() -> Self {
@@ -426,10 +371,7 @@ where
     forward_uops_ref!(is_one => bool);
 }
 
-impl<T: Integer + Montgomery + Clone> Num for Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
+impl<T: Integer + Clone, R: Reducer<T> + Clone> Num for Mint<T, R>
 {
     type FromStrRadixErr = <T as Num>::FromStrRadixErr;
 
@@ -439,10 +381,7 @@ where
     }
 }
 
-impl<T: Integer + Montgomery + Clone> Integer for Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
+impl<T: Integer + Clone, R: Reducer<T> + Clone> Integer for Mint<T, R>
 {
     forward_binops_left_ref_only!(div_floor);
     forward_binops_left_ref_only!(mod_floor);
@@ -469,10 +408,7 @@ where
     }
 }
 
-impl<T: Integer + Montgomery + Clone + Roots> Roots for Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
+impl<T: Integer + Clone + Roots, R: Reducer<T> + Clone> Roots for Mint<T, R>
 {
     #[inline]
     fn nth_root(&self, n: u32) -> Self {
@@ -483,10 +419,7 @@ where
     }
 }
 
-impl<T: Integer + Montgomery + Clone + FromPrimitive> FromPrimitive for Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
+impl<T: Integer + Clone + FromPrimitive, R: Reducer<T>> FromPrimitive for Mint<T, R>
 {
     #[inline]
     fn from_f64(n: f64) -> Option<Self> {
@@ -502,10 +435,7 @@ where
     }
 }
 
-impl<T: Integer + Montgomery + Clone + ToPrimitive> ToPrimitive for Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
+impl<T: Integer + Clone + ToPrimitive, R: Reducer<T> + Clone> ToPrimitive for Mint<T, R>
 {
     #[inline]
     fn to_f64(&self) -> Option<f64> {
@@ -530,10 +460,7 @@ where
     }
 }
 
-impl<T: Integer + Montgomery + Clone + Pow<u32, Output = T>> Pow<u32> for Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
+impl<T: Integer + Clone + Pow<u32, Output = T>, R: Reducer<T>> Pow<u32> for Mint<T, R>
 {
     type Output = Self;
     #[inline]
@@ -545,10 +472,7 @@ where
     }
 }
 
-impl<T: Integer + Montgomery + Clone + ExactRoots> ExactRoots for Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
+impl<T: Integer + Clone + ExactRoots, R: Reducer<T> + Clone> ExactRoots for Mint<T, R>
 {
     #[inline]
     fn nth_root_exact(&self, n: u32) -> Option<Self> {
@@ -559,10 +483,7 @@ where
     }
 }
 
-impl<T: Integer + Montgomery + Clone + BitTest> BitTest for Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
+impl<T: Integer + Clone + BitTest, R: Reducer<T>> BitTest for Mint<T, R>
 {
     #[inline]
     fn bit(&self, position: usize) -> bool {
@@ -587,10 +508,7 @@ where
     }
 }
 
-impl<T: Integer + Montgomery + Clone + Shr<usize, Output = T>> Shr<usize> for Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
+impl<T: Integer + Clone + Shr<usize, Output = T>, R: Reducer<T>> Shr<usize> for Mint<T, R>
 {
     type Output = Self;
     #[inline]
@@ -601,12 +519,9 @@ where
         }
     }
 }
-impl<T: Integer + Montgomery + Clone + Shr<usize, Output = T>> Shr<usize> for &Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
+impl<T: Integer + Clone + Shr<usize, Output = T>, R: Reducer<T>> Shr<usize> for &Mint<T, R>
 {
-    type Output = Mint<T>;
+    type Output = Mint<T, R>;
     #[inline]
     fn shr(self, rhs: usize) -> Self::Output {
         match &self.0 {
@@ -616,17 +531,14 @@ where
     }
 }
 
-impl<T: Integer + Montgomery + Clone> ModularCoreOps<&Self, &Self> for Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
+impl<T: Integer + Clone, R: Reducer<T> + Clone> ModularCoreOps<&Self, &Self> for Mint<T, R>
 {
     type Output = Self;
     #[inline]
     fn addm(self, rhs: &Self, m: &Self) -> Self::Output {
         match (self.0, &rhs.0, &m.0) {
             (Right(v1), Right(v2), Left(m)) => {
-                debug_assert!(v1.modulus() == m && v2.modulus() == m);
+                debug_assert!(&v1.modulus() == m && &v2.modulus() == m);
                 Self(Right(v1 + v2))
             }
             (_, _, _) => unreachable!(),
@@ -636,7 +548,7 @@ where
     fn subm(self, rhs: &Self, m: &Self) -> Self::Output {
         match (self.0, &rhs.0, &m.0) {
             (Right(v1), Right(v2), Left(m)) => {
-                debug_assert!(v1.modulus() == m && v2.modulus() == m);
+                debug_assert!(&v1.modulus() == m && &v2.modulus() == m);
                 Self(Right(v1 - v2))
             }
             (_, _, _) => unreachable!(),
@@ -646,45 +558,42 @@ where
     fn mulm(self, rhs: &Self, m: &Self) -> Self::Output {
         match (self.0, &rhs.0, &m.0) {
             (Right(v1), Right(v2), Left(m)) => {
-                debug_assert!(v1.modulus() == m && v2.modulus() == m);
+                debug_assert!(&v1.modulus() == m && &v2.modulus() == m);
                 Self(Right(v1 * v2))
             }
             (_, _, _) => unreachable!(),
         }
     }
 }
-impl<'a, 'b, T: Integer + Montgomery + Clone> ModularCoreOps<&'b Mint<T>, &'b Mint<T>>
-    for &'a Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
+impl<'a, 'b, T: Integer + Clone, R: Reducer<T> + Clone> ModularCoreOps<&'b Mint<T, R>, &'b Mint<T, R>>
+    for &'a Mint<T, R>
 {
-    type Output = Mint<T>;
+    type Output = Mint<T, R>;
     #[inline]
-    fn addm(self, rhs: &Mint<T>, m: &Mint<T>) -> Self::Output {
+    fn addm(self, rhs: &Mint<T, R>, m: &Mint<T, R>) -> Self::Output {
         match (&self.0, &rhs.0, &m.0) {
             (Right(v1), Right(v2), Left(m)) => {
-                debug_assert!(v1.modulus() == m && v2.modulus() == m);
+                debug_assert!(&v1.modulus() == m && &v2.modulus() == m);
                 Mint(Right(v1 + v2))
             }
             (_, _, _) => unreachable!(),
         }
     }
     #[inline]
-    fn subm(self, rhs: &Mint<T>, m: &Mint<T>) -> Self::Output {
+    fn subm(self, rhs: &Mint<T, R>, m: &Mint<T, R>) -> Self::Output {
         match (&self.0, &rhs.0, &m.0) {
             (Right(v1), Right(v2), Left(m)) => {
-                debug_assert!(v1.modulus() == m && v2.modulus() == m);
+                debug_assert!(&v1.modulus() == m && &v2.modulus() == m);
                 Mint(Right(v1 - v2))
             }
             (_, _, _) => unreachable!(),
         }
     }
     #[inline]
-    fn mulm(self, rhs: &Mint<T>, m: &Mint<T>) -> Self::Output {
+    fn mulm(self, rhs: &Mint<T, R>, m: &Mint<T, R>) -> Self::Output {
         match (&self.0, &rhs.0, &m.0) {
             (Right(v1), Right(v2), Left(m)) => {
-                debug_assert!(v1.modulus() == m && v2.modulus() == m);
+                debug_assert!(&v1.modulus() == m && &v2.modulus() == m);
                 Mint(Right(v1 * v2))
             }
             (_, _, _) => unreachable!(),
@@ -692,18 +601,15 @@ where
     }
 }
 
-impl<T: Integer + Montgomery + Clone> ModularUnaryOps<&Self> for Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
+impl<T: Integer + Clone, R: Reducer<T> + Clone> ModularUnaryOps<&Self> for Mint<T, R>
 {
     type Output = Self;
     #[inline]
     fn negm(self, m: &Self) -> Self::Output {
         Self(Right(match (self.0, &m.0) {
-            (Left(v), Left(m)) => MontgomeryInt::new(v, m.clone()).neg(),
+            (Left(v), Left(m)) => ReducedInt::new(v, m).neg(),
             (Right(v), Left(m)) => {
-                debug_assert!(v.modulus() == m);
+                debug_assert!(&v.modulus() == m);
                 v.neg()
             }
             (_, Right(_)) => unreachable!(),
@@ -715,9 +621,9 @@ where
     #[inline]
     fn dblm(self, m: &Self) -> Self::Output {
         Self(Right(match (self.0, &m.0) {
-            (Left(v), Left(m)) => MontgomeryInt::new(v, m.clone()).double(),
+            (Left(v), Left(m)) => ReducedInt::new(v, m).double(),
             (Right(v), Left(m)) => {
-                debug_assert!(v.modulus() == m);
+                debug_assert!(&v.modulus() == m);
                 v.double()
             }
             (_, Right(_)) => unreachable!(),
@@ -726,52 +632,49 @@ where
     #[inline]
     fn sqm(self, m: &Self) -> Self::Output {
         Self(Right(match (self.0, &m.0) {
-            (Left(v), Left(m)) => MontgomeryInt::new(v, m.clone()).square(),
+            (Left(v), Left(m)) => ReducedInt::new(v, m).square(),
             (Right(v), Left(m)) => {
-                debug_assert!(v.modulus() == m);
+                debug_assert!(&v.modulus() == m);
                 v.square()
             }
             (_, Right(_)) => unreachable!(),
         }))
     }
 }
-impl<'a, 'b, T: Integer + Montgomery + Clone> ModularUnaryOps<&'b Mint<T>> for &'a Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
+impl<'a, 'b, T: Integer + Clone, R: Reducer<T> + Clone> ModularUnaryOps<&'b Mint<T, R>> for &'a Mint<T, R>
 {
-    type Output = Mint<T>;
+    type Output = Mint<T, R>;
     #[inline]
-    fn negm(self, m: &Mint<T>) -> Self::Output {
+    fn negm(self, m: &Mint<T, R>) -> Self::Output {
         Mint(Right(match (&self.0, &m.0) {
-            (Left(v), Left(m)) => MontgomeryInt::new(v.clone(), m.clone()).neg(),
+            (Left(v), Left(m)) => ReducedInt::new(v.clone(), m).neg(),
             (Right(v), Left(m)) => {
-                debug_assert!(v.modulus() == m);
+                debug_assert!(&v.modulus() == m);
                 v.clone().neg()
             }
             (_, Right(_)) => unreachable!(),
         }))
     }
-    fn invm(self, _: &Mint<T>) -> Option<Self::Output> {
+    fn invm(self, _: &Mint<T, R>) -> Option<Self::Output> {
         unreachable!() // not used in this crate
     }
     #[inline]
-    fn dblm(self, m: &Mint<T>) -> Self::Output {
+    fn dblm(self, m: &Mint<T, R>) -> Self::Output {
         Mint(Right(match (&self.0, &m.0) {
-            (Left(v), Left(m)) => MontgomeryInt::new(v.clone(), m.clone()).double(),
+            (Left(v), Left(m)) => ReducedInt::new(v.clone(), m).double(),
             (Right(v), Left(m)) => {
-                debug_assert!(v.modulus() == m);
+                debug_assert!(&v.modulus() == m);
                 v.clone().double()
             }
             (_, Right(_)) => unreachable!(),
         }))
     }
     #[inline]
-    fn sqm(self, m: &Mint<T>) -> Self::Output {
+    fn sqm(self, m: &Mint<T, R>) -> Self::Output {
         Mint(Right(match (&self.0, &m.0) {
-            (Left(v), Left(m)) => MontgomeryInt::new(v.clone(), m.clone()).square(),
+            (Left(v), Left(m)) => ReducedInt::new(v.clone(), m).square(),
             (Right(v), Left(m)) => {
-                debug_assert!(v.modulus() == m);
+                debug_assert!(&v.modulus() == m);
                 v.clone().square()
             }
             (_, Right(_)) => unreachable!(),
@@ -779,11 +682,8 @@ where
     }
 }
 
-impl<T: Integer + Montgomery + Clone + for<'r> ModularSymbols<&'r T>> ModularSymbols<&Self>
-    for Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
+impl<T: Integer + Clone + for<'r> ModularSymbols<&'r T>, R: Reducer<T> + Clone> ModularSymbols<&Self>
+    for Mint<T, R>
 {
     #[inline]
     fn checked_jacobi(&self, n: &Self) -> Option<i8> {
@@ -811,18 +711,15 @@ where
     }
 }
 
-impl<T: Integer + Montgomery + Clone> ModularPow<&Self, &Self> for Mint<T>
-where
-    T::Double: From<T>,
-    T::Inv: Clone,
+impl<T: Integer + Clone, R: Reducer<T> + Clone> ModularPow<&Self, &Self> for Mint<T, R>
 {
     type Output = Self;
     #[inline]
     fn powm(self, exp: &Self, m: &Self) -> Self::Output {
         Self(Right(match (self.0, &exp.0, &m.0) {
-            (Left(v), Left(e), Left(m)) => MontgomeryInt::new(v, m.clone()).pow(e.clone()),
+            (Left(v), Left(e), Left(m)) => ReducedInt::new(v, m).pow(e.clone()),
             (Right(v), Left(e), Left(m)) => {
-                debug_assert!(v.modulus() == m);
+                debug_assert!(&v.modulus() == m);
                 v.pow(e.clone())
             }
             (_, _, _) => unreachable!(),
@@ -830,14 +727,16 @@ where
     }
 }
 
+pub type SmallMint<T> = Mint<T, Montgomery<T, T>>;
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_basics() {
-        let a: Mint<u32> = 19.into();
-        let b: Mint<u32> = 8.into();
+        let a: SmallMint<u32> = 19.into();
+        let b: SmallMint<u32> = 8.into();
         assert_eq!(a + b, 27.into());
     }
 }
