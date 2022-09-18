@@ -5,8 +5,8 @@ use core::ops::*;
 use either::*;
 use num_integer::{Integer, Roots};
 use num_modular::{
-    ModularCoreOps, ModularInteger, ModularPow, ModularSymbols, ModularUnaryOps, Reducer,
-    ReducedInt, Montgomery,
+    ModularCoreOps, ModularInteger, ModularPow, ModularSymbols, ModularUnaryOps, Montgomery,
+    ReducedInt, Reducer,
 };
 use num_traits::{FromPrimitive, Num, One, Pow, ToPrimitive, Zero};
 
@@ -19,27 +19,6 @@ use crate::{BitTest, ExactRoots};
 /// between conventional form and montgomery form will be forbidden
 #[derive(Debug, Clone, Copy)]
 pub struct Mint<T: Integer, R: Reducer<T>>(Either<T, ReducedInt<T, R>>);
-
-// // it seems that auto derivation struggles to provide an implementation for Copy, Clone and Debug with proper trait bounds
-// impl<T: Integer + Clone> Clone for Mint<T>
-// where
-//     T::Inv: Clone,
-// {
-//     #[inline(always)]
-//     fn clone(&self) -> Self {
-//         Self(self.0.clone())
-//     }
-// }
-// impl<T: Integer + Copy> Copy for Mint<T> where T::Inv: Copy {}
-// impl<T: Integer + core::fmt::Debug> core::fmt::Debug for Mint<T>
-// where
-//     T::Inv: core::fmt::Debug,
-// {
-//     #[inline(always)]
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         self.0.fmt(f)
-//     }
-// }
 
 impl<T: Integer, R: Reducer<T>> From<T> for Mint<T, R> {
     #[inline(always)]
@@ -102,8 +81,7 @@ macro_rules! forward_uops_ref {
     };
 }
 
-impl<T: Integer + Clone, R: Reducer<T>> PartialEq for Mint<T, R>
-{
+impl<T: Integer + Clone, R: Reducer<T>> PartialEq for Mint<T, R> {
     fn eq(&self, other: &Self) -> bool {
         match (&self.0, &other.0) {
             (Left(v1), Left(v2)) => v1 == v2,
@@ -112,12 +90,9 @@ impl<T: Integer + Clone, R: Reducer<T>> PartialEq for Mint<T, R>
         }
     }
 }
-impl<T: Integer + Clone, R: Reducer<T>> Eq for Mint<T, R>
-{
-}
+impl<T: Integer + Clone, R: Reducer<T>> Eq for Mint<T, R> {}
 
-impl<T: Integer + Clone, R: Reducer<T> + Clone> PartialOrd for Mint<T, R>
-{
+impl<T: Integer + Clone, R: Reducer<T> + Clone> PartialOrd for Mint<T, R> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         match (&self.0, &other.0) {
             (Left(v1), Left(v2)) => v1.partial_cmp(v2),
@@ -130,8 +105,7 @@ impl<T: Integer + Clone, R: Reducer<T> + Clone> PartialOrd for Mint<T, R>
         }
     }
 }
-impl<T: Integer + Clone, R: Reducer<T> + Clone> Ord for Mint<T, R>
-{
+impl<T: Integer + Clone, R: Reducer<T> + Clone> Ord for Mint<T, R> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         match (&self.0, &other.0) {
             (Left(v1), Left(v2)) => v1.cmp(v2),
@@ -142,8 +116,7 @@ impl<T: Integer + Clone, R: Reducer<T> + Clone> Ord for Mint<T, R>
     }
 }
 
-impl<T: Integer + Clone, R: Reducer<T> + Clone> Mint<T, R>
-{
+impl<T: Integer + Clone, R: Reducer<T> + Clone> Mint<T, R> {
     #[inline(always)]
     pub fn value(&self) -> T {
         match &self.0 {
@@ -156,8 +129,7 @@ impl<T: Integer + Clone, R: Reducer<T> + Clone> Mint<T, R>
 // forward binary operators by converting result to MontgomeryInt whenever possible
 macro_rules! forward_binops_right {
     (impl $imp:ident, $method:ident) => {
-        impl<T: Integer + Clone, R: Reducer<T> + Clone> $imp for Mint<T, R>
-        {
+        impl<T: Integer + Clone, R: Reducer<T> + Clone> $imp for Mint<T, R> {
             type Output = Self;
             #[inline]
             fn $method(self, rhs: Self) -> Self::Output {
@@ -173,8 +145,8 @@ macro_rules! forward_binops_right {
             }
         }
 
-        impl<T: Integer + Clone + for<'r> $imp<&'r T, Output = T>, R: Reducer<T> + Clone> $imp<&Self>
-            for Mint<T, R>
+        impl<T: Integer + Clone + for<'r> $imp<&'r T, Output = T>, R: Reducer<T> + Clone>
+            $imp<&Self> for Mint<T, R>
         {
             type Output = Mint<T, R>;
             #[inline]
@@ -191,8 +163,7 @@ macro_rules! forward_binops_right {
             }
         }
 
-        impl<T: Integer + Clone, R: Reducer<T> + Clone> $imp<Mint<T, R>> for &Mint<T, R>
-        {
+        impl<T: Integer + Clone, R: Reducer<T> + Clone> $imp<Mint<T, R>> for &Mint<T, R> {
             type Output = Mint<T, R>;
             // FIXME: additional clone here due to https://github.com/rust-lang/rust/issues/39959
             // (same for ref & ref operation below, and those for Div and Rem)
@@ -209,8 +180,12 @@ macro_rules! forward_binops_right {
                 })
             }
         }
-        impl<'a, 'b, T: Integer + Clone + for<'r> $imp<&'r T, Output = T>, R: Reducer<T> + Clone>
-            $imp<&'b Mint<T, R>> for &'a Mint<T, R>
+        impl<
+                'a,
+                'b,
+                T: Integer + Clone + for<'r> $imp<&'r T, Output = T>,
+                R: Reducer<T> + Clone,
+            > $imp<&'b Mint<T, R>> for &'a Mint<T, R>
         {
             type Output = Mint<T, R>;
             #[inline]
@@ -233,8 +208,7 @@ forward_binops_right!(impl Add, add);
 forward_binops_right!(impl Sub, sub);
 forward_binops_right!(impl Mul, mul);
 
-impl<T: Integer + Clone, R: Reducer<T>> Div for Mint<T, R>
-{
+impl<T: Integer + Clone, R: Reducer<T>> Div for Mint<T, R> {
     type Output = Self;
 
     #[inline]
@@ -243,8 +217,7 @@ impl<T: Integer + Clone, R: Reducer<T>> Div for Mint<T, R>
         Self(Left(v1.div(v2)))
     }
 }
-impl<T: Integer + Clone + for<'r> Div<&'r T, Output = T>, R: Reducer<T>> Div<&Self> for Mint<T, R>
-{
+impl<T: Integer + Clone + for<'r> Div<&'r T, Output = T>, R: Reducer<T>> Div<&Self> for Mint<T, R> {
     type Output = Self;
 
     #[inline]
@@ -255,8 +228,7 @@ impl<T: Integer + Clone + for<'r> Div<&'r T, Output = T>, R: Reducer<T>> Div<&Se
         }
     }
 }
-impl<T: Integer + Clone, R: Reducer<T>> Div<Mint<T, R>> for &Mint<T, R>
-{
+impl<T: Integer + Clone, R: Reducer<T>> Div<Mint<T, R>> for &Mint<T, R> {
     type Output = Mint<T, R>;
 
     #[inline]
@@ -280,8 +252,7 @@ impl<'a, 'b, T: Integer + Clone + for<'r> Div<&'r T, Output = T>, R: Reducer<T>>
     }
 }
 
-impl<T: Integer + Clone, R: Reducer<T> + Clone> Rem for Mint<T, R>
-{
+impl<T: Integer + Clone, R: Reducer<T> + Clone> Rem for Mint<T, R> {
     type Output = Self;
 
     #[inline]
@@ -296,8 +267,7 @@ impl<T: Integer + Clone, R: Reducer<T> + Clone> Rem for Mint<T, R>
         }
     }
 }
-impl<T: Integer + Clone, R: Reducer<T> + Clone> Rem<&Self> for Mint<T, R>
-{
+impl<T: Integer + Clone, R: Reducer<T> + Clone> Rem<&Self> for Mint<T, R> {
     type Output = Self;
 
     #[inline]
@@ -312,9 +282,7 @@ impl<T: Integer + Clone, R: Reducer<T> + Clone> Rem<&Self> for Mint<T, R>
         }
     }
 }
-impl<T: Integer + Clone, R: Reducer<T> + Clone> Rem<Mint<T, R>> for &Mint<T, R>
-where 
-{
+impl<T: Integer + Clone, R: Reducer<T> + Clone> Rem<Mint<T, R>> for &Mint<T, R> {
     type Output = Mint<T, R>;
 
     #[inline]
@@ -329,9 +297,7 @@ where
         }
     }
 }
-impl<'a, 'b, T: Integer + Clone, R: Reducer<T> + Clone> Rem<&'b Mint<T, R>>
-    for &'a Mint<T, R>
-{
+impl<'a, 'b, T: Integer + Clone, R: Reducer<T> + Clone> Rem<&'b Mint<T, R>> for &'a Mint<T, R> {
     type Output = Mint<T, R>;
 
     #[inline]
@@ -347,8 +313,7 @@ impl<'a, 'b, T: Integer + Clone, R: Reducer<T> + Clone> Rem<&'b Mint<T, R>>
     }
 }
 
-impl<T: Integer + Clone, R: Reducer<T> + Clone> Zero for Mint<T, R>
-{
+impl<T: Integer + Clone, R: Reducer<T> + Clone> Zero for Mint<T, R> {
     #[inline(always)]
     fn zero() -> Self {
         Self(Left(T::zero()))
@@ -362,8 +327,7 @@ impl<T: Integer + Clone, R: Reducer<T> + Clone> Zero for Mint<T, R>
     }
 }
 
-impl<T: Integer + Clone, R: Reducer<T> + Clone> One for Mint<T, R>
-{
+impl<T: Integer + Clone, R: Reducer<T> + Clone> One for Mint<T, R> {
     #[inline(always)]
     fn one() -> Self {
         Self(Left(T::one()))
@@ -371,8 +335,7 @@ impl<T: Integer + Clone, R: Reducer<T> + Clone> One for Mint<T, R>
     forward_uops_ref!(is_one => bool);
 }
 
-impl<T: Integer + Clone, R: Reducer<T> + Clone> Num for Mint<T, R>
-{
+impl<T: Integer + Clone, R: Reducer<T> + Clone> Num for Mint<T, R> {
     type FromStrRadixErr = <T as Num>::FromStrRadixErr;
 
     #[inline(always)]
@@ -381,8 +344,7 @@ impl<T: Integer + Clone, R: Reducer<T> + Clone> Num for Mint<T, R>
     }
 }
 
-impl<T: Integer + Clone, R: Reducer<T> + Clone> Integer for Mint<T, R>
-{
+impl<T: Integer + Clone, R: Reducer<T> + Clone> Integer for Mint<T, R> {
     forward_binops_left_ref_only!(div_floor);
     forward_binops_left_ref_only!(mod_floor);
     forward_binops_left_ref_only!(lcm);
@@ -408,8 +370,7 @@ impl<T: Integer + Clone, R: Reducer<T> + Clone> Integer for Mint<T, R>
     }
 }
 
-impl<T: Integer + Clone + Roots, R: Reducer<T> + Clone> Roots for Mint<T, R>
-{
+impl<T: Integer + Clone + Roots, R: Reducer<T> + Clone> Roots for Mint<T, R> {
     #[inline]
     fn nth_root(&self, n: u32) -> Self {
         match &self.0 {
@@ -419,8 +380,7 @@ impl<T: Integer + Clone + Roots, R: Reducer<T> + Clone> Roots for Mint<T, R>
     }
 }
 
-impl<T: Integer + Clone + FromPrimitive, R: Reducer<T>> FromPrimitive for Mint<T, R>
-{
+impl<T: Integer + Clone + FromPrimitive, R: Reducer<T>> FromPrimitive for Mint<T, R> {
     #[inline]
     fn from_f64(n: f64) -> Option<Self> {
         T::from_f64(n).map(|v| Self(Left(v)))
@@ -435,8 +395,7 @@ impl<T: Integer + Clone + FromPrimitive, R: Reducer<T>> FromPrimitive for Mint<T
     }
 }
 
-impl<T: Integer + Clone + ToPrimitive, R: Reducer<T> + Clone> ToPrimitive for Mint<T, R>
-{
+impl<T: Integer + Clone + ToPrimitive, R: Reducer<T> + Clone> ToPrimitive for Mint<T, R> {
     #[inline]
     fn to_f64(&self) -> Option<f64> {
         match &self.0 {
@@ -460,8 +419,7 @@ impl<T: Integer + Clone + ToPrimitive, R: Reducer<T> + Clone> ToPrimitive for Mi
     }
 }
 
-impl<T: Integer + Clone + Pow<u32, Output = T>, R: Reducer<T>> Pow<u32> for Mint<T, R>
-{
+impl<T: Integer + Clone + Pow<u32, Output = T>, R: Reducer<T>> Pow<u32> for Mint<T, R> {
     type Output = Self;
     #[inline]
     fn pow(self, rhs: u32) -> Self::Output {
@@ -472,8 +430,7 @@ impl<T: Integer + Clone + Pow<u32, Output = T>, R: Reducer<T>> Pow<u32> for Mint
     }
 }
 
-impl<T: Integer + Clone + ExactRoots, R: Reducer<T> + Clone> ExactRoots for Mint<T, R>
-{
+impl<T: Integer + Clone + ExactRoots, R: Reducer<T> + Clone> ExactRoots for Mint<T, R> {
     #[inline]
     fn nth_root_exact(&self, n: u32) -> Option<Self> {
         match &self.0 {
@@ -483,8 +440,7 @@ impl<T: Integer + Clone + ExactRoots, R: Reducer<T> + Clone> ExactRoots for Mint
     }
 }
 
-impl<T: Integer + Clone + BitTest, R: Reducer<T>> BitTest for Mint<T, R>
-{
+impl<T: Integer + Clone + BitTest, R: Reducer<T>> BitTest for Mint<T, R> {
     #[inline]
     fn bit(&self, position: usize) -> bool {
         match &self.0 {
@@ -508,8 +464,7 @@ impl<T: Integer + Clone + BitTest, R: Reducer<T>> BitTest for Mint<T, R>
     }
 }
 
-impl<T: Integer + Clone + Shr<usize, Output = T>, R: Reducer<T>> Shr<usize> for Mint<T, R>
-{
+impl<T: Integer + Clone + Shr<usize, Output = T>, R: Reducer<T>> Shr<usize> for Mint<T, R> {
     type Output = Self;
     #[inline]
     fn shr(self, rhs: usize) -> Self::Output {
@@ -519,8 +474,7 @@ impl<T: Integer + Clone + Shr<usize, Output = T>, R: Reducer<T>> Shr<usize> for 
         }
     }
 }
-impl<T: Integer + Clone + Shr<usize, Output = T>, R: Reducer<T>> Shr<usize> for &Mint<T, R>
-{
+impl<T: Integer + Clone + Shr<usize, Output = T>, R: Reducer<T>> Shr<usize> for &Mint<T, R> {
     type Output = Mint<T, R>;
     #[inline]
     fn shr(self, rhs: usize) -> Self::Output {
@@ -531,8 +485,7 @@ impl<T: Integer + Clone + Shr<usize, Output = T>, R: Reducer<T>> Shr<usize> for 
     }
 }
 
-impl<T: Integer + Clone, R: Reducer<T> + Clone> ModularCoreOps<&Self, &Self> for Mint<T, R>
-{
+impl<T: Integer + Clone, R: Reducer<T> + Clone> ModularCoreOps<&Self, &Self> for Mint<T, R> {
     type Output = Self;
     #[inline]
     fn addm(self, rhs: &Self, m: &Self) -> Self::Output {
@@ -565,8 +518,8 @@ impl<T: Integer + Clone, R: Reducer<T> + Clone> ModularCoreOps<&Self, &Self> for
         }
     }
 }
-impl<'a, 'b, T: Integer + Clone, R: Reducer<T> + Clone> ModularCoreOps<&'b Mint<T, R>, &'b Mint<T, R>>
-    for &'a Mint<T, R>
+impl<'a, 'b, T: Integer + Clone, R: Reducer<T> + Clone>
+    ModularCoreOps<&'b Mint<T, R>, &'b Mint<T, R>> for &'a Mint<T, R>
 {
     type Output = Mint<T, R>;
     #[inline]
@@ -601,8 +554,7 @@ impl<'a, 'b, T: Integer + Clone, R: Reducer<T> + Clone> ModularCoreOps<&'b Mint<
     }
 }
 
-impl<T: Integer + Clone, R: Reducer<T> + Clone> ModularUnaryOps<&Self> for Mint<T, R>
-{
+impl<T: Integer + Clone, R: Reducer<T> + Clone> ModularUnaryOps<&Self> for Mint<T, R> {
     type Output = Self;
     #[inline]
     fn negm(self, m: &Self) -> Self::Output {
@@ -641,7 +593,8 @@ impl<T: Integer + Clone, R: Reducer<T> + Clone> ModularUnaryOps<&Self> for Mint<
         }))
     }
 }
-impl<'a, 'b, T: Integer + Clone, R: Reducer<T> + Clone> ModularUnaryOps<&'b Mint<T, R>> for &'a Mint<T, R>
+impl<'a, 'b, T: Integer + Clone, R: Reducer<T> + Clone> ModularUnaryOps<&'b Mint<T, R>>
+    for &'a Mint<T, R>
 {
     type Output = Mint<T, R>;
     #[inline]
@@ -682,8 +635,8 @@ impl<'a, 'b, T: Integer + Clone, R: Reducer<T> + Clone> ModularUnaryOps<&'b Mint
     }
 }
 
-impl<T: Integer + Clone + for<'r> ModularSymbols<&'r T>, R: Reducer<T> + Clone> ModularSymbols<&Self>
-    for Mint<T, R>
+impl<T: Integer + Clone + for<'r> ModularSymbols<&'r T>, R: Reducer<T> + Clone>
+    ModularSymbols<&Self> for Mint<T, R>
 {
     #[inline]
     fn checked_jacobi(&self, n: &Self) -> Option<i8> {
@@ -711,8 +664,7 @@ impl<T: Integer + Clone + for<'r> ModularSymbols<&'r T>, R: Reducer<T> + Clone> 
     }
 }
 
-impl<T: Integer + Clone, R: Reducer<T> + Clone> ModularPow<&Self, &Self> for Mint<T, R>
-{
+impl<T: Integer + Clone, R: Reducer<T> + Clone> ModularPow<&Self, &Self> for Mint<T, R> {
     type Output = Self;
     #[inline]
     fn powm(self, exp: &Self, m: &Self) -> Self::Output {

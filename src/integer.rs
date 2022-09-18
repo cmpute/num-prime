@@ -229,7 +229,11 @@ mod tests {
                 let x = rng.gen_biguint(150);
                 assert!(matches!(ExactRoots::sqrt_exact(&(&x * &x)), Some(v) if v == x));
                 let x = rng.gen_biguint(150);
-                assert!(matches!(ExactRoots::cbrt_exact(&(&x * &x * &x)), Some(v) if v == x), "failed at {}", x);
+                assert!(
+                    matches!(ExactRoots::cbrt_exact(&(&x * &x * &x)), Some(v) if v == x),
+                    "failed at {}",
+                    x
+                );
             }
             // test non-perfect powers
             for _ in 0..10 {

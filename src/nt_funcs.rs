@@ -16,7 +16,8 @@ use crate::factor::{one_line, pollard_rho, squfof, SQUFOF_MULTIPLIERS};
 use crate::mint::SmallMint;
 use crate::primality::{PrimalityBase, PrimalityRefBase};
 use crate::tables::{
-    MOEBIUS_ODD, SMALL_PRIMES, SMALL_PRIMES_NEXT, WHEEL_NEXT, WHEEL_PREV, WHEEL_SIZE,
+    MILLER_RABIN_BASE32, MOEBIUS_ODD, SMALL_PRIMES, SMALL_PRIMES_NEXT, WHEEL_NEXT, WHEEL_PREV,
+    WHEEL_SIZE,
 };
 #[cfg(feature = "big-table")]
 use crate::tables::{SMALL_PRIMES_INV, ZETA_LOG_TABLE};
@@ -32,10 +33,10 @@ use std::collections::BTreeMap;
 use std::convert::TryFrom;
 
 #[cfg(feature = "big-table")]
-use crate::tables::{MILLER_RABIN_BASE32, MILLER_RABIN_BASE64};
+use crate::tables::MILLER_RABIN_BASE64;
 
 /// Fast primality test on a u64 integer. It's based on
-/// deterministic Miller-rabin tests. if target is larger than 2^64 or more
+/// deterministic Miller-rabin tests. If target is larger than 2^64 or more
 /// controlled primality tests are desired, please use [is_prime()]
 #[cfg(not(feature = "big-table"))]
 pub fn is_prime64(target: u64) -> bool {
@@ -62,28 +63,6 @@ pub fn is_prime64(target: u64) -> bool {
     is_prime64_miller(target)
 }
 
-// Primality test for u64 with only miller-rabin tests, used during factorization.
-// It assumes the target is odd, not too small and cannot be divided small primes
-#[cfg(not(feature = "big-table"))]
-fn is_prime64_miller(target: u64) -> bool {
-    // The collection of witnesses are from http://miller-rabin.appspot.com/
-    if let Ok(u) = u16::try_from(target) {
-        // 2, 3 for u16 range
-        let u = Mint::from(u);
-        return u.is_sprp(Mint::from(2)) && u.is_sprp(Mint::from(3));
-    }
-    if let Ok(u) = u32::try_from(target) {
-        // 2, 7, 61 for u32 range
-        let u = Mint::from(u);
-        return u.is_sprp(Mint::from(2)) && u.is_sprp(Mint::from(7)) && u.is_sprp(Mint::from(61));
-    }
-
-    // 2, 325, 9375, 28178, 450775, 9780504, 1795265022 for u64 range
-    const WITNESS64: [u64; 7] = [2, 325, 9375, 28178, 450775, 9780504, 1795265022];
-    let u = Mint::from(target);
-    WITNESS64.iter().all(|&x| u.is_sprp(Mint::from(x)))
-}
-
 /// Very fast primality test on a u64 integer is a prime number. It's based on
 /// deterministic Miller-rabin tests with hashing. if target is larger than 2^64 or more controlled
 /// primality tests are desired, please use [is_prime()]
@@ -97,7 +76,7 @@ pub fn is_prime64(target: u64) -> bool {
         return target == 2;
     }
 
-    // trial division
+    // remove small factors
     if target < SMALL_PRIMES_NEXT {
         // find in the prime list if the target is small enough
         return SMALL_PRIMES.binary_search(&(target as u16)).is_ok();
@@ -110,40 +89,52 @@ pub fn is_prime64(target: u64) -> bool {
         }
     }
 
+    // Then do a deterministic Miller-rabin test
     is_prime64_miller(target)
+}
+
+fn is_prime32_miller(target: u32) -> bool {
+    let h = target;
+    let h = ((h >> 16) ^ h).wrapping_mul(0x45d9f3b);
+    let h = ((h >> 16) ^ h).wrapping_mul(0x45d9f3b);
+    let h = ((h >> 16) ^ h) & 255;
+    let u = SmallMint::from(target);
+    return u.is_sprp(SmallMint::from(MILLER_RABIN_BASE32[h as usize] as u32));
+}
+
+// Primality test for u64 with only miller-rabin tests, used during factorization.
+// It assumes the target is odd, not too small and cannot be divided small primes
+#[cfg(not(feature = "big-table"))]
+fn is_prime64_miller(target: u64) -> bool {
+    if let Ok(u) = u32::try_from(target) {
+        return is_prime32_miller(u);
+    }
+
+    // The collection of witnesses are from http://miller-rabin.appspot.com/
+    const WITNESS64: [u64; 7] = [2, 325, 9375, 28178, 450775, 9780504, 1795265022];
+    let u = SmallMint::from(target);
+    WITNESS64.iter().all(|&x| u.is_sprp(SmallMint::from(x)))
 }
 
 // Primality test for u64 with only miller-rabin tests, used during factorization.
 // It assumes the target is odd, not too small and cannot be divided small primes
 #[cfg(feature = "big-table")]
 fn is_prime64_miller(target: u64) -> bool {
-    // 32bit test
-    const MAGIC: u32 = 0xAD625B89;
     if let Ok(u) = u32::try_from(target) {
-        let base = u.wrapping_mul(MAGIC) >> 24;
-        let u = SmallMint::from(u);
-        return u.is_sprp(SmallMint::from(MILLER_RABIN_BASE32[base as usize] as u32));
+        return is_prime32_miller(u);
     }
 
-    // 49bit test
-    let mt = SmallMint::from(target);
-    if !mt.is_sprp(2.into()) {
+    let u = SmallMint::from(target);
+    if !u.is_sprp(2.into()) {
         return false;
     }
-    let u = target as u32; // truncate
 
-    let base = u.wrapping_mul(MAGIC) >> 18;
-    if !mt.is_sprp(SmallMint::from(MILLER_RABIN_BASE64[base as usize] as u64)) {
-        return false;
-    }
-    if target < (1u64 << 49) {
-        return true;
-    }
-
-    // 64bit test
-    const SECOND_BASES: [u64; 8] = [15, 135, 13, 60, 15, 117, 65, 29];
-    let base = base >> 13;
-    mt.is_sprp(SmallMint::from(SECOND_BASES[base as usize]))
+    let h = target;
+    let h = ((h >> 32) ^ h).wrapping_mul(0x45d9f3b3335b369);
+    let h = ((h >> 32) ^ h).wrapping_mul(0x3335b36945d9f3b);
+    let h = ((h >> 32) ^ h) & 16383;
+    let b = MILLER_RABIN_BASE64[h as usize];
+    return u.is_sprp((b as u64 & 4095).into()) && u.is_sprp((b as u64 >> 12).into());
 }
 
 /// Fast integer factorization on a u64 target. It's based on a selection of factorization methods.
@@ -276,9 +267,12 @@ pub(crate) fn factorize64_advanced(cofactors: &[(u64, usize)]) -> Vec<(u64, usiz
                     let start = MontgomeryInt::new(random::<u64>(), &target);
                     let offset = start.convert(random::<u64>());
                     let max_iter = max_iter_ratio << (target.bits() / 6); // unoptimized heuristic
-                    if let (Some(p), _) =
-                        pollard_rho(&SmallMint::from(target), start.into(), offset.into(), max_iter)
-                    {
+                    if let (Some(p), _) = pollard_rho(
+                        &SmallMint::from(target),
+                        start.into(),
+                        offset.into(),
+                        max_iter,
+                    ) {
                         break p.value();
                     }
                 }
@@ -434,9 +428,12 @@ pub(crate) fn factorize128_advanced(cofactors: &[(u128, usize)]) -> Vec<(u128, u
                     let start = MontgomeryInt::new(random::<u128>(), &target);
                     let offset = start.convert(random::<u128>());
                     let max_iter = max_iter_ratio << (target.bits() / 6); // unoptimized heuristic
-                    if let (Some(p), _) =
-                        pollard_rho(&SmallMint::from(target), start.into(), offset.into(), max_iter)
-                    {
+                    if let (Some(p), _) = pollard_rho(
+                        &SmallMint::from(target),
+                        start.into(),
+                        offset.into(),
+                        max_iter,
+                    ) {
                         break p.value();
                     }
                 }
@@ -1000,7 +997,8 @@ pub fn prime_pi_est<T: ToPrimitive + FromPrimitive>(target: &T) -> T {
     T::from_f64(total + 1f64).unwrap()
 }
 
-/// Estimate the value of nth prime by bisecting on [prime_pi_est]
+/// Estimate the value of nth prime by bisecting on [prime_pi_est].
+/// If the result is larger than maximum of `T`, [None] will be returned.
 pub fn nth_prime_est<T: ToPrimitive + FromPrimitive + Num + PartialOrd>(target: &T) -> Option<T>
 where
     for<'r> &'r T: RefNum<T>,
@@ -1044,6 +1042,7 @@ mod tests {
         for x in 2..100 {
             assert_eq!(SMALL_PRIMES.contains(&x), is_prime64(x as u64));
         }
+        assert!(is_prime64(677));
 
         // some large primes
         assert!(is_prime64(6469693333));
@@ -1059,6 +1058,11 @@ mod tests {
         assert!(is_prime64(3315293452192821991));
         assert!(!is_prime64(8651776913431));
         assert!(!is_prime64(1152965996591997761));
+
+        // false positives reported by JASory (#4)
+        assert!(!is_prime64(600437059821397));
+        assert!(!is_prime64(3866032210719337));
+        assert!(!is_prime64(4100599722623587));
 
         // ensure no factor for 100 random primes
         let mut rng = rand::thread_rng();
