@@ -255,7 +255,7 @@ impl<T> PrimeBufferExt for T where for<'a> T: PrimeBuffer<'a> {}
 /// NaiveBuffer implements a very simple Sieve of Eratosthenes
 pub struct NaiveBuffer {
     list: Vec<u64>, // list of found prime numbers
-    current: u64, // all primes smaller than this value has to be in the prime list, should be an odd number
+    next: u64, // all primes smaller than this value has to be in the prime list, should be an odd number
 }
 
 impl NaiveBuffer {
@@ -264,7 +264,7 @@ impl NaiveBuffer {
         let list = SMALL_PRIMES.iter().map(|&p| p as u64).collect();
         NaiveBuffer {
             list,
-            current: SMALL_PRIMES_NEXT,
+            next: SMALL_PRIMES_NEXT,
         }
     }
 }
@@ -279,7 +279,7 @@ impl<'a> PrimeBuffer<'a> for NaiveBuffer {
     fn clear(&mut self) {
         self.list.truncate(16);
         self.list.shrink_to_fit();
-        self.current = 55; // 16-th prime is 53
+        self.next = 55; // 16-th prime is 53
     }
 
     fn iter(&'a self) -> Self::PrimeIter {
@@ -291,10 +291,10 @@ impl<'a> PrimeBuffer<'a> for NaiveBuffer {
     }
 
     fn reserve(&mut self, limit: u64) {
-        let sieve_limit = limit | 1 + 2; // make sure sieving limit is odd and larger than limit
-        let current = self.current; // prevent borrowing self
+        let sieve_limit = (limit | 1) + 2; // make sure sieving limit is odd and larger than limit
+        let current = self.next; // prevent borrowing self
         debug_assert!(current % 2 == 1);
-        if sieve_limit <= current {
+        if sieve_limit < current {
             return;
         }
 
@@ -326,7 +326,7 @@ impl<'a> PrimeBuffer<'a> for NaiveBuffer {
         // collect the sieve
         self.list
             .extend(sieve.iter_zeros().map(|x| (x as u64) * 2 + current));
-        self.current = sieve_limit;
+        self.next = sieve_limit;
     }
 }
 
@@ -500,6 +500,10 @@ mod tests {
         // test when limit itself is a prime
         pb.clear();
         assert_eq!(pb.primes(293).cloned().collect::<Vec<_>>(), PRIME300);
+        pb = NaiveBuffer::new();
+        assert_eq!(*pb.primes(257).last().unwrap(), 257); // boundary of small table
+        pb = NaiveBuffer::new();
+        assert_eq!(*pb.primes(8167).last().unwrap(), 8167); // boundary of large table
     }
 
     #[test]
