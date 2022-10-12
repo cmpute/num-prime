@@ -94,7 +94,7 @@ pub fn is_prime64(target: u64) -> bool {
 }
 
 fn is_prime32_miller(target: u32) -> bool {
-    let h = target;
+    let h = target as u64;
     let h = ((h >> 16) ^ h).wrapping_mul(0x45d9f3b);
     let h = ((h >> 16) ^ h).wrapping_mul(0x45d9f3b);
     let h = ((h >> 16) ^ h) & 255;
@@ -1043,6 +1043,11 @@ mod tests {
             assert_eq!(SMALL_PRIMES.contains(&x), is_prime64(x as u64));
         }
         assert!(is_prime64(677));
+        
+        // from PR #7
+        assert!(!is_prime64(9773));
+        assert!(!is_prime64(13357));
+        assert!(!is_prime64(18769));
 
         // some large primes
         assert!(is_prime64(6469693333));
