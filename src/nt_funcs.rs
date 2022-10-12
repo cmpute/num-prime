@@ -16,7 +16,7 @@ use crate::factor::{one_line, pollard_rho, squfof, SQUFOF_MULTIPLIERS};
 use crate::mint::SmallMint;
 use crate::primality::{PrimalityBase, PrimalityRefBase};
 use crate::tables::{
-    MILLER_RABIN_BASE32, MOEBIUS_ODD, SMALL_PRIMES, SMALL_PRIMES_NEXT, WHEEL_NEXT, WHEEL_PREV,
+    MOEBIUS_ODD, SMALL_PRIMES, SMALL_PRIMES_NEXT, WHEEL_NEXT, WHEEL_PREV,
     WHEEL_SIZE,
 };
 #[cfg(feature = "big-table")]
@@ -33,7 +33,7 @@ use std::collections::BTreeMap;
 use std::convert::TryFrom;
 
 #[cfg(feature = "big-table")]
-use crate::tables::MILLER_RABIN_BASE64;
+use crate::tables::{MILLER_RABIN_BASE64, MILLER_RABIN_BASE32};
 
 /// Fast primality test on a u64 integer. It's based on
 /// deterministic Miller-rabin tests. If target is larger than 2^64 or more
@@ -93,6 +93,23 @@ pub fn is_prime64(target: u64) -> bool {
     is_prime64_miller(target)
 }
 
+// Primality test for u64 with only miller-rabin tests, used during factorization.
+// It assumes the target is odd, not too small and cannot be divided small primes
+#[cfg(not(feature = "big-table"))]
+fn is_prime64_miller(target: u64) -> bool {
+    // The collection of witnesses are from http://miller-rabin.appspot.com/
+    if let Ok(u) = u32::try_from(target) {
+        const WITNESS32: [u32; 3] = [2, 7, 61];
+        let u = SmallMint::from(u);
+        WITNESS32.iter().all(|&x| u.is_sprp(SmallMint::from(x)))
+    } else {
+        const WITNESS64: [u64; 7] = [2, 325, 9375, 28178, 450775, 9780504, 1795265022];
+        let u = SmallMint::from(target);
+        WITNESS64.iter().all(|&x| u.is_sprp(SmallMint::from(x)))
+    }
+}
+
+#[cfg(feature = "big-table")]
 fn is_prime32_miller(target: u32) -> bool {
     let h = target as u64;
     let h = ((h >> 16) ^ h).wrapping_mul(0x45d9f3b);
@@ -100,20 +117,6 @@ fn is_prime32_miller(target: u32) -> bool {
     let h = ((h >> 16) ^ h) & 255;
     let u = SmallMint::from(target);
     return u.is_sprp(SmallMint::from(MILLER_RABIN_BASE32[h as usize] as u32));
-}
-
-// Primality test for u64 with only miller-rabin tests, used during factorization.
-// It assumes the target is odd, not too small and cannot be divided small primes
-#[cfg(not(feature = "big-table"))]
-fn is_prime64_miller(target: u64) -> bool {
-    if let Ok(u) = u32::try_from(target) {
-        return is_prime32_miller(u);
-    }
-
-    // The collection of witnesses are from http://miller-rabin.appspot.com/
-    const WITNESS64: [u64; 7] = [2, 325, 9375, 28178, 450775, 9780504, 1795265022];
-    let u = SmallMint::from(target);
-    WITNESS64.iter().all(|&x| u.is_sprp(SmallMint::from(x)))
 }
 
 // Primality test for u64 with only miller-rabin tests, used during factorization.
