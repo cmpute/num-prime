@@ -1043,6 +1043,11 @@ mod tests {
             assert_eq!(SMALL_PRIMES.contains(&x), is_prime64(x as u64));
         }
         assert!(is_prime64(677));
+        
+        // from PR #7
+        assert!(!is_prime64(9773));
+        assert!(!is_prime64(13357));
+        assert!(!is_prime64(18769));
 
         // some large primes
         assert!(is_prime64(6469693333));
