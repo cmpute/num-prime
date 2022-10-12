@@ -94,7 +94,7 @@ pub fn is_prime64(target: u64) -> bool {
 }
 
 fn is_prime32_miller(target: u32) -> bool {
-    let h = target;
+    let h = target as u64;
     let h = ((h >> 16) ^ h).wrapping_mul(0x45d9f3b);
     let h = ((h >> 16) ^ h).wrapping_mul(0x45d9f3b);
     let h = ((h >> 16) ^ h) & 255;
