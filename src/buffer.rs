@@ -24,6 +24,7 @@ use lru::LruCache;
 use num_integer::Roots;
 use rand::random;
 use std::collections::BTreeMap;
+use std::num::NonZeroUsize;
 
 /// Extension functions that can utilize pre-generated primes
 pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
@@ -454,7 +455,8 @@ impl NaiveBuffer {
         let b = self.prime_pi(b);
         let c = self.prime_pi(c);
 
-        let mut phi_cache = LruCache::new(a as usize);
+        let cache_cap = NonZeroUsize::new(if a != 0 { a as usize } else { 1 }).expect("Always > 0");
+        let mut phi_cache = LruCache::new(cache_cap);
         let mut sum =
             self.prime_phi(limit, a as usize, &mut phi_cache) + (b + a - 2) * (b - a + 1) / 2;
         for i in a + 1..b + 1 {
