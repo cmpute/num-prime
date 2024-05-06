@@ -67,17 +67,11 @@ macro_rules! impl_randprime_prim {
             fn gen_safe_prime_exact(&mut self, bit_size: usize) -> $T {
                 loop {
                     // deterministic primality test will be used for integers under u64
-                    let p = self.gen_prime_exact(bit_size, None);
+                    let p: $T = self.gen_prime_exact(bit_size, None);
 
                     // test (p-1)/2
                     if is_prime64((p >> 1) as u64) {
                         break p
-                    }
-                    // test 2p+1
-                    if let Some(p2) = p.checked_mul(2).and_then(|v| v.checked_add(1)) {
-                        if is_prime64(p2 as u64) {
-                            break p2
-                        }
                     }
                 }
             }
@@ -147,11 +141,6 @@ impl<R: Rng> RandPrime<u128> for R {
             if is_prime(&SmallMint::from(p >> 1), config).probably() {
                 break p;
             }
-            if let Some(p2) = p.checked_mul(2).and_then(|v| v.checked_add(1)) {
-                if is_prime(&p2, config).probably() {
-                    break p2;
-                }
-            }
         }
     }
 }
@@ -203,16 +192,12 @@ impl<R: Rng> RandPrime<BigUint> for R {
     #[inline]
     fn gen_safe_prime_exact(&mut self, bit_size: usize) -> BigUint {
         let config = Some(PrimalityTestConfig::strict());
-        let p = self.gen_prime_exact(bit_size, config);
-        if is_prime(&(&p >> 1u8), config).probably() {
-            return p;
+        loop {
+            let p: BigUint = self.gen_prime_exact(bit_size, config);
+            if is_prime(&(&p >> 1u8), config).probably() {
+                return p;
+            }
         }
-        let p2 = (p << 1u8) + 1u8;
-        if is_prime(&p2, config).probably() {
-            return p2;
-        }
-
-        self.gen_safe_prime(bit_size)
     }
 }
 
@@ -274,11 +259,25 @@ mod tests {
         let p: u128 = rng.gen_prime_exact(128, None);
         assert!(is_prime(&p, None).probably());
         assert_eq!(p.leading_zeros(), 0);
+        
+        // test random safe prime generation
+        let p: u8 = rng.gen_safe_prime_exact(8);
+        assert!(is_safe_prime(&p).probably());
+        assert_eq!(p.leading_zeros(), 0);
+        let p: u32 = rng.gen_safe_prime_exact(32);
+        assert!(is_safe_prime(&p).probably());
+        assert_eq!(p.leading_zeros(), 0);
+        let p: u128 = rng.gen_safe_prime_exact(128);
+        assert!(is_safe_prime(&p).probably());
+        assert_eq!(p.leading_zeros(), 0);
 
         #[cfg(feature = "num-bigint")]
         {
             let p: BigUint = rng.gen_prime_exact(192, None);
             assert!(is_prime(&p, None).probably());
+            assert_eq!(p.bits(), 192);
+            let p: BigUint = rng.gen_safe_prime_exact(192);
+            assert!(is_safe_prime(&p).probably());
             assert_eq!(p.bits(), 192);
         }
     }
