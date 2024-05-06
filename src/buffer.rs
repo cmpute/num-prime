@@ -455,7 +455,7 @@ impl NaiveBuffer {
         let b = self.prime_pi(b);
         let c = self.prime_pi(c);
 
-        let cache_cap = NonZeroUsize::new(if a != 0 { a as usize } else { 1 }).expect("Always > 0");
+        let cache_cap = NonZeroUsize::new(a as usize).unwrap(); // a > 0 because limit > THRESHOLD_PRIME_PI_SIEVE
         let mut phi_cache = LruCache::new(cache_cap);
         let mut sum =
             self.prime_phi(limit, a as usize, &mut phi_cache) + (b + a - 2) * (b - a + 1) / 2;
