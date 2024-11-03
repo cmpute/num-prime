@@ -8,7 +8,7 @@ use rand::random;
 
 /// Collect the the iteration number of each factorization algorithm with different settings
 fn profile_n(n: u128) -> Vec<(String, usize)> {
-    let k_squfof: Vec<u16> = SQUFOF_MULTIPLIERS.iter().take(10).cloned().collect();
+    let k_squfof: Vec<u16> = SQUFOF_MULTIPLIERS.iter().take(10).copied().collect();
     let k_oneline: Vec<u16> = vec![1, 360, 480];
     const MAXITER: usize = 1 << 20;
     const POLLARD_REPEATS: usize = 2;
@@ -25,8 +25,8 @@ fn profile_n(n: u128) -> Vec<(String, usize)> {
 
     // squfof
     for &k in &k_squfof {
-        let key = format!("squfof_k{}", k);
-        if let Some(kn) = n.checked_mul(k as u128) {
+        let key = format!("squfof_k{k}");
+        if let Some(kn) = n.checked_mul(u128::from(k)) {
             let n = squfof(&n, kn, MAXITER).1;
             n_stats.push((key, n));
         } else {
@@ -36,8 +36,8 @@ fn profile_n(n: u128) -> Vec<(String, usize)> {
 
     // one line
     for &k in &k_oneline {
-        let key = format!("one_line_k{}", k);
-        if let Some(kn) = n.checked_mul(k as u128) {
+        let key = format!("one_line_k{k}");
+        if let Some(kn) = n.checked_mul(u128::from(k)) {
             let n = one_line(&n, kn, MAXITER).1;
             n_stats.push((key, n));
         } else {
@@ -50,7 +50,7 @@ fn profile_n(n: u128) -> Vec<(String, usize)> {
 
 /// Collect the best case of each factorization algorithm
 fn profile_n_min(n: u128) -> Vec<(String, usize)> {
-    let k_squfof: Vec<u16> = SQUFOF_MULTIPLIERS.iter().cloned().collect();
+    let k_squfof: Vec<u16> = SQUFOF_MULTIPLIERS.to_vec();
     let k_oneline: Vec<u16> = vec![1, 360, 480];
     const MAXITER: usize = 1 << 24;
     const POLLARD_REPEATS: usize = 4;
@@ -72,7 +72,7 @@ fn profile_n_min(n: u128) -> Vec<(String, usize)> {
     // squfof
     let mut squfof_best = (MAXITER, u128::MAX);
     for &k in &k_squfof {
-        if let Some(kn) = n.checked_mul(k as u128) {
+        if let Some(kn) = n.checked_mul(u128::from(k)) {
             let tstart = Instant::now();
             let (result, iters) = squfof(&n, kn, squfof_best.0);
             if result.is_some() {
@@ -86,7 +86,7 @@ fn profile_n_min(n: u128) -> Vec<(String, usize)> {
     // one line
     let mut oneline_best = (MAXITER, u128::MAX);
     for &k in &k_oneline {
-        if let Some(kn) = n.checked_mul(k as u128) {
+        if let Some(kn) = n.checked_mul(u128::from(k)) {
             let tstart = Instant::now();
             let (result, iters) = one_line(&n, kn, oneline_best.0);
             if result.is_some() {
@@ -119,7 +119,7 @@ fn main() -> Result<(), Error> {
 
             let n = p1 * p2;
             n_list.push((n, (n as f64).log2() as f32));
-            println!("Semiprime ({}bits): {} = {} * {}", total_bits, n, p1, p2);
+            println!("Semiprime ({total_bits}bits): {n} = {p1} * {p2}");
             // stats.push(profile_n(n));
             stats.push(profile_n_min(n));
         }

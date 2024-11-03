@@ -1,9 +1,9 @@
 //! Standalone number theoretic functions
 //!
-//! The functions in this module can be called without an instance of [crate::traits::PrimeBuffer].
-//! However, some functions do internally call the implementation on [PrimeBufferExt]
+//! The functions in this module can be called without an instance of [`crate::traits::PrimeBuffer`].
+//! However, some functions do internally call the implementation on [`PrimeBufferExt`]
 //! (especially those dependent of integer factorization). For these functions, if you have
-//! to call them repeatedly, it's recommended to create a [crate::traits::PrimeBuffer]
+//! to call them repeatedly, it's recommended to create a [`crate::traits::PrimeBuffer`]
 //! instance and use its associated methods for better performance.
 //!
 //! For number theoretic functions that depends on integer factorization, strongest primality
@@ -65,9 +65,9 @@ pub fn is_prime64(target: u64) -> bool {
 
 /// Very fast primality test on a u64 integer is a prime number. It's based on
 /// deterministic Miller-rabin tests with hashing. if target is larger than 2^64 or more controlled
-/// primality tests are desired, please use [is_prime()]
+/// primality tests are desired, please use [`is_prime()`]
 #[cfg(feature = "big-table")]
-pub fn is_prime64(target: u64) -> bool {
+#[must_use] pub fn is_prime64(target: u64) -> bool {
     // shortcuts
     if target < 2 {
         return false;
@@ -83,7 +83,7 @@ pub fn is_prime64(target: u64) -> bool {
     } else {
         // check remainder against the wheel table
         // this step eliminates any number that is not coprime to WHEEL_SIZE
-        let pos = (target % WHEEL_SIZE as u64) as usize;
+        let pos = (target % u64::from(WHEEL_SIZE)) as usize;
         if pos == 0 || WHEEL_NEXT[pos] < WHEEL_NEXT[pos - 1] {
             return false;
         }
@@ -111,12 +111,12 @@ fn is_prime64_miller(target: u64) -> bool {
 
 #[cfg(feature = "big-table")]
 fn is_prime32_miller(target: u32) -> bool {
-    let h = target as u64;
-    let h = ((h >> 16) ^ h).wrapping_mul(0x45d9f3b);
-    let h = ((h >> 16) ^ h).wrapping_mul(0x45d9f3b);
+    let h = u64::from(target);
+    let h = ((h >> 16) ^ h).wrapping_mul(0x045d_9f3b);
+    let h = ((h >> 16) ^ h).wrapping_mul(0x045d_9f3b);
     let h = ((h >> 16) ^ h) & 255;
     let u = SmallMint::from(target);
-    return u.is_sprp(SmallMint::from(MILLER_RABIN_BASE32[h as usize] as u32));
+    u.is_sprp(SmallMint::from(u32::from(MILLER_RABIN_BASE32[h as usize])))
 }
 
 // Primality test for u64 with only miller-rabin tests, used during factorization.
@@ -133,19 +133,19 @@ fn is_prime64_miller(target: u64) -> bool {
     }
 
     let h = target;
-    let h = ((h >> 32) ^ h).wrapping_mul(0x45d9f3b3335b369);
-    let h = ((h >> 32) ^ h).wrapping_mul(0x3335b36945d9f3b);
+    let h = ((h >> 32) ^ h).wrapping_mul(0x045d_9f3b_3335_b369);
+    let h = ((h >> 32) ^ h).wrapping_mul(0x0333_5b36_945d_9f3b);
     let h = ((h >> 32) ^ h) & 16383;
     let b = MILLER_RABIN_BASE64[h as usize];
-    return u.is_sprp((b as u64 & 4095).into()) && u.is_sprp((b as u64 >> 12).into());
+    u.is_sprp((u64::from(b) & 4095).into()) && u.is_sprp((u64::from(b) >> 12).into())
 }
 
 /// Fast integer factorization on a u64 target. It's based on a selection of factorization methods.
-/// if target is larger than 2^128 or more controlled primality tests are desired, please use [factors()][crate::buffer::PrimeBufferExt::factors].
+/// if target is larger than 2^128 or more controlled primality tests are desired, please use [`factors()`][crate::buffer::PrimeBufferExt::factors].
 ///
 /// The factorization can be quite faster under 2^64 because: 1) faster and deterministic primality check,
 /// 2) efficient montgomery multiplication implementation of u64
-pub fn factorize64(target: u64) -> BTreeMap<u64, usize> {
+#[must_use] pub fn factorize64(target: u64) -> BTreeMap<u64, usize> {
     // TODO: improve factorization performance
     // REF: http://flintlib.org/doc/ulong_extras.html#factorisation
     //      https://mathoverflow.net/questions/114018/fastest-way-to-factor-integers-260
@@ -196,7 +196,7 @@ pub fn factorize64(target: u64) -> BTreeMap<u64, usize> {
     // divisibility check with pre-computed tables, see comments on SMALL_PRIMES_INV for reference
     for (p, &pinv) in SMALL_PRIMES
         .iter()
-        .map(|&p| p as u64)
+        .map(|&p| u64::from(p))
         .zip(SMALL_PRIMES_INV.iter())
         .skip(1)
     {
@@ -229,7 +229,7 @@ pub fn factorize64(target: u64) -> BTreeMap<u64, usize> {
     }
 
     // then try advanced methods to find a divisor util fully factored
-    for (p, exp) in factorize64_advanced(&[(residual, 1usize)]).into_iter() {
+    for (p, exp) in factorize64_advanced(&[(residual, 1usize)]) {
         *result.entry(p).or_insert(0) += exp;
     }
     result
@@ -237,7 +237,7 @@ pub fn factorize64(target: u64) -> BTreeMap<u64, usize> {
 
 // This function factorize all cofactors after some trivial division steps
 pub(crate) fn factorize64_advanced(cofactors: &[(u64, usize)]) -> Vec<(u64, usize)> {
-    let mut todo: Vec<_> = cofactors.iter().cloned().collect();
+    let mut todo: Vec<_> = cofactors.to_vec();
     let mut factored: Vec<(u64, usize)> = Vec::new(); // prime factor, exponent
 
     while let Some((target, exp)) = todo.pop() {
@@ -290,8 +290,8 @@ pub(crate) fn factorize64_advanced(cofactors: &[(u64, usize)]) -> Vec<(u64, usiz
                 2 => {
                     // Shanks's squfof (main power)
                     let mut d = None;
-                    for &k in SQUFOF_MULTIPLIERS.iter() {
-                        if let Some(mul_target) = target.checked_mul(k as u64) {
+                    for &k in &SQUFOF_MULTIPLIERS {
+                        if let Some(mul_target) = target.checked_mul(u64::from(k)) {
                             let max_iter = max_iter_ratio * 2 * mul_target.sqrt().sqrt() as usize;
                             if let (Some(p), _) = squfof(&target, mul_target, max_iter) {
                                 d = Some(p);
@@ -319,13 +319,13 @@ pub(crate) fn factorize64_advanced(cofactors: &[(u64, usize)]) -> Vec<(u64, usiz
 }
 
 /// Fast integer factorization on a u128 target. It's based on a selection of factorization methods.
-/// if target is larger than 2^128 or more controlled primality tests are desired, please use [factors()][crate::buffer::PrimeBufferExt::factors].
-pub fn factorize128(target: u128) -> BTreeMap<u128, usize> {
+/// if target is larger than 2^128 or more controlled primality tests are desired, please use [`factors()`][crate::buffer::PrimeBufferExt::factors].
+#[must_use] pub fn factorize128(target: u128) -> BTreeMap<u128, usize> {
     // shortcut for u64
     if target < (1u128 << 64) {
         return factorize64(target as u64)
             .into_iter()
-            .map(|(k, v)| (k as u128, v))
+            .map(|(k, v)| (u128::from(k), v))
             .collect();
     }
 
@@ -355,7 +355,7 @@ pub fn factorize128(target: u128) -> BTreeMap<u128, usize> {
     // divisibility check with pre-computed tables, see comments on SMALL_PRIMES_INV for reference
     for (p, &pinv) in SMALL_PRIMES
         .iter()
-        .map(|&p| p as u64)
+        .map(|&p| u64::from(p))
         .zip(SMALL_PRIMES_INV.iter())
         .skip(1)
     {
@@ -365,7 +365,7 @@ pub fn factorize128(target: u128) -> BTreeMap<u128, usize> {
             residual = q;
         }
         if exp > 0 {
-            result.insert(p as u128, exp);
+            result.insert(u128::from(p), exp);
         }
 
         if residual == 1 {
@@ -374,7 +374,7 @@ pub fn factorize128(target: u128) -> BTreeMap<u128, usize> {
     }
 
     // then try advanced methods to find a divisor util fully factored
-    for (p, exp) in factorize128_advanced(&[(residual, 1usize)]).into_iter() {
+    for (p, exp) in factorize128_advanced(&[(residual, 1usize)]) {
         *result.entry(p).or_insert(0) += exp;
     }
     result
@@ -383,7 +383,7 @@ pub fn factorize128(target: u128) -> BTreeMap<u128, usize> {
 pub(crate) fn factorize128_advanced(cofactors: &[(u128, usize)]) -> Vec<(u128, usize)> {
     let (mut todo128, mut todo64) = (Vec::new(), Vec::new()); // cofactors to be processed
     let mut factored: Vec<(u128, usize)> = Vec::new(); // prime factor, exponent
-    for &(co, e) in cofactors.iter() {
+    for &(co, e) in cofactors {
         if let Ok(co64) = u64::try_from(co) {
             todo64.push((co64, e));
         } else {
@@ -451,8 +451,8 @@ pub(crate) fn factorize128_advanced(cofactors: &[(u128, usize)]) -> Vec<(u128, u
                 2 => {
                     // Shanks's squfof, try all mutipliers
                     let mut d = None;
-                    for &k in SQUFOF_MULTIPLIERS.iter() {
-                        if let Some(mul_target) = target.checked_mul(k as u128) {
+                    for &k in &SQUFOF_MULTIPLIERS {
+                        if let Some(mul_target) = target.checked_mul(u128::from(k)) {
                             let max_iter = max_iter_ratio * 2 * mul_target.sqrt().sqrt() as usize;
                             if let (Some(p), _) = squfof(&target, mul_target, max_iter) {
                                 d = Some(p);
@@ -491,14 +491,14 @@ pub(crate) fn factorize128_advanced(cofactors: &[(u128, usize)]) -> Vec<(u128, u
     factored.extend(
         factorize64_advanced(&todo64)
             .into_iter()
-            .map(|(p, exp)| (p as u128, exp)),
+            .map(|(p, exp)| (u128::from(p), exp)),
     );
     factored
 }
 
 /// Primality test
 ///
-/// This function re-exports [PrimeBufferExt::is_prime()][crate::buffer::PrimeBufferExt::is_prime()] with a new [NaiveBuffer] distance
+/// This function re-exports [`PrimeBufferExt::is_prime()`][crate::buffer::PrimeBufferExt::is_prime()] with a new [`NaiveBuffer`] distance
 pub fn is_prime<T: PrimalityBase>(target: &T, config: Option<PrimalityTestConfig>) -> Primality
 where
     for<'r> &'r T: PrimalityRefBase<T>,
@@ -508,7 +508,7 @@ where
 
 /// Faillible factorization
 ///
-/// This function re-exports [PrimeBufferExt::factors()][crate::buffer::PrimeBufferExt::factors()] with a new [NaiveBuffer] instance
+/// This function re-exports [`PrimeBufferExt::factors()`][crate::buffer::PrimeBufferExt::factors()] with a new [`NaiveBuffer`] instance
 pub fn factors<T: PrimalityBase>(
     target: T,
     config: Option<FactorizationConfig>,
@@ -521,7 +521,7 @@ where
 
 /// Infaillible factorization
 ///
-/// This function re-exports [PrimeBufferExt::factorize()][crate::buffer::PrimeBufferExt::factorize()] with a new [NaiveBuffer] instance
+/// This function re-exports [`PrimeBufferExt::factorize()`][crate::buffer::PrimeBufferExt::factorize()] with a new [`NaiveBuffer`] instance
 pub fn factorize<T: PrimalityBase>(target: T) -> BTreeMap<T, usize>
 where
     for<'r> &'r T: PrimalityRefBase<T>,
@@ -531,34 +531,34 @@ where
 
 /// Get a list of primes under a limit
 ///
-/// This function re-exports [NaiveBuffer::primes()] and collect result as a vector.
-pub fn primes(limit: u64) -> Vec<u64> {
+/// This function re-exports [`NaiveBuffer::primes()`] and collect result as a vector.
+#[must_use] pub fn primes(limit: u64) -> Vec<u64> {
     NaiveBuffer::new().into_primes(limit).collect()
 }
 
 /// Get the first n primes
 ///
-/// This function re-exports [NaiveBuffer::nprimes()] and collect result as a vector.
-pub fn nprimes(count: usize) -> Vec<u64> {
+/// This function re-exports [`NaiveBuffer::nprimes()`] and collect result as a vector.
+#[must_use] pub fn nprimes(count: usize) -> Vec<u64> {
     NaiveBuffer::new().into_nprimes(count).collect()
 }
 
 /// Calculate and return the prime π function
 ///
-/// This function re-exports [NaiveBuffer::prime_pi()]
-pub fn prime_pi(limit: u64) -> u64 {
+/// This function re-exports [`NaiveBuffer::prime_pi()`]
+#[must_use] pub fn prime_pi(limit: u64) -> u64 {
     NaiveBuffer::new().prime_pi(limit)
 }
 
 /// Get the n-th prime (n counts from 1).
 ///
-/// This function re-exports [NaiveBuffer::nth_prime()]
-pub fn nth_prime(n: u64) -> u64 {
+/// This function re-exports [`NaiveBuffer::nth_prime()`]
+#[must_use] pub fn nth_prime(n: u64) -> u64 {
     NaiveBuffer::new().nth_prime(n)
 }
 
 /// Calculate the primorial function
-pub fn primorial<T: PrimalityBase + std::iter::Product>(n: usize) -> T {
+#[must_use] pub fn primorial<T: PrimalityBase + std::iter::Product>(n: usize) -> T {
     NaiveBuffer::new()
         .into_nprimes(n)
         .map(|p| T::from_u64(p).unwrap())
@@ -569,8 +569,8 @@ pub fn primorial<T: PrimalityBase + std::iter::Product>(n: usize) -> T {
 ///
 /// This function behaves like `moebius_factorized(factorize(target))`.
 /// If the input integer is very hard to factorize, it's better to use
-/// the [factors()] function to control how the factorization is done, and then call
-/// [moebius_factorized()].
+/// the [`factors()`] function to control how the factorization is done, and then call
+/// [`moebius_factorized()`].
 ///
 /// # Panics
 /// if the factorization failed on target.
@@ -614,7 +614,7 @@ where
 
 /// This function calculate the Möbius `μ(n)` function given the factorization
 /// result of `n`
-pub fn moebius_factorized<T>(factors: &BTreeMap<T, usize>) -> i8 {
+#[must_use] pub fn moebius_factorized<T>(factors: &BTreeMap<T, usize>) -> i8 {
     if factors.values().any(|exp| exp > &1) {
         0
     } else if factors.len() % 2 == 0 {
@@ -646,7 +646,7 @@ where
 pub fn prime_pi_bounds<T: ToPrimitive + FromPrimitive>(target: &T) -> (T, T) {
     if let Some(x) = target.to_u64() {
         // use existing primes and return exact value
-        if x <= (*SMALL_PRIMES.last().unwrap()) as u64 {
+        if x <= u64::from(*SMALL_PRIMES.last().unwrap()) {
             #[cfg(not(feature = "big-table"))]
             let pos = SMALL_PRIMES.binary_search(&(x as u8));
             #[cfg(feature = "big-table")]
@@ -666,31 +666,31 @@ pub fn prime_pi_bounds<T: ToPrimitive + FromPrimitive>(target: &T) -> (T, T) {
 
         let lo = match () {
             // [2] Collary 5.3
-            _ if x >= 468049 => n / (ln - 1. - invln),
+            () if x >= 468_049 => n / (ln - 1. - invln),
             // [2] Collary 5.2
-            _ if x >= 88789 => n * invln * (1. + invln * (1. + 2. * invln)),
+            () if x >= 88789 => n * invln * (1. + invln * (1. + 2. * invln)),
             // [2] Collary 5.3
-            _ if x >= 5393 => n / (ln - 1.),
+            () if x >= 5393 => n / (ln - 1.),
             // [2] Collary 5.2
-            _ if x >= 599 => n * invln * (1. + invln),
+            () if x >= 599 => n * invln * (1. + invln),
             // [2] Collary 5.2
-            _ => n * invln,
+            () => n * invln,
         };
         let hi = match () {
             // [2] Theorem 5.1, valid for x > 4e9, intersects at 7.3986e9
-            _ if x >= 7398600000 => n * invln * (1. + invln * (1. + invln * (2. + invln * 7.59))),
+            () if x >= 7_398_600_000 => n * invln * (1. + invln * (1. + invln * (2. + invln * 7.59))),
             // [1] Theorem 6.9
-            _ if x >= 2953652287 => n * invln * (1. + invln * (1. + invln * 2.334)),
+            () if x >= 2_953_652_287 => n * invln * (1. + invln * (1. + invln * 2.334)),
             // [2] Collary 5.3, valid for x > 5.6, intersects at 5668
-            _ if x >= 467345 => n / (ln - 1. - 1.2311 * invln),
+            () if x >= 467_345 => n / (ln - 1. - 1.2311 * invln),
             // [2] Collary 5.2, valid for x > 1, intersects at 29927
-            _ if x >= 29927 => n * invln * (1. + invln * (1. + invln * 2.53816)),
+            () if x >= 29927 => n * invln * (1. + invln * (1. + invln * 2.53816)),
             // [2] Collary 5.3, valid for x > exp(1.112), intersects at 5668
-            _ if x >= 5668 => n / (ln - 1.112),
+            () if x >= 5668 => n / (ln - 1.112),
             // [2] Collary 5.2, valid for x > 1, intersects at 148
-            _ if x >= 148 => n * invln * (1. + invln * 1.2762),
+            () if x >= 148 => n * invln * (1. + invln * 1.2762),
             // [2] Collary 5.2, valid for x > 1
-            _ => 1.25506 * n * invln,
+            () => 1.25506 * n * invln,
         };
         (T::from_f64(lo).unwrap(), T::from_f64(hi).unwrap())
     } else {
@@ -718,7 +718,7 @@ pub fn prime_pi_bounds<T: ToPrimitive + FromPrimitive>(target: &T) -> (T, T) {
 /// - \[4] Axler, Christian. ["New Estimates for the nth Prime Number."](https://www.emis.de/journals/JIS/VOL22/Axler/axler17.pdf)
 /// Journal of Integer Sequences 22.2 (2019): 3.
 /// - \[5] Axler, Christian. [Uber die Primzahl-Zählfunktion, die n-te Primzahl und verallgemeinerte Ramanujan-Primzahlen. Diss.](http://docserv.uniduesseldorf.de/servlets/DerivateServlet/Derivate-28284/pdfa-1b.pdf)
-/// PhD thesis, Düsseldorf, 2013.
+/// `PhD` thesis, Düsseldorf, 2013.
 ///
 /// Note that some of the results might depend on the Riemann Hypothesis. If you find
 /// any prime that doesn't fall in the bound, then it might be a big discovery!
@@ -746,36 +746,36 @@ pub fn nth_prime_bounds<T: ToPrimitive + FromPrimitive>(target: &T) -> Option<(T
 
         let lo = match () {
             // [4] Theroem 4, valid for x >= 2, intersects as 3.172e5
-            _ if x >= 317200 => {
+            () if x >= 317_200 => {
                 n * (ln + lnln - 1. + (lnln - 2.) / ln
                     - (lnln * lnln - 6. * lnln + 11.321) / (2. * ln * ln))
             }
             // [1] Proposition 6.7, valid for x >= 3, intersects at 3520
-            _ if x >= 3520 => n * (ln + lnln - 1. + (lnln - 2.1) / ln),
+            () if x >= 3520 => n * (ln + lnln - 1. + (lnln - 2.1) / ln),
             // [3] title
-            _ => n * (ln + lnln - 1.),
+            () => n * (ln + lnln - 1.),
         };
         let hi = match () {
             // [4] Theroem 1, valid for x >= 46254381
-            _ if x >= 46254381 => {
+            () if x >= 46_254_381 => {
                 n * (ln + lnln - 1. + (lnln - 2.) / ln
                     - (lnln * lnln - 6. * lnln + 10.667) / (2. * ln * ln))
             }
             // [5] Korollar 2.11, valid for x >= 8009824
-            _ if x >= 8009824 => {
+            () if x >= 8_009_824 => {
                 n * (ln + lnln - 1. + (lnln - 2.) / ln
                     - (lnln * lnln - 6. * lnln + 10.273) / (2. * ln * ln))
             }
             // [1] Proposition 6.6
-            _ if x >= 688383 => n * (ln + lnln - 1. + (lnln - 2.) / ln),
+            () if x >= 688_383 => n * (ln + lnln - 1. + (lnln - 2.) / ln),
             // [1] Lemma 6.5
-            _ if x >= 178974 => n * (ln + lnln - 1. + (lnln - 1.95) / ln),
+            () if x >= 178_974 => n * (ln + lnln - 1. + (lnln - 1.95) / ln),
             // [3] in "Further Results"
-            _ if x >= 39017 => n * (ln + lnln - 0.9484),
+            () if x >= 39017 => n * (ln + lnln - 0.9484),
             // [3] in "Further Results"
-            _ if x >= 27076 => n * (ln + lnln - 1. + (lnln - 1.8) / ln),
+            () if x >= 27076 => n * (ln + lnln - 1. + (lnln - 1.8) / ln),
             // [2] Theorem 3, valid for x >= 20
-            _ => n * (ln + lnln - 0.5),
+            () => n * (ln + lnln - 0.5),
         };
         Some((T::from_f64(lo)?, T::from_f64(hi)?))
     } else {
@@ -880,7 +880,7 @@ where
     loop {
         let offset = WHEEL_NEXT[i as usize];
         t = t.checked_add(&T::from_u8(offset).unwrap())?;
-        i = i.addm(offset as u16, &WHEEL_SIZE);
+        i = i.addm(u16::from(offset), &WHEEL_SIZE);
         if is_prime(&t, config).probably() {
             break Some(t);
         }
@@ -950,7 +950,7 @@ where
     loop {
         let offset = WHEEL_PREV[i as usize];
         t = t - T::from_u8(offset).unwrap();
-        i = i.subm(offset as u16, &WHEEL_SIZE);
+        i = i.subm(u16::from(offset), &WHEEL_SIZE);
         if is_prime(&t, config).probably() {
             break Some(t);
         }
@@ -964,7 +964,7 @@ pub fn prime_pi_est<T: Num + ToPrimitive + FromPrimitive>(target: &T) -> T {
     (lo + hi) / T::from_u8(2).unwrap()
 }
 
-/// Estimate the value of prime π() function by Riemann's R function. The estimation
+/// Estimate the value of prime `π()` function by Riemann's R function. The estimation
 /// error is roughly of scale O(sqrt(x)log(x)).
 ///
 /// Reference: <https://primes.utm.edu/howmany.html#better>
@@ -972,7 +972,7 @@ pub fn prime_pi_est<T: Num + ToPrimitive + FromPrimitive>(target: &T) -> T {
 pub fn prime_pi_est<T: ToPrimitive + FromPrimitive>(target: &T) -> T {
     // shortcut
     if let Some(x) = target.to_u16() {
-        if x <= (*SMALL_PRIMES.last().unwrap()) as u16 {
+        if x <= { *SMALL_PRIMES.last().unwrap() } {
             let (lo, hi) = prime_pi_bounds(&x);
             debug_assert_eq!(lo, hi);
             return T::from_u16(lo).unwrap();
@@ -1000,7 +1000,7 @@ pub fn prime_pi_est<T: ToPrimitive + FromPrimitive>(target: &T) -> T {
     T::from_f64(total + 1f64).unwrap()
 }
 
-/// Estimate the value of nth prime by bisecting on [prime_pi_est].
+/// Estimate the value of nth prime by bisecting on [`prime_pi_est`].
 /// If the result is larger than maximum of `T`, [None] will be returned.
 pub fn nth_prime_est<T: ToPrimitive + FromPrimitive + Num + PartialOrd>(target: &T) -> Option<T>
 where
@@ -1015,14 +1015,14 @@ where
         let x = (&lo + &hi) / T::from_u8(2).unwrap();
         let mid = prime_pi_est(&x);
         if &mid < target {
-            lo = x
+            lo = x;
         } else if &mid > target {
-            hi = x
+            hi = x;
         } else {
             return Some(x);
         }
     }
-    return Some(lo);
+    Some(lo)
 }
 
 // TODO: More functions
@@ -1043,7 +1043,7 @@ mod tests {
     fn is_prime64_test() {
         // test small primes
         for x in 2..100 {
-            assert_eq!(SMALL_PRIMES.contains(&x), is_prime64(x as u64));
+            assert_eq!(SMALL_PRIMES.contains(&x), is_prime64(u64::from(x)));
         }
         assert!(is_prime64(677));
         
@@ -1053,24 +1053,24 @@ mod tests {
         assert!(!is_prime64(18769));
 
         // some large primes
-        assert!(is_prime64(6469693333));
-        assert!(is_prime64(13756265695458089029));
-        assert!(is_prime64(13496181268022124907));
-        assert!(is_prime64(10953742525620032441));
-        assert!(is_prime64(17908251027575790097));
+        assert!(is_prime64(6_469_693_333));
+        assert!(is_prime64(13_756_265_695_458_089_029));
+        assert!(is_prime64(13_496_181_268_022_124_907));
+        assert!(is_prime64(10_953_742_525_620_032_441));
+        assert!(is_prime64(17_908_251_027_575_790_097));
 
         // primes from examples in Bradley Berg's hash method
-        assert!(is_prime64(480194653));
-        assert!(!is_prime64(20074069));
-        assert!(is_prime64(8718775377449));
-        assert!(is_prime64(3315293452192821991));
-        assert!(!is_prime64(8651776913431));
-        assert!(!is_prime64(1152965996591997761));
+        assert!(is_prime64(480_194_653));
+        assert!(!is_prime64(20_074_069));
+        assert!(is_prime64(8_718_775_377_449));
+        assert!(is_prime64(3_315_293_452_192_821_991));
+        assert!(!is_prime64(8_651_776_913_431));
+        assert!(!is_prime64(1_152_965_996_591_997_761));
 
         // false positives reported by JASory (#4)
-        assert!(!is_prime64(600437059821397));
-        assert!(!is_prime64(3866032210719337));
-        assert!(!is_prime64(4100599722623587));
+        assert!(!is_prime64(600_437_059_821_397));
+        assert!(!is_prime64(3_866_032_210_719_337));
+        assert!(!is_prime64(4_100_599_722_623_587));
 
         // ensure no factor for 100 random primes
         let mut rng = rand::thread_rng();
@@ -1079,13 +1079,13 @@ mod tests {
             if !is_prime64(x) {
                 continue;
             }
-            assert_ne!(x % (*SMALL_PRIMES.choose(&mut rng).unwrap() as u64), 0);
+            assert_ne!(x % u64::from(*SMALL_PRIMES.choose(&mut rng).unwrap()), 0);
         }
 
         // create random composites
         for _ in 0..100 {
-            let x = random::<u32>() as u64;
-            let y = random::<u32>() as u64;
+            let x = u64::from(random::<u32>());
+            let y = u64::from(random::<u32>());
             assert!(!is_prime64(x * y));
         }
     }
@@ -1098,11 +1098,11 @@ mod tests {
         assert_eq!(fac, fac4095);
 
         let fac123456789 = BTreeMap::from_iter([(3, 2), (3803, 1), (3607, 1)]);
-        let fac = factorize64(123456789);
+        let fac = factorize64(123_456_789);
         assert_eq!(fac, fac123456789);
 
-        let fac1_17 = BTreeMap::from_iter([(2071723, 1), (5363222357, 1)]);
-        let fac = factorize64(11111111111111111);
+        let fac1_17 = BTreeMap::from_iter([(2_071_723, 1), (5_363_222_357, 1)]);
+        let fac = factorize64(11_111_111_111_111_111);
         assert_eq!(fac, fac1_17);
 
         // perfect powers
@@ -1126,7 +1126,7 @@ mod tests {
                 );
                 prod *= p.pow(exp as u32);
             }
-            assert_eq!(x, prod, "factorization check failed! ({} != {})", x, prod);
+            assert_eq!(x, prod, "factorization check failed! ({x} != {prod})");
         }
     }
 
@@ -1134,12 +1134,12 @@ mod tests {
     fn factorize128_test() {
         // some simple cases
         let fac_primorial19 =
-            BTreeMap::from_iter(SMALL_PRIMES.iter().take(19).map(|&p| (p as u128, 1)));
-        let fac = factorize128(7858321551080267055879090);
+            BTreeMap::from_iter(SMALL_PRIMES.iter().take(19).map(|&p| (u128::from(p), 1)));
+        let fac = factorize128(7_858_321_551_080_267_055_879_090);
         assert_eq!(fac, fac_primorial19);
 
-        let fac_smallbig = BTreeMap::from_iter([(167, 1), (2417851639229258349412369, 1)]);
-        let fac = factorize128(403781223751286144351865623);
+        let fac_smallbig = BTreeMap::from_iter([(167, 1), (2_417_851_639_229_258_349_412_369, 1)]);
+        let fac = factorize128(403_781_223_751_286_144_351_865_623);
         assert_eq!(fac, fac_smallbig);
 
         // perfect powers
@@ -1164,7 +1164,7 @@ mod tests {
                 );
                 prod *= p.pow(exp as u32);
             }
-            assert_eq!(x, prod, "factorization check failed! ({} != {})", x, prod);
+            assert_eq!(x, prod, "factorization check failed! ({x} != {prod})");
         }
     }
 
@@ -1177,13 +1177,13 @@ mod tests {
             1523, 1619, 1823, 1907,
         ];
         for p in SMALL_PRIMES {
-            let p = p as u16;
+            let p = p;
             if p > 1500 {
                 break;
             }
             assert_eq!(
                 is_safe_prime(&p).probably(),
-                safe_primes.iter().find(|&v| &p == v).is_some()
+                safe_primes.iter().any(|v| &p == v)
             );
         }
     }
@@ -1195,7 +1195,7 @@ mod tests {
             1, -1, -1, 0, -1, 1, -1, 0, 0, 1, -1, 0, -1, 1, 1, 0, -1, 0, -1, 0,
         ];
         for i in 0..20 {
-            assert_eq!(moebius(&(i + 1)), mu20[i], "moebius on {}", i);
+            assert_eq!(moebius(&(i + 1)), mu20[i], "moebius on {i}");
         }
 
         // some square numbers
@@ -1238,7 +1238,7 @@ mod tests {
         // test with sieved primes
         let mut pb = NaiveBuffer::new();
         let mut last = 0;
-        for (i, p) in pb.primes(100000).cloned().enumerate() {
+        for (i, p) in pb.primes(100_000).copied().enumerate() {
             for j in last..p {
                 check(j, i as u64);
             }
@@ -1254,17 +1254,17 @@ mod tests {
             1229,
             9592,
             78498,
-            664579,
-            5761455,
-            50847534,
-            455052511,
-            4118054813,
-            37607912018,
-            346065536839,
-            3204941750802,
-            29844570422669,
-            279238341033925,
-            2623557157654233,
+            664_579,
+            5_761_455,
+            50_847_534,
+            455_052_511,
+            4_118_054_813,
+            37_607_912_018,
+            346_065_536_839,
+            3_204_941_750_802,
+            29_844_570_422_669,
+            279_238_341_033_925,
+            2_623_557_157_654_233,
         ];
         for (exponent, gt) in pow10_values.iter().enumerate() {
             let n = 10u64.pow(exponent as u32);
@@ -1290,8 +1290,8 @@ mod tests {
 
         // test with sieved primes
         let mut pb = NaiveBuffer::new();
-        for (i, p) in pb.primes(100000).cloned().enumerate() {
-            check(i as u64 + 1, p as u64);
+        for (i, p) in pb.primes(100_000).copied().enumerate() {
+            check(i as u64 + 1, p);
         }
 
         // test with some known cases with input as 10^n, OEIS:A006988
@@ -1300,18 +1300,18 @@ mod tests {
             29,
             541,
             7919,
-            104729,
-            1299709,
-            15485863,
-            179424673,
-            2038074743,
-            22801763489,
-            252097800623,
-            2760727302517,
-            29996224275833,
-            323780508946331,
-            3475385758524527,
-            37124508045065437,
+            104_729,
+            1_299_709,
+            15_485_863,
+            179_424_673,
+            2_038_074_743,
+            22_801_763_489,
+            252_097_800_623,
+            2_760_727_302_517,
+            29_996_224_275_833,
+            323_780_508_946_331,
+            3_475_385_758_524_527,
+            37_124_508_045_065_437,
         ];
         for (exponent, nth_prime) in pow10_values.iter().enumerate() {
             let n = 10u64.pow(exponent as u32);
@@ -1351,9 +1351,9 @@ mod tests {
             (97, 101),
             (997, 1009),
             (9973, 10007),
-            (99991, 100003),
-            (999983, 1000003),
-            (9999991, 10000019),
+            (99991, 100_003),
+            (999_983, 1_000_003),
+            (9_999_991, 10_000_019),
         ];
         for (i, (p1, p2)) in adj10_primes.iter().enumerate() {
             assert_eq!(prev_prime(p2, None).unwrap(), *p1);

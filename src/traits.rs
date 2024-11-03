@@ -32,9 +32,9 @@ pub enum Primality {
 
 impl Primality {
     /// Check whether the resule indicates that the number is
-    /// (very) probably a prime. Return false only on [Primality::No]
+    /// (very) probably a prime. Return false only on [`Primality::No`]
     #[inline(always)]
-    pub fn probably(self) -> bool {
+    #[must_use] pub fn probably(self) -> bool {
         match self {
             Primality::No => false,
             _ => true,
@@ -112,14 +112,14 @@ impl PrimalityTestConfig {
     /// Create a configuration with a very strong primality check. It's based on
     /// the **strongest deterministic primality testing** and some SPRP tests with
     /// random bases.
-    pub fn strict() -> Self {
+    #[must_use] pub fn strict() -> Self {
         let mut config = Self::bpsw();
         config.sprp_random_trials = 1;
         config
     }
 
     /// Create a configuration for Baillie-PSW test (base 2 SPRP test + SLPRP test)
-    pub fn bpsw() -> Self {
+    #[must_use] pub fn bpsw() -> Self {
         Self {
             sprp_trials: 1,
             sprp_random_trials: 0,
@@ -172,7 +172,7 @@ impl Default for FactorizationConfig {
 
 impl FactorizationConfig {
     /// Same as the default configuration but with strict primality check
-    pub fn strict() -> Self {
+    #[must_use] pub fn strict() -> Self {
         let mut config = Self::default();
         config.primality_config = PrimalityTestConfig::strict();
         config
@@ -180,7 +180,7 @@ impl FactorizationConfig {
 }
 
 // FIXME: backport to num_integer (see https://github.com/rust-num/num-traits/issues/233)
-/// Extension on [num_integer::Roots] to support perfect power check on integers
+/// Extension on [`num_integer::Roots`] to support perfect power check on integers
 pub trait ExactRoots: Roots + Pow<u32, Output = Self> + Clone {
     fn nth_root_exact(&self, n: u32) -> Option<Self> {
         let r = self.nth_root(n);
@@ -230,7 +230,7 @@ pub trait PrimeBuffer<'a> {
     fn bound(&self) -> u64;
 
     /// Test if the number is in the buffer. If a number is not in the buffer,
-    /// then it's either a composite or large than [PrimeBuffer::bound()]
+    /// then it's either a composite or large than [`PrimeBuffer::bound()`]
     fn contains(&self, num: u64) -> bool;
 
     /// clear the prime buffer to save memory
@@ -276,26 +276,26 @@ pub trait RandPrime<T> {
     /// Generate a random prime within the given bit size limit
     ///
     /// # Panics
-    /// if the bit_size is 0 or it's larger than the bit width of the integer
+    /// if the `bit_size` is 0 or it's larger than the bit width of the integer
     fn gen_prime(&mut self, bit_size: usize, config: Option<PrimalityTestConfig>) -> T;
 
     /// Generate a random prime with **exact** the given bit size
     ///
     /// # Panics
-    /// if the bit_size is 0 or it's larger than the bit width of the integer
+    /// if the `bit_size` is 0 or it's larger than the bit width of the integer
     fn gen_prime_exact(&mut self, bit_size: usize, config: Option<PrimalityTestConfig>) -> T;
 
     /// Generate a random (Sophie German) safe prime within the given bit size limit. The generated prime
-    /// is guaranteed to pass the [is_safe_prime][crate::nt_funcs::is_safe_prime] test
+    /// is guaranteed to pass the [`is_safe_prime`][crate::nt_funcs::is_safe_prime] test
     ///
     /// # Panics
-    /// if the bit_size is 0 or it's larger than the bit width of the integer
+    /// if the `bit_size` is 0 or it's larger than the bit width of the integer
     fn gen_safe_prime(&mut self, bit_size: usize) -> T;
 
     /// Generate a random (Sophie German) safe prime with the **exact** given bit size. The generated prime
-    /// is guaranteed to pass the [is_safe_prime][crate::nt_funcs::is_safe_prime] test
+    /// is guaranteed to pass the [`is_safe_prime`][crate::nt_funcs::is_safe_prime] test
     ///
     /// # Panics
-    /// if the bit_size is 0 or it's larger than the bit width of the integer
+    /// if the `bit_size` is 0 or it's larger than the bit width of the integer
     fn gen_safe_prime_exact(&mut self, bit_size: usize) -> T;
 }

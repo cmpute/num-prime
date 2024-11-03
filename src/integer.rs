@@ -1,7 +1,9 @@
 //! Backend implementations for integers
 
-use crate::tables::{CUBIC_MODULI, CUBIC_RESIDUAL, QUAD_MODULI, QUAD_RESIDUAL};
-use crate::traits::{BitTest, ExactRoots};
+use crate::{
+    tables::{CUBIC_MODULI, CUBIC_RESIDUAL, QUAD_MODULI, QUAD_RESIDUAL},
+    traits::{BitTest, ExactRoots},
+};
 
 #[cfg(feature = "num-bigint")]
 use num_bigint::{BigInt, BigUint, ToBigInt};
@@ -155,19 +157,19 @@ impl ExactRoots for BigInt {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand;
+    
 
     #[test]
     fn exact_root_test() {
         // some simple tests
-        assert!(matches!(ExactRoots::sqrt_exact(&3u8), None));
+        assert!(ExactRoots::sqrt_exact(&3u8).is_none());
         assert!(matches!(ExactRoots::sqrt_exact(&4u8), Some(2)));
         assert!(matches!(ExactRoots::sqrt_exact(&9u8), Some(3)));
-        assert!(matches!(ExactRoots::sqrt_exact(&18u8), None));
-        assert!(matches!(ExactRoots::sqrt_exact(&3i8), None));
+        assert!(ExactRoots::sqrt_exact(&18u8).is_none());
+        assert!(ExactRoots::sqrt_exact(&3i8).is_none());
         assert!(matches!(ExactRoots::sqrt_exact(&4i8), Some(2)));
         assert!(matches!(ExactRoots::sqrt_exact(&9i8), Some(3)));
-        assert!(matches!(ExactRoots::sqrt_exact(&18i8), None));
+        assert!(ExactRoots::sqrt_exact(&18i8).is_none());
 
         // test fast implementations of sqrt against nth_root
         for _ in 0..100 {
@@ -188,15 +190,15 @@ mod tests {
         }
         // test perfect powers
         for _ in 0..100 {
-            let x = rand::random::<u32>() as u64;
+            let x = u64::from(rand::random::<u32>());
             assert!(matches!(ExactRoots::sqrt_exact(&(x * x)), Some(v) if v == x));
-            let x = rand::random::<i16>() as i64;
+            let x = i64::from(rand::random::<i16>());
             assert!(matches!(ExactRoots::cbrt_exact(&(x * x * x)), Some(v) if v == x));
         }
         // test non-perfect powers
         for _ in 0..100 {
-            let x = rand::random::<u32>() as u64;
-            let y = rand::random::<u32>() as u64;
+            let x = u64::from(rand::random::<u32>());
+            let y = u64::from(rand::random::<u32>());
             if x == y {
                 continue;
             }
