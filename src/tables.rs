@@ -89,7 +89,7 @@ pub const SMALL_PRIMES_NEXT: u64 = 8167;
 
 //////////////////// Pre-computed inversions for primes ////////////////////
 #[cfg(feature = "big-table")]
-type P64 = num_modular::PreInv<u64>;
+type P64 = num_modular::PreModInv<u64>;
 
 /// Precomputed modular inverse for fast divisibility check
 ///
