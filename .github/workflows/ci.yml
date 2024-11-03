@@ -1,0 +1,47 @@
+on: pull_request
+
+name: Continuous integration
+
+jobs:
+  ci:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        rust:
+          - stable
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+          components: rustfmt
+
+      - run: cargo build --all-features
+      - run: cargo test
+      - run: cargo test --all-features
+      - run: cargo fmt --check --all
+      - run: cargo test --features big-table
+      - run: cargo test --no-default-features
+      - run: cargo test --no-default-features --features big-table
+      - run: cargo test --no-default-features --features big-int
+
+  clippy:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        rust:
+          - stable
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+          components: clippy
+
+      - run: cargo clippy -- -D warnings
