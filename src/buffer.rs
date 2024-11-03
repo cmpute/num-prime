@@ -265,7 +265,8 @@ impl Default for NaiveBuffer {
 
 impl NaiveBuffer {
     #[inline]
-    #[must_use] pub fn new() -> Self {
+    #[must_use]
+    pub fn new() -> Self {
         let list = SMALL_PRIMES.iter().map(|&p| u64::from(p)).collect();
         NaiveBuffer {
             list,
@@ -359,7 +360,8 @@ impl NaiveBuffer {
     }
 
     /// Returns all primes ≤ `limit` and takes ownership. The primes are sorted.
-    #[must_use] pub fn into_primes(mut self, limit: u64) -> std::vec::IntoIter<u64> {
+    #[must_use]
+    pub fn into_primes(mut self, limit: u64) -> std::vec::IntoIter<u64> {
         self.reserve(limit);
         let position = match self.list.binary_search(&limit) {
             Ok(p) => p + 1,
@@ -379,7 +381,8 @@ impl NaiveBuffer {
     }
 
     /// Returns primes of certain amount counting from 2 and takes ownership. The primes are sorted.
-    #[must_use] pub fn into_nprimes(mut self, count: usize) -> std::vec::IntoIter<u64> {
+    #[must_use]
+    pub fn into_nprimes(mut self, count: usize) -> std::vec::IntoIter<u64> {
         let (_, bound) = nth_prime_bounds(&(count as u64))
             .expect("Estimated size of the largest prime will be larger than u64 limit");
         self.reserve(bound);

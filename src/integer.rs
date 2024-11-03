@@ -157,7 +157,6 @@ impl ExactRoots for BigInt {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
 
     #[test]
     fn exact_root_test() {

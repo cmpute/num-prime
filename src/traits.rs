@@ -34,7 +34,8 @@ impl Primality {
     /// Check whether the resule indicates that the number is
     /// (very) probably a prime. Return false only on [`Primality::No`]
     #[inline(always)]
-    #[must_use] pub fn probably(self) -> bool {
+    #[must_use]
+    pub fn probably(self) -> bool {
         match self {
             Primality::No => false,
             _ => true,
@@ -112,14 +113,16 @@ impl PrimalityTestConfig {
     /// Create a configuration with a very strong primality check. It's based on
     /// the **strongest deterministic primality testing** and some SPRP tests with
     /// random bases.
-    #[must_use] pub fn strict() -> Self {
+    #[must_use]
+    pub fn strict() -> Self {
         let mut config = Self::bpsw();
         config.sprp_random_trials = 1;
         config
     }
 
     /// Create a configuration for Baillie-PSW test (base 2 SPRP test + SLPRP test)
-    #[must_use] pub fn bpsw() -> Self {
+    #[must_use]
+    pub fn bpsw() -> Self {
         Self {
             sprp_trials: 1,
             sprp_random_trials: 0,
@@ -172,7 +175,8 @@ impl Default for FactorizationConfig {
 
 impl FactorizationConfig {
     /// Same as the default configuration but with strict primality check
-    #[must_use] pub fn strict() -> Self {
+    #[must_use]
+    pub fn strict() -> Self {
         let mut config = Self::default();
         config.primality_config = PrimalityTestConfig::strict();
         config

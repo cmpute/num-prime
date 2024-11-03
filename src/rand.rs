@@ -83,7 +83,10 @@ impl_randprime_prim!(u8 u16 u32 u64);
 impl<R: Rng> RandPrime<u128> for R {
     #[inline]
     fn gen_prime(&mut self, bit_size: usize, config: Option<PrimalityTestConfig>) -> u128 {
-        assert!(bit_size <= (u128::BITS as usize), "The given bit size limit exceeded the capacity of the integer type!");
+        assert!(
+            bit_size <= (u128::BITS as usize),
+            "The given bit size limit exceeded the capacity of the integer type!"
+        );
 
         loop {
             let t: u128 = self.gen();
@@ -99,7 +102,10 @@ impl<R: Rng> RandPrime<u128> for R {
 
     #[inline]
     fn gen_prime_exact(&mut self, bit_size: usize, config: Option<PrimalityTestConfig>) -> u128 {
-        assert!(bit_size <= (u128::BITS as usize), "The given bit size limit exceeded the capacity of the integer type!");
+        assert!(
+            bit_size <= (u128::BITS as usize),
+            "The given bit size limit exceeded the capacity of the integer type!"
+        );
 
         loop {
             let t: u128 = self.gen();
@@ -255,7 +261,7 @@ mod tests {
         let p: u128 = rng.gen_prime_exact(128, None);
         assert!(is_prime(&p, None).probably());
         assert_eq!(p.leading_zeros(), 0);
-        
+
         // test random safe prime generation
         let p: u8 = rng.gen_safe_prime_exact(8);
         assert!(is_safe_prime(&p).probably());

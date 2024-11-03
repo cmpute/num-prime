@@ -16,15 +16,13 @@ use crate::factor::{one_line, pollard_rho, squfof, SQUFOF_MULTIPLIERS};
 use crate::mint::SmallMint;
 use crate::primality::{PrimalityBase, PrimalityRefBase};
 use crate::tables::{
-    MOEBIUS_ODD, SMALL_PRIMES, SMALL_PRIMES_NEXT, WHEEL_NEXT, WHEEL_PREV,
-    WHEEL_SIZE,
+    MOEBIUS_ODD, SMALL_PRIMES, SMALL_PRIMES_NEXT, WHEEL_NEXT, WHEEL_PREV, WHEEL_SIZE,
 };
 #[cfg(feature = "big-table")]
 use crate::tables::{SMALL_PRIMES_INV, ZETA_LOG_TABLE};
 use crate::traits::{FactorizationConfig, Primality, PrimalityTestConfig, PrimalityUtils};
 use crate::{BitTest, ExactRoots};
 use num_integer::Roots;
-#[cfg(feature = "num-bigint")]
 use num_modular::DivExact;
 use num_modular::{ModularCoreOps, ModularInteger, MontgomeryInt};
 use num_traits::{CheckedAdd, FromPrimitive, Num, RefNum, ToPrimitive};
@@ -33,7 +31,7 @@ use std::collections::BTreeMap;
 use std::convert::TryFrom;
 
 #[cfg(feature = "big-table")]
-use crate::tables::{MILLER_RABIN_BASE64, MILLER_RABIN_BASE32};
+use crate::tables::{MILLER_RABIN_BASE32, MILLER_RABIN_BASE64};
 
 /// Fast primality test on a u64 integer. It's based on
 /// deterministic Miller-rabin tests. If target is larger than 2^64 or more
@@ -67,7 +65,8 @@ pub fn is_prime64(target: u64) -> bool {
 /// deterministic Miller-rabin tests with hashing. if target is larger than 2^64 or more controlled
 /// primality tests are desired, please use [`is_prime()`]
 #[cfg(feature = "big-table")]
-#[must_use] pub fn is_prime64(target: u64) -> bool {
+#[must_use]
+pub fn is_prime64(target: u64) -> bool {
     // shortcuts
     if target < 2 {
         return false;
@@ -145,7 +144,8 @@ fn is_prime64_miller(target: u64) -> bool {
 ///
 /// The factorization can be quite faster under 2^64 because: 1) faster and deterministic primality check,
 /// 2) efficient montgomery multiplication implementation of u64
-#[must_use] pub fn factorize64(target: u64) -> BTreeMap<u64, usize> {
+#[must_use]
+pub fn factorize64(target: u64) -> BTreeMap<u64, usize> {
     // TODO: improve factorization performance
     // REF: http://flintlib.org/doc/ulong_extras.html#factorisation
     //      https://mathoverflow.net/questions/114018/fastest-way-to-factor-integers-260
@@ -320,7 +320,8 @@ pub(crate) fn factorize64_advanced(cofactors: &[(u64, usize)]) -> Vec<(u64, usiz
 
 /// Fast integer factorization on a u128 target. It's based on a selection of factorization methods.
 /// if target is larger than 2^128 or more controlled primality tests are desired, please use [`factors()`][crate::buffer::PrimeBufferExt::factors].
-#[must_use] pub fn factorize128(target: u128) -> BTreeMap<u128, usize> {
+#[must_use]
+pub fn factorize128(target: u128) -> BTreeMap<u128, usize> {
     // shortcut for u64
     if target < (1u128 << 64) {
         return factorize64(target as u64)
@@ -532,33 +533,38 @@ where
 /// Get a list of primes under a limit
 ///
 /// This function re-exports [`NaiveBuffer::primes()`] and collect result as a vector.
-#[must_use] pub fn primes(limit: u64) -> Vec<u64> {
+#[must_use]
+pub fn primes(limit: u64) -> Vec<u64> {
     NaiveBuffer::new().into_primes(limit).collect()
 }
 
 /// Get the first n primes
 ///
 /// This function re-exports [`NaiveBuffer::nprimes()`] and collect result as a vector.
-#[must_use] pub fn nprimes(count: usize) -> Vec<u64> {
+#[must_use]
+pub fn nprimes(count: usize) -> Vec<u64> {
     NaiveBuffer::new().into_nprimes(count).collect()
 }
 
 /// Calculate and return the prime π function
 ///
 /// This function re-exports [`NaiveBuffer::prime_pi()`]
-#[must_use] pub fn prime_pi(limit: u64) -> u64 {
+#[must_use]
+pub fn prime_pi(limit: u64) -> u64 {
     NaiveBuffer::new().prime_pi(limit)
 }
 
 /// Get the n-th prime (n counts from 1).
 ///
 /// This function re-exports [`NaiveBuffer::nth_prime()`]
-#[must_use] pub fn nth_prime(n: u64) -> u64 {
+#[must_use]
+pub fn nth_prime(n: u64) -> u64 {
     NaiveBuffer::new().nth_prime(n)
 }
 
 /// Calculate the primorial function
-#[must_use] pub fn primorial<T: PrimalityBase + std::iter::Product>(n: usize) -> T {
+#[must_use]
+pub fn primorial<T: PrimalityBase + std::iter::Product>(n: usize) -> T {
     NaiveBuffer::new()
         .into_nprimes(n)
         .map(|p| T::from_u64(p).unwrap())
@@ -614,7 +620,8 @@ where
 
 /// This function calculate the Möbius `μ(n)` function given the factorization
 /// result of `n`
-#[must_use] pub fn moebius_factorized<T>(factors: &BTreeMap<T, usize>) -> i8 {
+#[must_use]
+pub fn moebius_factorized<T>(factors: &BTreeMap<T, usize>) -> i8 {
     if factors.values().any(|exp| exp > &1) {
         0
     } else if factors.len() % 2 == 0 {
@@ -678,7 +685,9 @@ pub fn prime_pi_bounds<T: ToPrimitive + FromPrimitive>(target: &T) -> (T, T) {
         };
         let hi = match () {
             // [2] Theorem 5.1, valid for x > 4e9, intersects at 7.3986e9
-            () if x >= 7_398_600_000 => n * invln * (1. + invln * (1. + invln * (2. + invln * 7.59))),
+            () if x >= 7_398_600_000 => {
+                n * invln * (1. + invln * (1. + invln * (2. + invln * 7.59)))
+            }
             // [1] Theorem 6.9
             () if x >= 2_953_652_287 => n * invln * (1. + invln * (1. + invln * 2.334)),
             // [2] Collary 5.3, valid for x > 5.6, intersects at 5668
@@ -1046,7 +1055,7 @@ mod tests {
             assert_eq!(SMALL_PRIMES.contains(&x), is_prime64(u64::from(x)));
         }
         assert!(is_prime64(677));
-        
+
         // from PR #7
         assert!(!is_prime64(9773));
         assert!(!is_prime64(13357));
