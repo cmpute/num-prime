@@ -19,7 +19,7 @@ use std::collections::BTreeMap;
 /// The parameter limit additionally sets the maximum of primes to be tried.
 /// The residual will be Ok(1) or Ok(p) if fully factored.
 ///
-/// TODO: implement fast check for small primes with BigInts in the precomputed table, and skip them in this function
+/// TODO: implement fast check for small primes with `BigInts` in the precomputed table, and skip them in this function
 pub fn trial_division<
     I: Iterator<Item = u64>,
     T: Integer + Clone + Roots + NumRef + FromPrimitive,
@@ -98,14 +98,14 @@ where
 
     while i < max_iter {
         i += 1;
-        a = a.sqm(&target).addm(&offset, &target);
+        a = a.sqm(target).addm(&offset, target);
         if a == b {
             return (None, i);
         }
 
         // FIXME: optimize abs_diff for montgomery form if we are going to use the abs_diff in the std lib
         let diff = if b > a { &b - &a } else { &a - &b }; // abs_diff
-        z = z.mulm(&diff, &target);
+        z = z.mulm(&diff, target);
         if z.is_zero() {
             // the factor is missed by a combined GCD, do backtracing
             if backtrace {
@@ -145,7 +145,7 @@ where
 /// This function implements Shanks's square forms factorization (SQUFOF).
 ///
 /// The input is usually multiplied by a multiplier, and the multiplied integer should be put in
-/// the `mul_target` argument. The multiplier can be choosen from SQUFOF_MULTIPLIERS, or other square-free odd numbers.
+/// the `mul_target` argument. The multiplier can be choosen from `SQUFOF_MULTIPLIERS`, or other square-free odd numbers.
 /// The returned values are the factor and the count of passed iterations.
 ///
 /// The max iteration can be choosed as 2*n^(1/4), based on Theorem 4.22 from [1].
@@ -163,7 +163,7 @@ where
     for<'r> &'r T: RefNum<T>,
 {
     assert!(
-        &mul_target.is_multiple_of(&target),
+        &mul_target.is_multiple_of(target),
         "mul_target should be multiples of target"
     );
     let rd = Roots::sqrt(&mul_target); // root of k*N
@@ -210,7 +210,7 @@ where
                     if new_u == u {
                         break;
                     } else {
-                        u = new_u
+                        u = new_u;
                     }
                 }
 
@@ -277,7 +277,7 @@ pub const SQUFOF_MULTIPLIERS: [u16; 38] = [
 ///
 ///
 /// The one line factorization algorithm is especially good at factoring semiprimes with form pq,
-/// where p = next_prime(c^a+d1), p = next_prime(c^b+d2), a and b are close, and c, d1, d2 are small integers.
+/// where p = `next_prime(c^a+d1`), p = `next_prime(c^b+d2`), a and b are close, and c, d1, d2 are small integers.
 ///
 /// Reference: Hart, W. B. (2012). A one line factoring algorithm. Journal of the Australian Mathematical Society, 92(1), 61-69. doi:10.1017/S1446788712000146
 // TODO: add multipliers preset for one_line method?
@@ -290,7 +290,7 @@ where
     for<'r> &'r T: RefNum<T>,
 {
     assert!(
-        &mul_target.is_multiple_of(&target),
+        &mul_target.is_multiple_of(target),
         "mul_target should be multiples of target"
     );
 
@@ -306,13 +306,13 @@ where
         }
 
         // prevent overflow
-        ikn = if let Some(n) = (&ikn).checked_add(&mul_target) {
+        ikn = if let Some(n) = ikn.checked_add(&mul_target) {
             n
         } else {
             return (None, i);
         }
     }
-    return (None, max_iter);
+    (None, max_iter)
 }
 
 // TODO: ECM, (self initialize) Quadratic sieve, Lehman's Fermat(https://en.wikipedia.org/wiki/Fermat%27s_factorization_method, n_factor_lehman)
@@ -335,7 +335,7 @@ mod tests {
     fn pollard_rho_test() {
         assert_eq!(pollard_rho(&8051u16, 2, 1, 100).0, Some(97));
         assert!(matches!(pollard_rho(&8051u16, random(), 1, 100).0, Some(i) if i == 97 || i == 83));
-        assert_eq!(pollard_rho(&455459u32, 2, 1, 100).0, Some(743));
+        assert_eq!(pollard_rho(&455_459_u32, 2, 1, 100).0, Some(743));
 
         // Mint test
         for _ in 0..10 {
@@ -365,34 +365,34 @@ mod tests {
             12851,
             13289,
             75301,
-            120787,
-            967009,
-            997417,
-            7091569,
-            5214317,
-            20834839,
-            23515517,
-            33409583,
-            44524219,
-            13290059,
-            223553581,
-            2027651281,
-            11111111111,
-            100895598169,
-            60012462237239,
-            287129523414791,
-            9007199254740931,
-            11111111111111111,
-            314159265358979323,
-            384307168202281507,
-            419244183493398773,
-            658812288346769681,
-            922337203685477563,
-            1000000000000000127,
-            1152921505680588799,
-            1537228672809128917,
+            120_787,
+            967_009,
+            997_417,
+            7_091_569,
+            5_214_317,
+            20_834_839,
+            23_515_517,
+            33_409_583,
+            44_524_219,
+            13_290_059,
+            223_553_581,
+            2_027_651_281,
+            11_111_111_111,
+            100_895_598_169,
+            60_012_462_237_239,
+            287_129_523_414_791,
+            9_007_199_254_740_931,
+            11_111_111_111_111_111,
+            314_159_265_358_979_323,
+            384_307_168_202_281_507,
+            419_244_183_493_398_773,
+            658_812_288_346_769_681,
+            922_337_203_685_477_563,
+            1_000_000_000_000_000_127,
+            1_152_921_505_680_588_799,
+            1_537_228_672_809_128_917,
             // this case should success at step 276, from https://rosettacode.org/wiki/Talk:Square_form_factorization
-            4558849,
+            4_558_849,
         ];
         for n in cases {
             let d = squfof(&n, n, 40000)
@@ -401,7 +401,7 @@ mod tests {
                 .or(squfof(&n, 5 * n, 40000).0)
                 .or(squfof(&n, 7 * n, 40000).0)
                 .or(squfof(&n, 11 * n, 40000).0);
-            assert!(matches!(d, Some(_)), "{}", n);
+            assert!(d.is_some(), "{}", n);
         }
     }
 

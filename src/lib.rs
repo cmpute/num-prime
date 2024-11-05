@@ -26,8 +26,8 @@
 //!   - [Moebius function][nt_funcs::moebius]
 //!
 //! # Usage
-//! Most number theoretic functions can be found in [nt_funcs] module, while some
-//! of them are implemented as member function of [num_modular::ModularOps] or [PrimalityUtils].
+//! Most number theoretic functions can be found in [`nt_funcs`] module, while some
+//! of them are implemented as member function of [`num_modular::ModularOps`] or [`PrimalityUtils`].
 //!
 //! Example code for primality testing and integer factorization:
 //! ```rust
@@ -52,9 +52,9 @@
 //! This crate is built with modular integer type and prime generation backends.
 //! Most functions support generic input types, and support for `num-bigint` is
 //! also available (it's an optional feature). To make a new integer type supported
-//! by this crate, the type has to implement [detail::PrimalityBase] and [detail::PrimalityRefBase].
+//! by this crate, the type has to implement [`detail::PrimalityBase`] and [`detail::PrimalityRefBase`].
 //! For prime generation, there's a builtin implementation (see [buffer] module),
-//! but you can also use other backends (such as `primal`) as long as it implements [PrimeBuffer].
+//! but you can also use other backends (such as `primal`) as long as it implements [`PrimeBuffer`].
 //!
 //! # Optional Features
 //! - `big-int` (default): Enable this feature to support `num-bigint::BigUint` as integer inputs.

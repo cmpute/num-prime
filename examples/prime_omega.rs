@@ -10,7 +10,7 @@ fn prime_omega(target: u64) -> usize {
 /// Reference: <https://en.wikipedia.org/wiki/Prime_omega_function>
 #[allow(non_snake_case)]
 fn prime_Omega(target: u64) -> usize {
-    factorize64(target).into_iter().map(|(_, e)| e).sum()
+    factorize64(target).into_values().sum()
 }
 
 fn main() {

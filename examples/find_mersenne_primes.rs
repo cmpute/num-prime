@@ -11,6 +11,6 @@ fn list_mersenne() -> Vec<u64> {
 fn main() {
     println!("Mersenne primes under 2^128:");
     for p in list_mersenne() {
-        println!("2^{} - 1", p);
+        println!("2^{p} - 1");
     }
 }

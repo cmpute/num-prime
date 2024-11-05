@@ -1,12 +1,12 @@
-//! Implementations and extensions for [PrimeBuffer], which represents a container of primes
+//! Implementations and extensions for [`PrimeBuffer`], which represents a container of primes
 //!
 //! In `num-prime`, there is no global instance to store primes, the user has to generate
-//! and store the primes themselves. The trait [PrimeBuffer] defines a unified interface
+//! and store the primes themselves. The trait [`PrimeBuffer`] defines a unified interface
 //! for a prime number container. Some methods that can take advantage of pre-generated
-//! primes will be implemented in the [PrimeBufferExt] trait.
+//! primes will be implemented in the [`PrimeBufferExt`] trait.
 //!
-//! We also provide [NaiveBuffer] as a simple implementation of [PrimeBuffer] without any
-//! external dependencies. The performance of the [NaiveBuffer] will not be extremely optimized,
+//! We also provide [`NaiveBuffer`] as a simple implementation of [`PrimeBuffer`] without any
+//! external dependencies. The performance of the [`NaiveBuffer`] will not be extremely optimized,
 //! but it will be efficient enough for most applications.
 //!
 
@@ -30,7 +30,7 @@ use std::num::NonZeroUsize;
 pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
     /// Test if an integer is a prime.
     ///
-    /// For targets smaller than 2^64, the deterministic [is_prime64] will be used, otherwise
+    /// For targets smaller than 2^64, the deterministic [`is_prime64`] will be used, otherwise
     /// the primality test algorithms can be specified by the `config` argument.
     ///
     /// The primality test can be either deterministic or probabilistic for large integers depending on the `config`.
@@ -61,7 +61,7 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
             };
         }
 
-        let config = config.unwrap_or(PrimalityTestConfig::default());
+        let config = config.unwrap_or_default();
         let mut probability = 1.;
 
         // miller-rabin test
@@ -74,7 +74,7 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
             for _ in 0..config.sprp_random_trials {
                 // we have ensured target is larger than 2^64
                 let mut w: u64 = rand::random();
-                while witness_list.iter().find(|&x| x == &w).is_some() {
+                while witness_list.iter().any(|x| x == &w) {
                     w = rand::random();
                 }
                 witness_list.push(w);
@@ -130,10 +130,10 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
                 .collect();
             return (factors, None);
         }
-        let config = config.unwrap_or(FactorizationConfig::default());
+        let config = config.unwrap_or_default();
 
         // test the existing primes
-        let (result, factored) = trial_division(self.iter().cloned(), target, config.td_limit);
+        let (result, factored) = trial_division(self.iter().copied(), target, config.td_limit);
         let mut result: BTreeMap<T, usize> = result
             .into_iter()
             .map(|(k, v)| (T::from_u64(k).unwrap(), v))
@@ -159,13 +159,11 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
                         .probably()
                     {
                         *result.entry(target).or_insert(0) += 1;
+                    } else if let Some(divisor) = self.divisor(&target, &mut config) {
+                        todo.push(divisor.clone());
+                        todo.push(target / divisor);
                     } else {
-                        if let Some(divisor) = self.divisor(&target, &mut config) {
-                            todo.push(divisor.clone());
-                            todo.push(target / divisor);
-                        } else {
-                            failed.push(target);
-                        }
+                        failed.push(target);
                     }
                 }
             }
@@ -242,7 +240,7 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
             config.rho_trials -= 1;
             // TODO: change to a reasonable pollard rho limit
             // TODO: add other factorization methods
-            if let (Some(p), _) = pollard_rho(target, start, offset, 1048576) {
+            if let (Some(p), _) = pollard_rho(target, start, offset, 1_048_576) {
                 return Some(p);
             }
         }
@@ -253,16 +251,23 @@ pub trait PrimeBufferExt: for<'a> PrimeBuffer<'a> {
 
 impl<T> PrimeBufferExt for T where for<'a> T: PrimeBuffer<'a> {}
 
-/// NaiveBuffer implements a very simple Sieve of Eratosthenes
+/// `NaiveBuffer` implements a very simple Sieve of Eratosthenes
 pub struct NaiveBuffer {
     list: Vec<u64>, // list of found prime numbers
     next: u64, // all primes smaller than this value has to be in the prime list, should be an odd number
 }
 
+impl Default for NaiveBuffer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NaiveBuffer {
     #[inline]
+    #[must_use]
     pub fn new() -> Self {
-        let list = SMALL_PRIMES.iter().map(|&p| p as u64).collect();
+        let list = SMALL_PRIMES.iter().map(|&p| u64::from(p)).collect();
         NaiveBuffer {
             list,
             next: SMALL_PRIMES_NEXT,
@@ -355,6 +360,7 @@ impl NaiveBuffer {
     }
 
     /// Returns all primes ≤ `limit` and takes ownership. The primes are sorted.
+    #[must_use]
     pub fn into_primes(mut self, limit: u64) -> std::vec::IntoIter<u64> {
         self.reserve(limit);
         let position = match self.list.binary_search(&limit) {
@@ -362,7 +368,7 @@ impl NaiveBuffer {
             Err(p) => p,
         }; // into_ok_or_err()
         self.list.truncate(position);
-        return self.list.into_iter();
+        self.list.into_iter()
     }
 
     /// Returns primes of certain amount counting from 2. The primes are sorted.
@@ -375,13 +381,14 @@ impl NaiveBuffer {
     }
 
     /// Returns primes of certain amount counting from 2 and takes ownership. The primes are sorted.
+    #[must_use]
     pub fn into_nprimes(mut self, count: usize) -> std::vec::IntoIter<u64> {
         let (_, bound) = nth_prime_bounds(&(count as u64))
             .expect("Estimated size of the largest prime will be larger than u64 limit");
         self.reserve(bound);
         debug_assert!(self.list.len() >= count);
         self.list.truncate(count);
-        return self.list.into_iter();
+        self.list.into_iter()
     }
 
     /// Get the n-th prime (n counts from 1).
@@ -414,7 +421,7 @@ impl NaiveBuffer {
         x
     }
 
-    /// Legendre's phi function, used as a helper function for [Self::prime_pi]
+    /// Legendre's phi function, used as a helper function for [`Self::prime_pi`]
     pub fn prime_phi(&mut self, x: u64, a: usize, cache: &mut LruCache<(u64, usize), u64>) -> u64 {
         if a == 1 {
             return (x + 1) / 2;
@@ -459,19 +466,19 @@ impl NaiveBuffer {
         let mut phi_cache = LruCache::new(cache_cap);
         let mut sum =
             self.prime_phi(limit, a as usize, &mut phi_cache) + (b + a - 2) * (b - a + 1) / 2;
-        for i in a + 1..b + 1 {
+        for i in (a + 1)..=b {
             let w = limit / self.nth_prime(i);
             sum -= self.prime_pi(w);
             if i <= c {
                 let l = self.prime_pi(w.sqrt());
                 sum += (l * (l - 1) - i * (i - 3)) / 2 - 1;
-                for j in i..(l + 1) {
+                for j in i..=l {
                     let pj = self.nth_prime(j);
                     sum -= self.prime_pi(w / pj);
                 }
             }
         }
-        return sum;
+        sum
     }
 }
 
@@ -496,12 +503,12 @@ mod tests {
         ];
 
         let mut pb = NaiveBuffer::new();
-        assert_eq!(pb.primes(50).cloned().collect::<Vec<_>>(), PRIME50);
-        assert_eq!(pb.primes(300).cloned().collect::<Vec<_>>(), PRIME300);
+        assert_eq!(pb.primes(50).copied().collect::<Vec<_>>(), PRIME50);
+        assert_eq!(pb.primes(300).copied().collect::<Vec<_>>(), PRIME300);
 
         // test when limit itself is a prime
         pb.clear();
-        assert_eq!(pb.primes(293).cloned().collect::<Vec<_>>(), PRIME300);
+        assert_eq!(pb.primes(293).copied().collect::<Vec<_>>(), PRIME300);
         pb = NaiveBuffer::new();
         assert_eq!(*pb.primes(257).last().unwrap(), 257); // boundary of small table
         pb = NaiveBuffer::new();
@@ -511,15 +518,15 @@ mod tests {
     #[test]
     fn nth_prime_test() {
         let mut pb = NaiveBuffer::new();
-        assert_eq!(pb.nth_prime(10000), 104729);
-        assert_eq!(pb.nth_prime(20000), 224737);
-        assert_eq!(pb.nth_prime(10000), 104729); // use existing primes
+        assert_eq!(pb.nth_prime(10000), 104_729);
+        assert_eq!(pb.nth_prime(20000), 224_737);
+        assert_eq!(pb.nth_prime(10000), 104_729); // use existing primes
 
         // Riemann zeta based, test on OEIS:A006988
-        assert_eq!(pb.nth_prime(10u64.pow(4)), 104729);
-        assert_eq!(pb.nth_prime(10u64.pow(5)), 1299709);
-        assert_eq!(pb.nth_prime(10u64.pow(6)), 15485863);
-        assert_eq!(pb.nth_prime(10u64.pow(7)), 179424673);
+        assert_eq!(pb.nth_prime(10u64.pow(4)), 104_729);
+        assert_eq!(pb.nth_prime(10u64.pow(5)), 1_299_709);
+        assert_eq!(pb.nth_prime(10u64.pow(6)), 15_485_863);
+        assert_eq!(pb.nth_prime(10u64.pow(7)), 179_424_673);
     }
 
     #[test]
@@ -539,8 +546,8 @@ mod tests {
         // Meissel–Lehmer algorithm, test on OEIS:A006880
         assert_eq!(pb.prime_pi(10u64.pow(5)), 9592);
         assert_eq!(pb.prime_pi(10u64.pow(6)), 78498);
-        assert_eq!(pb.prime_pi(10u64.pow(7)), 664579);
-        assert_eq!(pb.prime_pi(10u64.pow(8)), 5761455);
+        assert_eq!(pb.prime_pi(10u64.pow(7)), 664_579);
+        assert_eq!(pb.prime_pi(10u64.pow(8)), 5_761_455);
     }
 
     #[test]
@@ -573,7 +580,7 @@ mod tests {
         }
 
         // test large numbers
-        const P: u128 = 18699199384836356663; // https://golang.org/issue/638
+        const P: u128 = 18_699_199_384_836_356_663; // https://golang.org/issue/638
         assert!(matches!(pb.is_prime(&P, None), Primality::Probable(_)));
         assert!(matches!(
             pb.is_prime(&P, Some(PrimalityTestConfig::bpsw())),
@@ -588,7 +595,7 @@ mod tests {
             Primality::Probable(_)
         ));
 
-        const P2: u128 = 2019922777445599503530083;
+        const P2: u128 = 2_019_922_777_445_599_503_530_083;
         assert!(matches!(pb.is_prime(&P2, None), Primality::Probable(_)));
         assert!(matches!(
             pb.is_prime(&P2, Some(PrimalityTestConfig::bpsw())),
