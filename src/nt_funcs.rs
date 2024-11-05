@@ -24,7 +24,6 @@ use crate::tables::{SMALL_PRIMES_INV, ZETA_LOG_TABLE};
 use crate::traits::{FactorizationConfig, Primality, PrimalityTestConfig, PrimalityUtils};
 use crate::{BitTest, ExactRoots};
 use num_integer::Roots;
-#[cfg(feature = "num-bigint")]
 use num_modular::DivExact;
 use num_modular::{ModularCoreOps, ModularInteger, MontgomeryInt};
 use num_traits::{CheckedAdd, FromPrimitive, Num, RefNum, ToPrimitive};
